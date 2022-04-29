@@ -6,4 +6,4 @@ a criminal, who has a far superior vessel, and finally confronts him.
 Currently it is an endless game with inly the main ship and asteroids, no UI, spaghetti code and only one file.
 
 ## Running
-(for linux) In order to run this program, you have to compile it with the fpc compiler (`fpc stopwatch.pas`), and run the generated executable file.
+(for linux) In order to run this program, you have to compile it with the fpc compiler (`fpc shootemup.pas`), and run the generated executable file.
