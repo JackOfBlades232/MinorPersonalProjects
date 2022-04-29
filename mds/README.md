@@ -7,3 +7,6 @@ Core functionality is unfinished, no tests yet.
 
 ## Links
 https://cvgmt.sns.it/media/doc/paper/5424/mds-mms1.pdf -- the algorithm is given in section 3.1
+
+## Running
+(for linux) In order to run this program, you have to compile it with the fpc compiler (`fpc stopwatch.pas`), and run the generated executable file.
