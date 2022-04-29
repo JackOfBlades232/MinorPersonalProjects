@@ -1,0 +1,10 @@
+*
+!*.*
+
+*.bin
+
+*.txt
+!example*.txt
+
+*.o
+*.so
