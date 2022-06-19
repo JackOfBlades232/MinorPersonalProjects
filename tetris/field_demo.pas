@@ -2,6 +2,7 @@ program FieldDemo; { field_demo.pas }
 uses crt, field;
 var
     f: TetrisField;
+    p: FieldPosition;
     SaveTextAttr: integer;
 begin
     SaveTextAttr := TextAttr;
@@ -11,16 +12,20 @@ begin
     FieldDrawBounds;
     FieldInit(f);
     delay(2000);
-    f.squares[2][2].color := red;
-    FieldDrawSquare(2, 2, f);
+    FieldSetPosition(2, 2, p);
+    FieldDrawSquare(p, red, true, f);
     delay(2000);
-    FieldDrawSquare(10, 13, f);
-    FieldDrawSquare(5, 6, f);
+    FieldSetPosition(10, 13, p);
+    FieldDrawSquare(p, white, false, f);
+    FieldSetPosition(5, 6, p);
+    FieldDrawSquare(p, white, false, f);
     delay(2000);
-    FieldHideSquare(2, 2, f);
+    FieldSetPosition(2, 2, p);
+    FieldHideSquare(p, f);
     delay(1000);
     FieldClear(f);
     delay(2000);
-    TextAttr := SaveTextAttr;
-    clrscr
+    FieldDeinit(f);
+    delay(1000);
+    TextAttr := SaveTextAttr
 end.

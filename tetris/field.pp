@@ -6,6 +6,7 @@ const
     FieldHeight = 15;
 
 type
+    FieldPosition = array [1..2] of integer;
     FieldSquare = record
         color: word;
         IsFilled, IsInFigure: boolean;
@@ -18,11 +19,19 @@ type
 
 procedure FieldCheckTerminalWindow;
 procedure FieldDrawBounds;
+procedure FieldSetPosition(i, j: integer; var p: FieldPosition);
+procedure FieldModifyPosition(di, dj: integer; var p: FieldPosition);
 procedure FieldInit(var field: TetrisField);
-procedure FieldDrawSquare(i, j: integer; var field: TetrisField);
-procedure FieldHideSquare(i, j: integer; var field: TetrisField);
-function FieldPointIsInBounds(i, j: integer): boolean;
+procedure FieldDrawSquare(p: FieldPosition; color: word;
+    IsFigure: boolean; var field: TetrisField);
+procedure FieldHideSquare(p: FieldPosition; var field: TetrisField);
+procedure FieldGetSquare(p: FieldPosition; 
+    var field: TetrisField; var square: FieldSquare);
+procedure FieldReleaseSquare(p: FieldPosition; var field: TetrisField);
+{ procedure FieldDeleteFullRows(var field: TetrisField); }
+function FieldPointIsInBounds(p: FieldPosition): boolean;
 procedure FieldClear(var field: TetrisField);
+procedure FieldDeinit(var field: TetrisField);
 
 implementation
 uses crt;
@@ -76,6 +85,17 @@ begin
     GotoXY(1, 1)
 end;
 
+procedure FieldSetPosition(i, j: integer; var p: FieldPosition);
+begin
+    p[1] := i;
+    p[2] := j
+end;
+
+procedure FieldModifyPosition(di, dj: integer; var p: FieldPosition);
+begin
+    FieldSetPosition(p[1] + di, p[2] + dj, p)
+end;
+
 procedure FieldInit(var field: TetrisField);
 var
     i, j: integer;
@@ -90,10 +110,10 @@ begin
         end
 end;
 
-function FieldPointIsInBounds(i, j: integer): boolean;
+function FieldPointIsInBounds(p: FieldPosition): boolean;
 begin
-    FieldPointIsInBounds := (i >=  1) and (j >= 1) and
-        (i <= FieldWidth) and (j <= FieldHeight)
+    FieldPointIsInBounds := (p[1] >=  1) and (p[2] >= 1) and
+        (p[1] <= FieldWidth) and (p[2] <= FieldHeight)
 end;
 
 procedure FillSquare(symbol: char; i, j: integer);
@@ -111,7 +131,8 @@ begin
     GotoXY(1, 1)
 end;
 
-procedure FieldDrawSquare(i, j: integer; var field: TetrisField);
+procedure FieldDrawSquare(p: FieldPosition; color: word;
+    IsFigure: boolean; var field: TetrisField);
 begin
     if not field.IsInitialized then
     begin
@@ -120,42 +141,141 @@ begin
         {$ENDIF DEBUG}
         exit
     end;
-    if not FieldPointIsInBounds(i, j) then
+    if not FieldPointIsInBounds(p) then
     begin
         {$IFDEF DEBUG}
-        writeln(
-            'DEBUG: trying to draw square out of bounds, x: ', i, ', y: ', j);
+        writeln('DEBUG: trying to draw square out of bounds, x: ',
+            p[1], ', y: ', p[2]);
         {$ENDIF DEBUG}
         exit
     end;
-    TextColor(field.squares[i][j].color);
-    FillSquare(SquareFillSymbol, i, j);
-    field.squares[i][j].IsFilled := true
+    TextColor(color);
+    FillSquare(SquareFillSymbol, p[1], p[2]);
+    field.squares[p[1]][p[2]].color := color;
+    field.squares[p[1]][p[2]].IsFilled := true;
+    field.squares[p[1]][p[2]].IsInFigure := IsFigure
 end;
 
-procedure FieldHideSquare(i, j: integer; var field: TetrisField);
+procedure FieldHideSquare(p: FieldPosition; var field: TetrisField);
 begin
-    if not FieldPointIsInBounds(i, j) then
+    if not FieldPointIsInBounds(p) then
     begin
         {$IFDEF DEBUG}
-        writeln(
-            'DEBUG: trying to hide square out of bounds, x: ', i, ', y: ', j);
+        writeln('DEBUG: trying to hide square out of bounds, x: ',
+            p[1], ', y: ', p[2]);
         {$ENDIF DEBUG}
         exit
     end;
-    FillSquare(' ', i, j);
-    field.squares[i][j].IsFilled := false;
-    field.squares[i][j].IsInFigure := false
+    FillSquare(' ', p[1], p[2]);
+    field.squares[p[1]][p[2]].color := white;
+    field.squares[p[1]][p[2]].IsFilled := false;
+    field.squares[p[1]][p[2]].IsInFigure := false
+end;
+
+procedure FieldGetSquare(p: FieldPosition; 
+    var field: TetrisField; var square: FieldSquare);
+begin
+    if not FieldPointIsInBounds(p) then
+    begin
+        {$IFDEF DEBUG}
+        writeln('DEBUG: trying to get square out of bounds, x: ',
+            p[1], ', y: ', p[2]);
+        {$ENDIF DEBUG}
+        exit
+    end;
+    square := field.squares[p[1]][p[2]]
+end;
+
+procedure FieldReleaseSquare(p: FieldPosition; var field: TetrisField);
+begin
+    if not FieldPointIsInBounds(p) then
+    begin
+        {$IFDEF DEBUG}
+        writeln('DEBUG: trying to release square out of bounds, x: ',
+            p[1], ', y: ', p[2]);
+        {$ENDIF DEBUG}
+        exit
+    end;
+    field.squares[p[1]][p[2]].IsInFigure := false
+end;
+
+procedure MoveSquareDown(p: FieldPosition;
+    n: integer; var field: TetrisField);
+var
+    NewPos: FieldPosition;
+    s: FieldSquare;
+begin
+    FieldGetSquare(p, field, s);
+    NewPos := p;
+    NewPos[2] := p[2] - n;
+    if NewPos[2] < 1 then
+        NewPos[2] := 1;
+    field.squares[NewPos[1]][NewPos[2]].color := s.color;
+    field.squares[NewPos[1]][NewPos[2]].IsFilled := s.IsFilled;
+end;
+
+procedure MoveLineDown(index: integer; n: integer; var field: TetrisField);
+var 
+    i: integer;
+    p: FieldPosition;
+begin
+    if (index < 1) or (index > FieldHeight) then
+        exit;
+    for i := 1 to FieldWidth do
+    begin
+        FieldSetPosition(i, index, p);
+        MoveSquareDown(p, n, field)
+    end
+end;
+
+procedure HideLine(index: integer; n: integer; var field: TetrisField);
+var 
+    i: integer;
+begin
+    if (index < 1) or (index > FieldHeight) then
+        exit;
+    for i := 1 to FieldWidth do
+    begin
+        field.squares[i][index].color := white;
+        field.squares[i][index].IsFilled := false
+    end
+end;
+
+procedure RedrawField(var field: TetrisField);
+var
+    p: FieldPosition;
+    s: FieldSquare;
+    i, j: integer;
+begin
+    for i := 1 to FieldWidth do
+        for j := 1 to FieldHeight do
+        begin
+            FieldSetPosition(i, j, p);
+            FieldGetSquare(p, field, s);
+            if s.IsFilled then
+                FieldDrawSquare(p, s.color, s.IsInFigure, field)
+            else
+                FieldHideSquare(p, field)
+        end
 end;
 
 procedure FieldClear(var field: TetrisField);
 var
     i, j: integer;
+    p: FieldPosition;
 begin
-    field.IsInitialized := false;
     for i := 1 to FieldWidth do
         for j := 1 to FieldHeight do
-            FieldHideSquare(i, j, field)
+        begin
+            FieldSetPosition(i, j, p);
+            FieldHideSquare(p, field)
+        end
+end;
+
+procedure FieldDeinit(var field: TetrisField);
+begin
+    field.IsInitialized := false;
+    clrscr
 end;
 
 end.
