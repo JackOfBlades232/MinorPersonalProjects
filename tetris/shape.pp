@@ -33,6 +33,16 @@ procedure ShapeRelease(var shape: TetrisShape; var f: TetrisField);
 
 implementation
 uses crt;
+const
+	ColorCount = 16;
+var
+	AllColors: array [1..ColorCount] of word = 
+	(
+		Black, Blue, Green, Cyan,
+		Red, Magenta, Brown, LightGray,
+		DarkGray, LightBlue, LightGreen, LightCyan,
+		LightRed, LightMagenta, Yellow, White
+	);
 procedure ShapeReadFromFile(filename: string; var shape: TetrisShape);
 var
     f: text;
@@ -231,8 +241,7 @@ begin
     shape.position[1] := FieldWidth div 2;
     shape.position[2] := FieldHeight;
     shape.rotation := RandomRotation;
-    { TODO : add random color }
-    shape.color := white
+    shape.color := AllColors[random(ColorCount) + 1] 
 end;
 
 procedure ShapeSpawn(var buf: ShapeBuffer; var CurrentShapePtr: ShapePtr;
