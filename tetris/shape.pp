@@ -35,6 +35,7 @@ implementation
 uses crt;
 const
 	ColorCount = 16;
+	RotationCount = 4;
 var
 	AllColors: array [1..ColorCount] of word = 
 	(
@@ -43,6 +44,8 @@ var
 		DarkGray, LightBlue, LightGreen, LightCyan,
 		LightRed, LightMagenta, Yellow, White
 	);
+	AllRotations: array [1..RotationCount] of ShapeRotation =
+        (RotUp, RotRight, RotDown, RotLeft);
 procedure ShapeReadFromFile(filename: string; var shape: TetrisShape);
 var
     f: text;
@@ -219,28 +222,11 @@ begin
     ShapeDraw(shape, f)
 end;
 
-function RandomRotation: ShapeRotation;
-var
-    index: integer;
-begin
-    index := random(4);
-    case index of
-        0:
-            RandomRotation := RotUp;
-        1:
-            RandomRotation := RotRight;
-        2:
-            RandomRotation := RotDown;
-        3:
-            RandomRotation := RotLeft
-    end
-end;
-
 procedure ResetShape(var shape: TetrisShape);
 begin
     shape.position[1] := FieldWidth div 2;
     shape.position[2] := FieldHeight;
-    shape.rotation := RandomRotation;
+    shape.rotation := AllRotations[random(RotationCount) + 1];
     shape.color := AllColors[random(ColorCount) + 1] 
 end;
 
