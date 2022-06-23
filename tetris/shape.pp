@@ -6,11 +6,13 @@ const
     ShapeNumSquares = 4;
     ShapeTypeCount = 4;
 type
+    ShapeOrientation = (OrientNormal, OrientInverted);
     ShapeRotation = (RotUp, RotRight, RotDown, RotLeft);
     ShapeMoveDirection = (MoveDown, MoveLeft, MoveRight);
     TetrisShape = record
         color: word;
         position: FieldPosition;
+        orientation: ShapeOrientation;
         rotation: ShapeRotation;
         LocalCoordinates: array [1..ShapeNumSquares] of FieldPosition;
     end;
@@ -34,18 +36,19 @@ procedure ShapeRelease(var shape: TetrisShape; var f: TetrisField);
 implementation
 uses crt;
 const
-	ColorCount = 16;
+	ColorCount = 13;
 	RotationCount = 4;
 var
 	AllColors: array [1..ColorCount] of word = 
 	(
-		Black, Blue, Green, Cyan,
-		Red, Magenta, Brown, LightGray,
-		DarkGray, LightBlue, LightGreen, LightCyan,
+		Blue, Green, Cyan,
+		Red, Magenta, LightGray,
+		LightBlue, LightGreen, LightCyan,
 		LightRed, LightMagenta, Yellow, White
 	);
 	AllRotations: array [1..RotationCount] of ShapeRotation =
         (RotUp, RotRight, RotDown, RotLeft);
+
 procedure ShapeReadFromFile(filename: string; var shape: TetrisShape);
 var
     f: text;
@@ -76,42 +79,32 @@ end;
 
 function ShapePointGlobalCoordinates(index: integer;
     var shape: TetrisShape): FieldPosition;
+var
+    LocalX, LocalY: integer;
 begin
     ShapePointGlobalCoordinates := shape.position;
     case shape.rotation of
         RotUp: begin
-            ShapePointGlobalCoordinates[1] := 
-                ShapePointGlobalCoordinates[1] +
-                shape.LocalCoordinates[index][1];
-            ShapePointGlobalCoordinates[2] := 
-                ShapePointGlobalCoordinates[2] +
-                shape.LocalCoordinates[index][2]
+            LocalX := shape.LocalCoordinates[index][1];
+            LocalY := shape.LocalCoordinates[index][2]
         end;
         RotRight: begin
-            ShapePointGlobalCoordinates[1] := 
-                ShapePointGlobalCoordinates[1] +
-                shape.LocalCoordinates[index][2];
-            ShapePointGlobalCoordinates[2] := 
-                ShapePointGlobalCoordinates[2] -
-                shape.LocalCoordinates[index][1]
+            LocalX := shape.LocalCoordinates[index][2];
+            LocalY := -shape.LocalCoordinates[index][1]
         end;
         RotDown: begin
-            ShapePointGlobalCoordinates[1] := 
-                ShapePointGlobalCoordinates[1] -
-                shape.LocalCoordinates[index][1];
-            ShapePointGlobalCoordinates[2] := 
-                ShapePointGlobalCoordinates[2] -
-                shape.LocalCoordinates[index][2]
+            LocalX := -shape.LocalCoordinates[index][1];
+            LocalY := -shape.LocalCoordinates[index][2]
         end;
         RotLeft: begin
-            ShapePointGlobalCoordinates[1] := 
-                ShapePointGlobalCoordinates[1] -
-                shape.LocalCoordinates[index][2];
-            ShapePointGlobalCoordinates[2] := 
-                ShapePointGlobalCoordinates[2] +
-                shape.LocalCoordinates[index][1]
+            LocalX := -shape.LocalCoordinates[index][2];
+            LocalY := shape.LocalCoordinates[index][1]
         end
-    end
+    end;
+    if shape.orientation = OrientInverted then
+        LocalX := -LocalX;
+    ShapePointGlobalCoordinates[1] := ShapePointGlobalCoordinates[1] + LocalX;
+    ShapePointGlobalCoordinates[2] := ShapePointGlobalCoordinates[2] + LocalY
 end;
 
 function PositionIsNotEmptyOrInShape(p: FieldPosition; var f: TetrisField):
@@ -227,6 +220,10 @@ begin
     shape.position[1] := FieldWidth div 2;
     shape.position[2] := FieldHeight;
     shape.rotation := AllRotations[random(RotationCount) + 1];
+    if random(2) = 0 then
+        shape.orientation := OrientNormal
+    else
+        shape.orientation := OrientInverted;
     shape.color := AllColors[random(ColorCount) + 1] 
 end;
 

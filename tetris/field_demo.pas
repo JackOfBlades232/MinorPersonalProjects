@@ -30,7 +30,7 @@ begin
             FieldDrawSquare(p, white, false, f)
         end;
     delay(3000);
-    FieldDeleteFullRows(f);
+    FieldDeleteFullRows(i, f);
     delay(10000);
     FieldClear(f);
     delay(2000);

@@ -28,7 +28,7 @@ procedure FieldHideSquare(p: FieldPosition; var field: TetrisField);
 procedure FieldGetSquare(p: FieldPosition; 
     var field: TetrisField; var square: FieldSquare);
 procedure FieldReleaseSquare(p: FieldPosition; var field: TetrisField);
-procedure FieldDeleteFullRows(var field: TetrisField);
+procedure FieldDeleteFullRows(var NumLines: integer; var field: TetrisField);
 function FieldPointIsInBounds(p: FieldPosition): boolean;
 procedure FieldClear(var field: TetrisField);
 procedure FieldDeinit(var field: TetrisField);
@@ -245,14 +245,16 @@ begin
     LineIsFull := true
 end;
 
-procedure FieldDeleteFullRows(var field: TetrisField);
+procedure FieldDeleteFullRows(var NumLines: integer; var field: TetrisField);
 var
     i, j: integer;
 begin
     i := 1;
+    NumLines := 0;
     while i <= FieldHeight do
         if LineIsFull(i, field) then
         begin
+            NumLines := NumLines + 1;
             for j := i + 1 to FieldHeight do
                 MoveLineDown(j, field);
             HideLine(FieldHeight, field)

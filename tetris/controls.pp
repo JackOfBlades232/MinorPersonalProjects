@@ -3,7 +3,7 @@ interface
 
 type
     ControlsAction = 
-        (Idle, PressDown, PressLeft, PressRight, PressRotate);
+        (Idle, PressDown, PressLeft, PressRight, PressRotate, PressExit);
 
 procedure ControlsGet(var action: ControlsAction);
 
@@ -42,7 +42,9 @@ begin
             115: { s }
                 action := PressDown;
             32: { space }
-                action := PressRotate
+                action := PressRotate;
+            27: { escape }
+                action := PressExit
         end
     end
 end;
