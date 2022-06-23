@@ -15,10 +15,10 @@ begin
     FieldDrawBounds;
     FieldInit(f);
     delay(2000);
-    ShapeReadFromFile('figure1', buf[1]);
-    ShapeReadFromFile('figure2', buf[2]);
-    ShapeReadFromFile('figure3', buf[3]);
-    ShapeReadFromFile('figure4', buf[4]);
+    ShapeReadFromFile('figures/figure1', buf[1]);
+    ShapeReadFromFile('figures/figure2', buf[2]);
+    ShapeReadFromFile('figures/figure3', buf[3]);
+    ShapeReadFromFile('figures/figure4', buf[4]);
     ShapeSpawn(buf, s, f, ok);
     delay(1000);
     while not ShapeIsOnSurface(s^, f) do
