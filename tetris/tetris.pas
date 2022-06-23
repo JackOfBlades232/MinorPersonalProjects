@@ -43,13 +43,13 @@ begin
 StartGame:
     FieldClear(f);
     ScoreReset(sc); 
-    SkipFrames(InitDelayFrames);
     s := nil;
     QueuedAction := Idle;
     ScoreDraw(sc);
     FramesSinceMoved := 0;
     FramesSinceAction := 0;
     ReleaseWindowFrames := -1;
+    SkipFrames(InitDelayFrames);
     while true do
     begin
         if s = nil then
