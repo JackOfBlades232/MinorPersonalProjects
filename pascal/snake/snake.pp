@@ -1,7 +1,7 @@
 unit snake; { snake.pp }
 interface
 const
-    SnakeFoodBufferSize = 4;
+    SnakeFoodBufferSize = 20;
 type
     SnakeMoveDirection = (up, right, down, left);
     SnakeMoveResult = (eat, success, fail);
@@ -23,8 +23,6 @@ type
 procedure SnakeSpawn(var s: SnakeHead);
 procedure SnakeFoodBufferInit(var buf: SnakeFoodBuffer);
 procedure SnakeSpawnFood(var s: SnakeHead; var buf: SnakeFoodBuffer);
-procedure SnakeCollectFood(x, y: integer; 
-    var s: SnakeHead; var buf: SnakeFoodBuffer);
 procedure SnakeSetDirection(dir: SnakeMoveDirection; var s: SnakeHead);
 procedure SnakeMove(var s: SnakeHead;
     var buf: SnakeFoodBuffer; var res: SnakeMoveResult);
@@ -36,23 +34,29 @@ const
     HeadSymbol = '@';
     BodySymbol = 'o';
     FoodSymbol = '#';
+    MaxFoodSpawnTries = 1000;
+
+function NewScreenHeight: integer;
+begin
+    NewScreenHeight := ScreenHeight - 1
+end;
 
 procedure WrapCoordinates(var x, y: integer);
 begin
     while x < 1 do
         x := x + ScreenWidth;
     while y < 1 do
-        y := y + ScreenHeight;
+        y := y + NewScreenHeight;
     while x > ScreenWidth do
         x := x - ScreenWidth;
-    while y > ScreenHeight do
-        y := y +  ScreenHeight
+    while y > NewScreenHeight do
+        y := y - NewScreenHeight
 end;
 
 procedure DrawSymbol(x, y: integer; c: char);
 begin
     WrapCoordinates(x, y);
-    GotoXY(x, ScreenHeight + 1 - y);
+    GotoXY(x, NewScreenHeight + 1 - y);
     write(c);
     GotoXY(1, 1)
 end;
@@ -93,15 +97,19 @@ end;
 
 procedure SnakeSpawnFood(var s: SnakeHead; var buf: SnakeFoodBuffer);
 var
-    i: integer;
+    i, iter: integer;
 begin
     for i := 1 to SnakeFoodBufferSize do
     begin
         if buf[i].IsSpawned then
             continue;
+        iter := 1;
         repeat
             buf[i].x := random(ScreenWidth) + 1;
-            buf[i].y := random(ScreenHeight) + 1;
+            buf[i].y := random(NewScreenHeight) + 1;
+            if iter > MaxFoodSpawnTries then
+                exit;
+            iter := iter + 1;
         until (not PointIsFood(buf[i].x, buf[i].y, buf)) and
             (not PointIsInSnake(buf[i].x, buf[i].y, s));
         buf[i].IsSpawned := true;
@@ -163,7 +171,7 @@ begin
     s.dy := 0;
     new(s.node);
     s.node^.x := ScreenWidth div 2;
-    s.node^.y := ScreenHeight div 2;
+    s.node^.y := NewScreenHeight div 2;
     s.node^.next := nil;
     DrawSnakeNode(s.node, s)
 end;
@@ -176,8 +184,20 @@ begin
         buf[i].IsSpawned := false
 end;
 
+function CheckInverse(dx, dy: integer; var s: SnakeHead): boolean;
+begin
+    CheckInverse := false;
+    if (s.node = nil) or (s.node^.next = nil) then
+        exit;
+    if (s.node^.x + dx = s.node^.next^.x) and 
+        (s.node^.y + dy = s.node^.next^.y) then
+        CheckInverse := true
+end;
+
 procedure SetSnakeDXDY(dx, dy: integer; var s: SnakeHead);
 begin
+    if CheckInverse(dx, dy, s) then
+        exit;
     s.dx := dx;
     s.dy := dy
 end;
