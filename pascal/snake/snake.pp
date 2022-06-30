@@ -1,7 +1,7 @@
 unit snake; { snake.pp }
 interface
 const
-    SnakeFoodBufferSize = 20;
+    SnakeFoodBufferSize = 4;
 type
     SnakeMoveDirection = (up, right, down, left);
     SnakeMoveResult = (eat, success, fail);
@@ -34,7 +34,6 @@ const
     HeadSymbol = '@';
     BodySymbol = 'o';
     FoodSymbol = '#';
-    MaxFoodSpawnTries = 1000;
 
 function NewScreenHeight: integer;
 begin
@@ -97,19 +96,15 @@ end;
 
 procedure SnakeSpawnFood(var s: SnakeHead; var buf: SnakeFoodBuffer);
 var
-    i, iter: integer;
+    i: integer;
 begin
     for i := 1 to SnakeFoodBufferSize do
     begin
         if buf[i].IsSpawned then
             continue;
-        iter := 1;
         repeat
             buf[i].x := random(ScreenWidth) + 1;
             buf[i].y := random(NewScreenHeight) + 1;
-            if iter > MaxFoodSpawnTries then
-                exit;
-            iter := iter + 1;
         until (not PointIsFood(buf[i].x, buf[i].y, buf)) and
             (not PointIsInSnake(buf[i].x, buf[i].y, s));
         buf[i].IsSpawned := true;
@@ -184,19 +179,9 @@ begin
         buf[i].IsSpawned := false
 end;
 
-function CheckInverse(dx, dy: integer; var s: SnakeHead): boolean;
-begin
-    CheckInverse := false;
-    if (s.node = nil) or (s.node^.next = nil) then
-        exit;
-    if (s.node^.x + dx = s.node^.next^.x) and 
-        (s.node^.y + dy = s.node^.next^.y) then
-        CheckInverse := true
-end;
-
 procedure SetSnakeDXDY(dx, dy: integer; var s: SnakeHead);
 begin
-    if CheckInverse(dx, dy, s) then
+    if (s.dx = -dx) and (s.dy = -dy) then
         exit;
     s.dx := dx;
     s.dy := dy
