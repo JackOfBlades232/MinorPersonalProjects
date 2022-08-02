@@ -7,7 +7,7 @@ const
     InitDelayFrames = 70;
     NewFigureDelayFrames = 25;
     HumanMovementFrames = 25;
-    WinHeight = 11;
+    WinHeight = 12;
 
 procedure NextFrame;
 begin
