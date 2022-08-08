@@ -175,8 +175,8 @@ begin
 	HideAsteroid(a);
 	a.CurX := x;
 	a.CurY := -2;
-	a.dy := 1;
-	a.IsHidden := false
+	a.IsHidden := false;
+	a.dy := 1
 end;
 
 function AsteroidsTooClose(var a: AsteroidArray; x: integer): boolean;
