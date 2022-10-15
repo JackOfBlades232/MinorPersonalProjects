@@ -1,10 +1,16 @@
 *
+!/**/
 !*.*
 
 *.bin
 
 *.txt
-!example*.txt
+!solutions.txt
+!input_*.txt
 
 *.o
+*.a
 *.so
+*.ppu
+
+*.tgz
