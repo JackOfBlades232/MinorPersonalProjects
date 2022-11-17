@@ -3,11 +3,11 @@ unit hand; { hand.pp }
     Contains data structure and functionality for a player's hand
 }
 interface
-uses card;
+uses card, deck;
 const
-    MaxHandSize = 6;
+    NormalHandSize = 6;
 type
-    PlayerHand = array [1..MaxHandSize] of CardPtr;
+    PlayerHand = array [1..DeckSize] of CardPtr;
 
 function NumCardsInHand(var h: PlayerHand): integer;
 procedure AddCard(var h: PlayerHand; c: CardPtr; var success: boolean);
@@ -20,7 +20,7 @@ var
     i: integer;
 begin
     NumCardsInHand := 0;
-    for i := 1 to MaxHandSize do
+    for i := 1 to DeckSize do
         if h[i] <> nil then
             NumCardsInHand := NumCardsInHand + 1
 end;
@@ -31,9 +31,9 @@ procedure AddCard(var h: PlayerHand; c: CardPtr; var success: boolean);
 var
     i: integer;
 begin
-    success := (NumCardsInHand(h) < MaxHandSize) and (not CardIsInHand(h, c));
+    success := (NumCardsInHand(h) < DeckSize) and (not CardIsInHand(h, c));
     if success then
-        for i := 1 to MaxHandSize do
+        for i := 1 to DeckSize do
             if h[i] = nil then
             begin
                 h[i] := c;
@@ -47,7 +47,7 @@ var
 begin
     success := CardIsInHand(c);
     if success then
-        for i := 1 to MaxHandSize do
+        for i := 1 to DeckSize do
             if h[i] = c then
             begin
                 h[i] := nil;
@@ -60,7 +60,7 @@ var
     i: integer;
 begin
     CardIsInHand := false;
-    for i := 1 to MaxHandSize do
+    for i := 1 to DeckSize do
         if h[i] = c then
         begin
             CardIsInHand = true;
