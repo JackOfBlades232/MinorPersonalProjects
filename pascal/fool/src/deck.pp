@@ -18,6 +18,7 @@ function RemainingDeckSize(var d: CardDeck): integer;
 procedure TryTakeTopCard(var d: CardDeck; var c: CardPtr; var success: boolean);
 procedure TryGetTrumpSuit(var d: CardDeck;
     var trump: CardSuit; var success: boolean); 
+
     
 implementation
 

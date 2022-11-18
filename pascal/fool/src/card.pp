@@ -23,6 +23,7 @@ var
 function CompareCards(card1, card2: PlayingCard; TrumpSuit: CardSuit): integer;
 function RandomCard: PlayingCard;
 
+
 implementation
 
 function CompareCards(card1, card2: PlayingCard; TrumpSuit: CardSuit): integer;

@@ -1,5 +1,5 @@
 program tests; { tests.pas }
-uses encounter, hand, deck, card;
+uses restock, encounter, hand, deck, card;
 var
     i: integer;
     ok: boolean;
@@ -57,32 +57,11 @@ begin
     h2p := @h2;
     InitHand(h1);
     InitHand(h2);
-    for i := 1 to NormalHandSize do
+    InitFillHands(h1, h2, d, ok);
+    if not ok then
     begin
-        TryTakeTopCard(d, p, ok);
-        if not ok then
-        begin
-            writeln(ErrOutput, 'Failed to take top card');
-            halt(1)
-        end;
-        AddCard(h1, p, ok);
-        if not ok then
-        begin
-            writeln(ErrOutput, 'Failed to add card to h1');
-            halt(1)
-        end;
-        TryTakeTopCard(d, p, ok);
-        if not ok then
-        begin
-            writeln(ErrOutput, 'Failed to take top card');
-            halt(1)
-        end;
-        AddCard(h2, p, ok);
-        if not ok then
-        begin
-            writeln(ErrOutput, 'Failed to add card to h2');
-            halt(1)
-        end
+        writeln(ErrOutput, 'Could not fill hands on start!');
+        halt(1)
     end;
     InitEncounter(e, h1p, h2p);
     IsAttackerTurn := true;
@@ -163,6 +142,58 @@ begin
         end
     end;
     writeln('Final:');
+    writeln('Hands:');
+    for i := 1 to DeckSize do
+    begin
+        if h1[i] <> nil then
+            write('P1: ', h1[i]^.value, ', ', h1[i]^.suit,  '; ');
+        if h2[i] <> nil then
+            write('P2: ', h2[i]^.value, ', ', h2[i]^.suit);
+        if (h1[i] <> nil) or (h2[i] <> nil) then
+            writeln
+    end;
+    writeln;
+    writeln('Table:');
+    for i := 1 to NormalHandSize do
+    begin
+        if e.AttackerTable[i] <> nil then
+            write('P1: ', e.AttackerTable[i]^.value, ', ',
+                e.AttackerTable[i]^.suit,  '; ');
+        if e.DefenderTable[i] <> nil then
+            write('P2: ', e.DefenderTable[i]^.value, ', ',
+                e.DefenderTable[i]^.suit);
+        if (e.AttackerTable[i] <> nil) or (e.DefenderTable[i] <> nil) then
+            writeln
+    end;
+    RestockHand(h1, d);
+    writeln;
+    writeln('Restock1:');
+    writeln('Hands:');
+    for i := 1 to DeckSize do
+    begin
+        if h1[i] <> nil then
+            write('P1: ', h1[i]^.value, ', ', h1[i]^.suit,  '; ');
+        if h2[i] <> nil then
+            write('P2: ', h2[i]^.value, ', ', h2[i]^.suit);
+        if (h1[i] <> nil) or (h2[i] <> nil) then
+            writeln
+    end;
+    writeln;
+    writeln('Table:');
+    for i := 1 to NormalHandSize do
+    begin
+        if e.AttackerTable[i] <> nil then
+            write('P1: ', e.AttackerTable[i]^.value, ', ',
+                e.AttackerTable[i]^.suit,  '; ');
+        if e.DefenderTable[i] <> nil then
+            write('P2: ', e.DefenderTable[i]^.value, ', ',
+                e.DefenderTable[i]^.suit);
+        if (e.AttackerTable[i] <> nil) or (e.DefenderTable[i] <> nil) then
+            writeln
+    end;
+    RestockHand(h2, d);
+    writeln;
+    writeln('Restock2:');
     writeln('Hands:');
     for i := 1 to DeckSize do
     begin
