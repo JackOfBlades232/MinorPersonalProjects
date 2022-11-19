@@ -13,17 +13,13 @@ procedure RestockHand(var h: PlayerHand; var d: CardDeck);
 implementation
 
 procedure TryMoveCardFromDeckToHand(var h: PlayerHand; var d: CardDeck;
-    var success: boolean); forward;
-
-procedure InitRestockHands(var h1, h2: PlayerHand;
-    var d: CardDeck; var ok: boolean);
+    var success: boolean);
+var
+    c: CardPtr;
 begin
-    ok := DeckIsFull(d) and HandIsEmpty(h1) and HandIsEmpty(h2);
-    if ok then
-    begin
-        RestockHand(h1, d);
-        RestockHand(h2, d)
-    end
+    TryTakeTopCard(d, c, success);
+    if success then
+        AddCard(h, c, success)
 end;
 
 procedure RestockHand(var h: PlayerHand; var d: CardDeck);
@@ -35,14 +31,15 @@ begin
         TryMoveCardFromDeckToHand(h, d, ok)
 end;
 
-procedure TryMoveCardFromDeckToHand(var h: PlayerHand; var d: CardDeck;
-    var success: boolean);
-var
-    c: CardPtr;
+procedure InitRestockHands(var h1, h2: PlayerHand;
+    var d: CardDeck; var ok: boolean);
 begin
-    TryTakeTopCard(d, c, success);
-    if success then
-        AddCard(h, c, success)
+    ok := DeckIsFull(d) and HandIsEmpty(h1) and HandIsEmpty(h2);
+    if ok then
+    begin
+        RestockHand(h1, d);
+        RestockHand(h2, d)
+    end
 end;
 
 end.

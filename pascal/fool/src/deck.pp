@@ -14,6 +14,7 @@ type
     end;
 
 procedure GenerateDeck(var d: CardDeck);
+procedure DisposeOfDeck(var d: CardDeck);
 function DeckIsEmpty(var d: CardDeck): boolean;
 function DeckIsFull(var d: CardDeck): boolean;
 function RemainingDeckSize(var d: CardDeck): integer;
@@ -24,8 +25,26 @@ procedure TryGetTrumpSuit(var d: CardDeck;
     
 implementation
 
-procedure ReconstructAllCards(var arr: DeckContent); forward;
-procedure RecreateCard(var c: CardPtr; SuitIdx, ValueIdx: integer); forward;
+procedure RecreateCard(var c: CardPtr; SuitIdx, ValueIdx: integer);
+begin
+    if c <> nil then
+        dispose(c);
+    new(c);
+    c^.suit := AllSuits[SuitIdx];
+    c^.value := AllValues[ValueIdx]
+end;
+
+procedure ReconstructAllCards(var arr: DeckContent);
+var
+    i, j, ArrIndex: integer;
+begin
+    for i := 1 to NumberOfSuits do
+        for j := 1 to NumberOfValues do
+        begin
+            ArrIndex := (i - 1) * NumberOfValues + j;
+            RecreateCard(arr[ArrIndex], i, j)
+        end
+end;
 
 procedure GenerateDeck(var d: CardDeck);
 var
@@ -44,25 +63,13 @@ begin
     d.TopIndex := 1
 end;
 
-procedure ReconstructAllCards(var arr: DeckContent);
+procedure DisposeOfDeck(var d: CardDeck);
 var
-    i, j, ArrIndex: integer;
+    i: integer;
 begin
-    for i := 1 to NumberOfSuits do
-        for j := 1 to NumberOfValues do
-        begin
-            ArrIndex := (i - 1) * NumberOfValues + j;
-            RecreateCard(arr[ArrIndex], i, j)
-        end
-end;
-
-procedure RecreateCard(var c: CardPtr; SuitIdx, ValueIdx: integer);
-begin
-    if c <> nil then
-        dispose(c);
-    new(c);
-    c^.suit := AllSuits[SuitIdx];
-    c^.value := AllValues[ValueIdx]
+    for i := 1 to DeckSize do
+        if d.content[i] <> nil then
+            dispose(d.content[i])
 end;
 
 function DeckIsEmpty(var d: CardDeck): boolean;

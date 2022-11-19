@@ -11,6 +11,7 @@ type
     PlayerHand = array [1..DeckSize] of CardPtr;
 
 procedure InitHand(var h: PlayerHand);
+procedure DisposeOfHand(var h: PlayerHand);
 function HandIsEmpty(var h: PlayerHand): boolean;
 function HandIsOverfilled(var h: PlayerHand): boolean;
 function NumCardsInHand(var h: PlayerHand): integer;
@@ -26,6 +27,15 @@ var
 begin
     for i := 1 to DeckSize do
         h[i] := nil
+end;
+
+procedure DisposeOfHand(var h: PlayerHand);
+var
+    i: integer;
+begin
+    for i := 1 to DeckSize do
+        if h[i] <> nil then
+            dispose(h[i])
 end;
 
 function HandIsEmpty(var h: PlayerHand): boolean;
@@ -46,22 +56,6 @@ begin
     for i := 1 to DeckSize do
         if h[i] <> nil then
             NumCardsInHand := NumCardsInHand + 1
-end;
-
-function CardIsInHand(var h: PlayerHand; c: CardPtr): boolean; forward;
-procedure SubstituteCard(var h: PlayerHand;
-    PrevCard, NewCard: CardPtr; var success: boolean); forward;
-
-procedure AddCard(var h: PlayerHand; c: CardPtr; var success: boolean);
-begin
-    success := not CardIsInHand(h, c);
-    if success then
-        SubstituteCard(h, nil, c, success)
-end;
-
-procedure RemoveCard(var h: PlayerHand; c: CardPtr; var success: boolean);
-begin
-    SubstituteCard(h, c, nil, success)
 end;
 
 function CardIsInHand(var h: PlayerHand; c: CardPtr): boolean;
@@ -90,6 +84,18 @@ begin
             success := true;
             break
         end
+end;
+
+procedure AddCard(var h: PlayerHand; c: CardPtr; var success: boolean);
+begin
+    success := not CardIsInHand(h, c);
+    if success then
+        SubstituteCard(h, nil, c, success)
+end;
+
+procedure RemoveCard(var h: PlayerHand; c: CardPtr; var success: boolean);
+begin
+    SubstituteCard(h, c, nil, success)
 end;
 
 end.
