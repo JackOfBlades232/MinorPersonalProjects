@@ -123,7 +123,12 @@ begin
         begin
             if inp <= 0 then
             begin
-                GiveUpEncounter(e);
+                GiveUpEncounter(e, ok);
+                if not ok then
+                begin
+                    writeln(ErrOutput, 'Defender could not take all cards!');
+                    halt(1)
+                end;
                 break
             end;
             for i := 1 to DeckSize do

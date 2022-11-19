@@ -14,11 +14,12 @@ type
 procedure InitEncounter(var enc: EncounterData;
     var attacker, defender: PlayerHandPtr);
 procedure FinishEncounter(var enc: EncounterData);
-procedure GiveUpEncounter(var enc: EncounterData);
+procedure GiveUpEncounter(var enc: EncounterData; var ok: boolean);
 procedure AttackerTryPlayCard(var enc: EncounterData; 
     c: CardPtr; var success: boolean);
 procedure DefenderTryPlayCard(var enc: EncounterData;
     c: CardPtr; trump: CardSuit; var success: boolean);
+function EncounterIsFull(var enc: EncounterData): boolean;
 
 
 implementation
@@ -44,14 +45,7 @@ begin
     end
 end;
 
-procedure DisposeAndDeinitCard(var c: CardPtr);
-var
-    tmp: CardPtr;
-begin
-    tmp := c;
-    c := nil;
-    dispose(tmp)
-end;
+procedure DisposeAndDeinitCard(var c: CardPtr); forward;
 
 procedure FinishEncounter(var enc: EncounterData);
 var
@@ -66,19 +60,36 @@ begin
     end
 end;
 
-procedure GiveUpEncounter(var enc: EncounterData);
+procedure DisposeAndDeinitCard(var c: CardPtr);
+begin
+    dispose(c);
+    c := nil
+end;
+
+procedure FlushTableToDefenderHand(var enc: EncounterData; 
+    var t: TableCardArray; var success: boolean); forward;
+
+procedure GiveUpEncounter(var enc: EncounterData; var ok: boolean);
+begin
+    ok := true;
+    FlushTableToDefenderHand(enc, enc.AttackerTable, ok);
+    FlushTableToDefenderHand(enc, enc.DefenderTable, ok);
+    ResetTableCards(enc)
+end;
+
+procedure FlushTableToDefenderHand(var enc: EncounterData; 
+    var t: TableCardArray; var success: boolean);
 var
     i: integer;
-    ok: boolean;
+    AddOk: boolean;
 begin
+    success := true;
     for i := 1 to NormalHandSize do
-    begin
-        if enc.AttackerTable[i] <> nil then
-            AddCard(enc.DefenderHand^, enc.AttackerTable[i], ok);
-        if enc.DefenderTable[i] <> nil then
-            AddCard(enc.DefenderHand^, enc.DefenderTable[i], ok)
-    end;
-    ResetTableCards(enc)
+        if t[i] <> nil then
+        begin
+            AddCard(enc.DefenderHand^, t[i], AddOk);
+            success := success and AddOk
+        end
 end;
 
 function NumCardsPlayed(var TableCards: TableCardArray): integer; forward;
@@ -87,6 +98,8 @@ procedure TryPlayCard(var h: PlayerHandPtr; var t: TableCardArray;
 
 function AttackerCardCanBePlayed(var enc: EncounterData; c: CardPtr): boolean;
     forward;
+function CardOfSameValueIsOnTable(var TableCards: TableCardArray;
+    c: CardPtr): boolean; forward;
 
 procedure AttackerTryPlayCard(var enc: EncounterData; 
     c: CardPtr; var success: boolean);
@@ -98,30 +111,28 @@ end;
 
 function AttackerCardCanBePlayed(var enc: EncounterData; c: CardPtr): boolean;
 var
-    i, CardsPlayed: integer;
-    TableCard: CardPtr;
+    CardsPlayed: integer;
 begin
     CardsPlayed := NumCardsPlayed(enc.AttackerTable);
-    AttackerCardCanBePlayed := CardsPlayed < NormalHandSize;
-    if (CardsPlayed = 0) or (not AttackerCardCanBePlayed) then
-        exit;
 
-    AttackerCardCanBePlayed := false;
+    AttackerCardCanBePlayed := (CardsPlayed < NormalHandSize) and (
+        (CardsPlayed = 0) or
+        CardOfSameValueIsOnTable(enc.AttackerTable, c) or
+        CardOfSameValueIsOnTable(enc.DefenderTable, c)
+    )
+end;
+
+function CardOfSameValueIsOnTable(var TableCards: TableCardArray;
+    c: CardPtr): boolean;
+var
+    i: integer;
+begin
+    CardOfSameValueIsOnTable := false;
     for i := 1 to NormalHandSize do
     begin
-        TableCard := enc.AttackerTable[i];
-        if (TableCard <> nil) and (TableCard^.value = c^.value) then
+        if (TableCards[i] <> nil) and (TableCards[i]^.value = c^.value) then
         begin
-            AttackerCardCanBePlayed := true;
-            exit
-        end
-    end;
-    for i := 1 to NormalHandSize do
-    begin
-        TableCard := enc.DefenderTable[i];
-        if (TableCard <> nil) and (TableCard^.value = c^.value) then
-        begin
-            AttackerCardCanBePlayed := true;
+            CardOfSameValueIsOnTable := true;
             exit
         end
     end
@@ -129,25 +140,21 @@ end;
 
 function DefenderCardCanBePlayed(var enc: EncounterData;
     c: CardPtr; trump: CardSuit): boolean; forward;
+procedure TryGetCardFromTable(var t: TableCardArray; 
+    idx: integer; var out: CardPtr; var exists: boolean); forward;
 
 procedure DefenderTryPlayCard(var enc: EncounterData;
     c: CardPtr; trump: CardSuit; var success: boolean);
 begin
     success := DefenderCardCanBePlayed(enc, c, trump);
     if success then
-{$IFDEF DEBUG}
-    begin
-        writeln('Def card can be played');
-{$ENDIF}
         TryPlayCard(enc.DefenderHand, enc.DefenderTable, c, success);
-{$IFDEF DEBUG}
-    end
-{$ENDIF}
 end;
 
 function DefenderCardCanBePlayed(var enc: EncounterData;
     c: CardPtr; trump: CardSuit): boolean;
 var
+    CardGetOk: boolean;
     AttackerCardsPlayed, DefenderCardsPlayed: integer;
     AttackerCard: CardPtr;
 begin
@@ -157,8 +164,10 @@ begin
     if not DefenderCardCanBePlayed then
         exit;
 
-    AttackerCard := enc.AttackerTable[AttackerCardsPlayed];
-    DefenderCardCanBePlayed := CompareCards(AttackerCard, c, trump) > 0
+    TryGetCardFromTable(enc.AttackerTable, 
+        AttackerCardsPlayed, AttackerCard, CardGetOk);
+    DefenderCardCanBePlayed := 
+        CardGetOk and (CompareCards(AttackerCard, c, trump) > 0)
 end;
 
 procedure TryPlayCard(var h: PlayerHandPtr; var t: TableCardArray;
@@ -168,19 +177,36 @@ var
 begin
     RemoveCard(h^, c, success);
     if success then
-{$IFDEF DEBUG}
-    begin
-        writeln('Def card was removed');
-{$ENDIF}
         for i := 1 to NormalHandSize do
             if t[i] = nil then
             begin
                 t[i] := c;
                 break
             end
-{$IFDEF DEBUG}
-    end
-{$ENDIF}
+end;
+
+procedure TryGetCardFromTable(var t: TableCardArray; 
+    idx: integer; var out: CardPtr; var exists: boolean);
+var
+    i: integer;
+begin
+    exists := false;
+    for i := 1 to NormalHandSize do
+        if t[i] <> nil then
+            if idx > 1 then
+                idx := idx - 1
+            else
+            begin
+                out := t[i];
+                exists := true;
+                break
+            end
+end;
+
+function EncounterIsFull(var enc: EncounterData): boolean;
+begin
+    EncounterIsFull := (NumCardsPlayed(enc.AttackerTable) = NormalHandSize) and
+                       (NumCardsPlayed(enc.DefenderTable) = NormalHandSize)
 end;
 
 function NumCardsPlayed(var TableCards: TableCardArray): integer;
