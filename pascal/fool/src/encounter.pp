@@ -56,7 +56,6 @@ end;
 procedure FinishEncounter(var enc: EncounterData);
 var
     i: integer;
-    tmp: CardPtr;
 begin
     for i := 1 to NormalHandSize do
     begin
@@ -159,7 +158,7 @@ begin
         exit;
 
     AttackerCard := enc.AttackerTable[AttackerCardsPlayed];
-    DefenderCardCanBePlayed := CompareCards(AttackerCard^, c^, trump) > 0
+    DefenderCardCanBePlayed := CompareCards(AttackerCard, c, trump) > 0
 end;
 
 procedure TryPlayCard(var h: PlayerHandPtr; var t: TableCardArray;

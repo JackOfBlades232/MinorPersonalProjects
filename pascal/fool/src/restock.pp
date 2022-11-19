@@ -5,55 +5,44 @@ unit restock; { restock.pp }
 interface
 uses deck, hand, card;
 
-procedure RestockHand(var h: PlayerHand; var d: CardDeck);
-procedure InitFillHands(var h1, h2: PlayerHand;
+procedure InitRestockHands(var h1, h2: PlayerHand;
     var d: CardDeck; var ok: boolean);
+procedure RestockHand(var h: PlayerHand; var d: CardDeck);
 
 
 implementation
 
-procedure RestockHand(var h: PlayerHand; var d: CardDeck);
-var
-    ok: boolean;
-    c: CardPtr;
+procedure TryMoveCardFromDeckToHand(var h: PlayerHand; var d: CardDeck;
+    var success: boolean); forward;
+
+procedure InitRestockHands(var h1, h2: PlayerHand;
+    var d: CardDeck; var ok: boolean);
 begin
-    ok := true;
-    while ok and (NumCardsInHand(h) < NormalHandSize) do
+    ok := DeckIsFull(d) and HandIsEmpty(h1) and HandIsEmpty(h2);
+    if ok then
     begin
-        TryTakeTopCard(d, c, ok);
-        if ok then
-            AddCard(h, c, ok)
+        RestockHand(h1, d);
+        RestockHand(h2, d)
     end
 end;
 
-procedure InitFillHands(var h1, h2: PlayerHand;
-    var d: CardDeck; var ok: boolean);
+procedure RestockHand(var h: PlayerHand; var d: CardDeck);
 var
-    i: integer;
-    c: CardPtr;
+    ok: boolean;
 begin
     ok := true;
-    if (RemainingDeckSize(d) < DeckSize) or 
-        (NumCardsInHand(h1) > 0) or (NumCardsInHand(h1) > 0) then
-    begin
-        ok := false;
-        exit
-    end;
-    for i := 1 to NormalHandSize do
-    begin
-        TryTakeTopCard(d, c, ok);
-        if not ok then
-            exit;
-        AddCard(h1, c, ok);
-        if not ok then
-            exit;
-        TryTakeTopCard(d, c, ok);
-        if not ok then
-            exit;
-        AddCard(h2, c, ok);
-        if not ok then
-            exit
-    end
+    while ok and (not HandIsOverfilled(h)) do
+        TryMoveCardFromDeckToHand(h, d, ok)
+end;
+
+procedure TryMoveCardFromDeckToHand(var h: PlayerHand; var d: CardDeck;
+    var success: boolean);
+var
+    c: CardPtr;
+begin
+    TryTakeTopCard(d, c, success);
+    if success then
+        AddCard(h, c, success)
 end;
 
 end.

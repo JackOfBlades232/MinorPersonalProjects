@@ -14,6 +14,8 @@ type
     end;
 
 procedure GenerateDeck(var d: CardDeck);
+function DeckIsEmpty(var d: CardDeck): boolean;
+function DeckIsFull(var d: CardDeck): boolean;
 function RemainingDeckSize(var d: CardDeck): integer;
 procedure TryTakeTopCard(var d: CardDeck; var c: CardPtr; var success: boolean);
 procedure TryGetTrumpSuit(var d: CardDeck;
@@ -23,6 +25,7 @@ procedure TryGetTrumpSuit(var d: CardDeck;
 implementation
 
 procedure ReconstructAllCards(var arr: DeckContent); forward;
+procedure RecreateCard(var c: CardPtr; SuitIdx, ValueIdx: integer); forward;
 
 procedure GenerateDeck(var d: CardDeck);
 var
@@ -49,14 +52,27 @@ begin
         for j := 1 to NumberOfValues do
         begin
             ArrIndex := (i - 1) * NumberOfValues + j;
-
-            if arr[ArrIndex] <> nil then
-                dispose(arr[ArrIndex]);
-            new(arr[ArrIndex]);
-
-            arr[ArrIndex]^.suit := AllSuits[i];
-            arr[ArrIndex]^.value := AllValues[j]
+            RecreateCard(arr[ArrIndex], i, j)
         end
+end;
+
+procedure RecreateCard(var c: CardPtr; SuitIdx, ValueIdx: integer);
+begin
+    if c <> nil then
+        dispose(c);
+    new(c);
+    c^.suit := AllSuits[SuitIdx];
+    c^.value := AllValues[ValueIdx]
+end;
+
+function DeckIsEmpty(var d: CardDeck): boolean;
+begin
+    DeckIsEmpty := RemainingDeckSize(d) = 0
+end;
+
+function DeckIsFull(var d: CardDeck): boolean;
+begin
+    DeckIsFull := RemainingDeckSize(d) = DeckSize
 end;
 
 function RemainingDeckSize(var d: CardDeck): integer;
@@ -66,7 +82,7 @@ end;
 
 procedure TryTakeTopCard(var d: CardDeck; var c: CardPtr; var success: boolean);
 begin
-    success := RemainingDeckSize(d) > 0;
+    success := not DeckIsEmpty(d);
     if success then
     begin
         c := d.content[d.TopIndex];
@@ -78,7 +94,7 @@ end;
 procedure TryGetTrumpSuit(var d: CardDeck;
     var trump: CardSuit; var success: boolean); 
 begin
-    success := RemainingDeckSize(d) > 0;
+    success := not DeckIsEmpty(d);
     if success then
         trump := d.content[DeckSize]^.suit
 end;

@@ -20,21 +20,21 @@ var
     AllValues: array [1..NumberOfValues] of CardValue = 
         (Six, Seven, Eight, Nine, Ten, Jack, Queen, King, Ace);
 
-function CompareCards(card1, card2: PlayingCard; TrumpSuit: CardSuit): integer;
+function CompareCards(card1, card2: CardPtr; TrumpSuit: CardSuit): integer;
 function RandomCard: PlayingCard;
 
 
 implementation
 
-function CompareCards(card1, card2: PlayingCard; TrumpSuit: CardSuit): integer;
+function CompareCards(card1, card2: CardPtr; TrumpSuit: CardSuit): integer;
 begin
-    if (card1.suit = TrumpSuit) and (card2.suit <> TrumpSuit) then
+    if (card1^.suit = TrumpSuit) and (card2^.suit <> TrumpSuit) then
         CompareCards := -1
-    else if (card1.suit <> TrumpSuit) and (card2.suit = TrumpSuit) then
+    else if (card1^.suit <> TrumpSuit) and (card2^.suit = TrumpSuit) then
         CompareCards := 1
-    else if (card1.suit <> card2.suit) or (card1.value = card2.value) then
+    else if (card1^.suit <> card2^.suit) or (card1^.value = card2^.value) then
         CompareCards := 0
-    else if card1.value > card2.value then
+    else if card1^.value > card2^.value then
         CompareCards := -1
     else
         CompareCards := 1

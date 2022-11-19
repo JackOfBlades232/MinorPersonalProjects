@@ -57,7 +57,7 @@ begin
     h2p := @h2;
     InitHand(h1);
     InitHand(h2);
-    InitFillHands(h1, h2, d, ok);
+    InitRestockHands(h1, h2, d, ok);
     if not ok then
     begin
         writeln(ErrOutput, 'Could not fill hands on start!');
