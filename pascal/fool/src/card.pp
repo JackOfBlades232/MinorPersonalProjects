@@ -1,8 +1,8 @@
 unit card; { card.pp }
+interface
 {
     contains data structures and basic methods for cards
 }
-interface
 const
     NumberOfSuits = 4;
     NumberOfValues = 9;
@@ -23,9 +23,7 @@ var
 function CompareCards(card1, card2: CardPtr; TrumpSuit: CardSuit): integer;
 function RandomCard: PlayingCard;
 
-
 implementation
-
 function CompareCards(card1, card2: CardPtr; TrumpSuit: CardSuit): integer;
 begin
     if (card1^.suit = TrumpSuit) and (card2^.suit <> TrumpSuit) then

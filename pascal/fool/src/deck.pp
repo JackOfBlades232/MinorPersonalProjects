@@ -1,9 +1,9 @@
 unit deck; { deck.pp }
+interface
+uses card;
 {
     contains data structure and functionality for a card deck
 }
-interface
-uses card;
 const
     DeckSize = 36;
 type
@@ -21,10 +21,8 @@ function RemainingDeckSize(var d: CardDeck): integer;
 procedure TryTakeTopCard(var d: CardDeck; var c: CardPtr; var success: boolean);
 procedure TryGetTrumpSuit(var d: CardDeck;
     var trump: CardSuit; var success: boolean); 
-
     
 implementation
-
 procedure RecreateCard(var c: CardPtr; SuitIdx, ValueIdx: integer);
 begin
     if c <> nil then

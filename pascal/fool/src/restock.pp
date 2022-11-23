@@ -1,17 +1,15 @@
 unit restock; { restock.pp }
+interface
+uses deck, hand, card;
 {
     Contains functionality for restocking a hand/hands with cards from deck
 }
-interface
-uses deck, hand, card;
 
 procedure InitRestockHands(var h1, h2: PlayerHand;
     var d: CardDeck; var ok: boolean);
 procedure RestockHand(var h: PlayerHand; var d: CardDeck);
 
-
 implementation
-
 procedure TryMoveCardFromDeckToHand(var h: PlayerHand; var d: CardDeck;
     var success: boolean);
 var

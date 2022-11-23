@@ -1,9 +1,9 @@
 unit hand; { hand.pp }
+interface
+uses card, deck;
 {
     Contains data structure and functionality for a player's hand
 }
-interface
-uses card, deck;
 const
     NormalHandSize = 6;
 type
@@ -15,12 +15,12 @@ procedure DisposeOfHand(var h: PlayerHand);
 function HandIsEmpty(var h: PlayerHand): boolean;
 function HandIsOverfilled(var h: PlayerHand): boolean;
 function NumCardsInHand(var h: PlayerHand): integer;
+procedure TryGetCardFromHand(var h: PlayerHand; var c: CardPtr;
+    idx: integer; var success: boolean);
 procedure AddCard(var h: PlayerHand; c: CardPtr; var success: boolean);
 procedure RemoveCard(var h: PlayerHand; c: CardPtr; var success: boolean);
 
-
 implementation
-
 procedure InitHand(var h: PlayerHand);
 var
     i: integer;
@@ -56,6 +56,24 @@ begin
     for i := 1 to DeckSize do
         if h[i] <> nil then
             NumCardsInHand := NumCardsInHand + 1
+end;
+
+procedure TryGetCardFromHand(var h: PlayerHand; var c: CardPtr;
+    idx: integer; var success: boolean);
+var
+    i: integer;
+begin
+    success := false;
+    for i := 1 to DeckSize do
+        if h[i] <> nil then
+            if idx > 1 then
+                idx := idx - 1
+            else
+            begin
+                c := h[i];
+                success := true;
+                break
+            end
 end;
 
 function CardIsInHand(var h: PlayerHand; c: CardPtr): boolean;

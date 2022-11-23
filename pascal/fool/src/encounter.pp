@@ -1,29 +1,32 @@
 unit encounter; { encounter.pp }
+interface
+uses hand, card;
 {
     contains functionality for modelling one encounter of 2 hands
 }
-interface
-uses hand, card;
 type
     TableCardArray = array [1..NormalHandSize] of CardPtr;
     EncounterData = record
+        IsOngoing: boolean;
         AttackerHand, DefenderHand: PlayerHandPtr;
         AttackerTable, DefenderTable: TableCardArray;
     end;
 
 procedure InitEncounter(var enc: EncounterData;
     var attacker, defender: PlayerHandPtr);
+procedure StartEncounter(var enc: EncounterData);
 procedure FinishEncounter(var enc: EncounterData);
 procedure GiveUpEncounter(var enc: EncounterData; var ok: boolean);
+function AttackerCardCanBePlayed(var enc: EncounterData; c: CardPtr): boolean;
 procedure AttackerTryPlayCard(var enc: EncounterData; 
     c: CardPtr; var success: boolean);
+function DefenderCardCanBePlayed(var enc: EncounterData;
+    c: CardPtr; trump: CardSuit): boolean;
 procedure DefenderTryPlayCard(var enc: EncounterData;
     c: CardPtr; trump: CardSuit; var success: boolean);
 function EncounterIsFull(var enc: EncounterData): boolean;
 
-
 implementation
-
 procedure ResetTableCards(var enc: EncounterData);
 var
     i: integer;
@@ -38,9 +41,15 @@ end;
 procedure InitEncounter(var enc: EncounterData;
     var attacker, defender: PlayerHandPtr);
 begin
+    enc.IsOngoing := false;
     enc.AttackerHand := attacker;
     enc.DefenderHand := defender;
     ResetTableCards(enc)
+end;
+
+procedure StartEncounter(var enc: EncounterData);
+begin
+    enc.IsOngoing := true
 end;
 
 procedure DisposeAndDeinitCard(var c: CardPtr);
@@ -53,6 +62,7 @@ procedure FinishEncounter(var enc: EncounterData);
 var
     i: integer;
 begin
+    enc.IsOngoing := false;
     for i := 1 to NormalHandSize do
     begin
         if enc.AttackerTable[i] <> nil then
@@ -79,6 +89,7 @@ end;
 
 procedure GiveUpEncounter(var enc: EncounterData; var ok: boolean);
 begin
+    enc.IsOngoing := false;
     ok := true;
     FlushTableToDefenderHand(enc, enc.AttackerTable, ok);
     FlushTableToDefenderHand(enc, enc.DefenderTable, ok);
