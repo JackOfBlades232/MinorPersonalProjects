@@ -63,22 +63,31 @@ var
     CardIndex: integer;
     completed: boolean = false;
     InputOk: boolean = false;
-    CurrentHand: PlayerHandPtr;
+    CurrentHand, OtherHand: PlayerHandPtr;
 begin
     if IsAttacker then
-        CurrentHand := enc.AttackerHand
+    begin
+        CurrentHand := enc.AttackerHand;
+        OtherHand := enc.DefenderHand
+    end
     else
+    begin
         CurrentHand := enc.DefenderHand;
+        OtherHand := enc.AttackerHand
+    end;
     while not completed do
     begin
         CardIndex := -1;
         if IsPlayer then
         begin
-            DrawTurnInfo(d, trump, CurrentHand^, enc);
+            DrawTurnInfo(d, trump, IsAttacker, CurrentHand^, enc);
             CollectPlayerInput(CardIndex, InputOk)
         end
         else
-            CollectAIInput(CardIndex, enc, CurrentHand, d, trump, InputOk); 
+        begin
+            DrawTurnInfo(d, trump, not IsAttacker, OtherHand^, enc);
+            CollectAIInput(CardIndex, enc, CurrentHand, d, trump, InputOk)
+        end;
         if not InputOk then
             halt(0);
         if InputOk then
@@ -149,5 +158,6 @@ begin
     while (not HandIsEmpty(h1)) and (not HandIsEmpty(h2)) do
         HandleEncounter(enc, d, player, trump);
 
+    DisplayFinalMessage(HandIsEmpty(h1), HandIsEmpty(h2));
     DeinitGame(d, enc, h1, h2)
 end.

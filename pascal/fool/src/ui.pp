@@ -5,12 +5,16 @@ uses encounter, hand, deck, card;
     Contains procedures for drawing the game's ui and collecting input
 }
 
-procedure DrawTurnInfo(var d: CardDeck; trump: CardSuit; 
+procedure DrawTurnInfo(var d: CardDeck; trump: CardSuit; IsAttaking: boolean; 
     var h: PlayerHand; var enc: EncounterData);
 procedure CollectPlayerInput(var CardIndex: integer; var ok: boolean);
+procedure DisplayFinalMessage(PlayerHandEmpty, AIHandEmpty: boolean);
 
 implementation
 uses crt;
+const
+    MessageDuration = 2000;
+
 procedure DrawDeckInfo(var d: CardDeck; trump: CardSuit);
 begin
     writeln('Trump suit: ', trump);
@@ -58,12 +62,17 @@ begin
         TryDrawCardPair(enc.AttackerTable[i], enc.DefenderTable[i])
 end;
 
-procedure DrawTurnInfo(var d: CardDeck; trump: CardSuit; 
+procedure DrawTurnInfo(var d: CardDeck; trump: CardSuit; IsAttaking: boolean;
     var h: PlayerHand; var enc: EncounterData);
 begin
     clrscr;
     GotoXY(1, 1);
     DrawDeckInfo(d, trump);
+    writeln;
+    if IsAttaking then
+        writeln('You are attacking')
+    else
+        writeln('You are defending');
     writeln;
     DrawPlayerHand(h);
     writeln;
@@ -77,6 +86,19 @@ begin
     write('Input the index of the card you want to play (0=forfeit): ');
     readln(CardIndex);
     ok := (IOResult = 0) and (CardIndex >= 0)
+end;
+
+procedure DisplayFinalMessage(PlayerHandEmpty, AIHandEmpty: boolean);
+begin
+    clrscr;
+    GotoXY((ScreenWidth - 8) div 2, ScreenHeight div 2);
+    if PlayerHandEmpty and AIHandEmpty then
+        writeln('It''s a draw!')
+    else if PlayerHandEmpty then
+        writeln('You won!')
+    else
+        writeln('You lost!');
+    delay(MessageDuration)
 end;
 
 end.

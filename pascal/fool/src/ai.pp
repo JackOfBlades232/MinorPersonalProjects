@@ -17,6 +17,8 @@ var
     i: integer;
     c: CardPtr;
 begin
+    CardIndex := 0;
+    ok := true;
     for i := 1 to NumCardsInHand(h^) do
     begin
         TryGetCardFromHand(h^, c, i, ok);
@@ -30,8 +32,6 @@ begin
             break
         end
     end;
-    CardIndex := 0;
-    ok := true
 end;
 
 end.
