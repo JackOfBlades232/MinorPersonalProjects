@@ -1,1 +1,2 @@
-shape.o: shape.c shape.h
+shape.o: shape.c shape.h graphics.h
+graphics.o: graphics.c graphics.h

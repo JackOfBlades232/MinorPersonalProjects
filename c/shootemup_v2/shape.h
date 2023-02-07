@@ -1,18 +1,18 @@
+/* shootemup_v2/shape.h */
 #ifndef SHAPE_SENTRY
 #define SHAPE_SENTRY
 
-typedef struct tag_point {
-    int x, y;
-} point;
+#include "graphics.h"
 
 typedef struct tag_shape {
     point pos;
+    char fill_sym;
     point *loc_points;
     int num_points;
 } shape;
 
-shape *create_shape();
-void destroy_shape();
+shape *create_shape(int num_points);
+void destroy_shape(shape *sh);
 void show_shape(shape *sh);
 void hide_shape(shape *sh);
 int move_shape(shape *sh, int dx, int dy);
