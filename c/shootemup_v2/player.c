@@ -134,6 +134,7 @@ int player_shoot(player *p, player_bullet_buf bullet_buf)
     int i;
     int emitters_left = bullet_emitter_cnt;
 
+    /* temp */
     for (i = 0; i < player_bullet_bufsize && emitters_left > 0; i++) {
         if (!bullet_buf[i].is_alive) {
             emitters_left--;
@@ -169,7 +170,7 @@ void update_live_bullets(player_bullet_buf bullet_buf)
 {
     int i;
     for (i = 0; i < player_bullet_bufsize; i++)
-        update_bullet(&bullet_buf[i]);
+        update_bullet(bullet_buf+i);
 }
 
 int kill_bullet(player_bullet *b)

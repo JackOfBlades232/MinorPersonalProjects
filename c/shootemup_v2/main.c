@@ -2,25 +2,45 @@
 #include "graphics.h"
 #include "player.h"
 #include "controls.h"
+#include "asteroid.h"
+#include "collisions.h"
+#include "utils.h"
 
 #include <curses.h>
 
 static void init_game(player *p, term_state *ts, 
-        player_bullet_buf player_bullets)
+        player_bullet_buf player_bullets, asteroid_buf asteroids)
 {
+    init_random();
     init_graphics(ts);
     init_controls();
     init_player(p, 5, ts);
     init_player_bullet_buf(player_bullets);
+    init_asteroid_buf(asteroids);
+}
+
+static void update_moving_entities(
+        player_bullet_buf player_bullets, asteroid_buf asteroids)
+{
+    update_live_bullets(player_bullets);
+    update_live_asteroids(asteroids);
+}
+
+static void process_collisions(player *p, 
+        player_bullet_buf player_bullets, asteroid_buf asteroids)
+{
+    process_bullet_to_asteroid_collisions(player_bullets, asteroids);
+    process_asteroid_to_player_collisions(p, asteroids);
 }
 
 static void game_loop(player *p, term_state *ts,
-        player_bullet_buf player_bullets)
+        player_bullet_buf player_bullets, asteroid_buf asteroids)
 {
     input_action action;
     
     while ((action = get_input_action()) != quit) {
-        update_live_bullets(player_bullets);
+        update_moving_entities(player_bullets, asteroids);
+        process_collisions(p, player_bullets, asteroids);
 
         switch (action) {
             case up:
@@ -37,6 +57,7 @@ static void game_loop(player *p, term_state *ts,
                 break;
             case fire:
                 player_shoot(p, player_bullets);
+                spawn_asteroid(asteroids);
                 break;
             case resize:
                 goto end_loop;
@@ -61,9 +82,10 @@ static int run_game()
     term_state t_state;
     player p;
     player_bullet_buf player_bullets;
+    asteroid_buf asteroids;
 
-    init_game(&p, &t_state, player_bullets);
-    game_loop(&p, &t_state, player_bullets);
+    init_game(&p, &t_state, player_bullets, asteroids);
+    game_loop(&p, &t_state, player_bullets, asteroids);
     deinit_game();
 
     return 0;
