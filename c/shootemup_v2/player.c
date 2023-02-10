@@ -1,13 +1,15 @@
 /* shootemup_v2/player.c */
 #include "player.h"
+#include "geom.h"
 #include "utils.h"
 
 #include <curses.h>
 
 enum { player_width = 8, player_height = 4 };
 enum { player_init_screen_edge_offset = 3 };
+enum { bullet_emitter_cnt = 2 };
 
-static const char player_shape[player_height][player_width] =
+static const char player_shape[player_height][player_width+1] =
 { 
     "   **   ", 
     "   **   ", 
@@ -15,25 +17,31 @@ static const char player_shape[player_height][player_width] =
     "** ** **"
 };
 
+static const int bullet_emitter_positions[bullet_emitter_cnt][2] = 
+{
+    { 2, 2 }, { 5, 2 }
+};
+
 void init_player(player *p, int max_hp, term_state *ts)
 {
     p->pos.x = (ts->col - player_width)/2 + 1;
-    p->pos.y = ts->row - player_init_screen_edge_offset - 1;
+    p->pos.y = ts->row - player_init_screen_edge_offset - player_height;
     p->cur_hp = p->max_hp = max_hp;
+
     show_player(p);
 }
 
 static void truncate_player_pos(player *p, term_state *ts)
 {
-    clamp_int(&p->pos.x, 0, ts->col-1);
-    clamp_int(&p->pos.y, 0, ts->row-1);
+    clamp_int(&p->pos.x, 0, ts->col-player_width);
+    clamp_int(&p->pos.y, 0, ts->row-player_height);
 }
 
 void show_player(player *p)
 {
     int i;
     for (i = 0; i < player_height; i++) {
-        move(p->pos.x, p->pos.y + i);
+        move(p->pos.y + i, p->pos.x);
         addstr(player_shape[i]);
     }
 }
@@ -42,7 +50,7 @@ void hide_player(player *p)
 {
     int i, j;
     for (i = 0; i < player_height; i++) {
-        move(p->pos.x, p->pos.y + i);
+        move(p->pos.y + i, p->pos.x);
         for (j = 0; j < player_width; j++)
             addch(' ');
     }
@@ -91,4 +99,83 @@ int point_is_in_player(player *pl, point pt)
     }
 
     return not_leftmost && not_rightmost;
+}
+
+void init_player_bullet_buf(player_bullet_buf bullet_buf)
+{
+    int i;
+    for (i = 0; i < player_bullet_bufsize; i++)
+        bullet_buf[i].is_alive = 0;
+}
+
+static void show_bullet(player_bullet *b)
+{
+    move(b->pos.y, b->pos.x);
+    addch('^');
+}
+
+static void hide_bullet(player_bullet *b)
+{
+    move(b->pos.y, b->pos.x);
+    addch(' ');
+}
+
+static void shoot_bullet(player_bullet *b, int emitter_x, int emitter_y)
+{
+    b->pos = point_literal(emitter_x, emitter_y);
+    b->is_alive = 1;
+    b->dx = 0;
+    b->dy = -1;
+    show_bullet(b);
+}
+
+int player_shoot(player *p, player_bullet_buf bullet_buf)
+{
+    int i;
+    int emitters_left = bullet_emitter_cnt;
+
+    for (i = 0; i < player_bullet_bufsize && emitters_left > 0; i++) {
+        if (!bullet_buf[i].is_alive) {
+            emitters_left--;
+            shoot_bullet(
+                &bullet_buf[i], 
+                p->pos.x + bullet_emitter_positions[emitters_left][0],
+                p->pos.y + bullet_emitter_positions[emitters_left][1]
+            );
+        }
+    }
+    
+    return bullet_emitter_cnt - emitters_left;
+}
+
+static void update_bullet(player_bullet *b)
+{
+    if (b->is_alive) {
+        hide_bullet(b);
+        b->pos.x += b->dx;
+        b->pos.y += b->dy;
+
+        /* temp */
+        if (b->pos.y < 0) {
+            kill_bullet(b);
+            return;
+        }
+
+        show_bullet(b);
+    }
+}
+
+void update_live_bullets(player_bullet_buf bullet_buf)
+{
+    int i;
+    for (i = 0; i < player_bullet_bufsize; i++)
+        update_bullet(&bullet_buf[i]);
+}
+
+int kill_bullet(player_bullet *b)
+{
+    b->is_alive = 0;
+    hide_bullet(b);
+
+    return 1;
 }

@@ -6,4 +6,6 @@ typedef struct tag_point {
     int x, y;
 } point;
 
+point point_literal(int x, int y);
+
 #endif

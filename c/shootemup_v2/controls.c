@@ -29,7 +29,7 @@ input_action get_input_action()
     else if (key == KEY_RESIZE)
         return resize;
     else if (key == key_escape)
-        return exit;
+        return quit;
     else
         return idle;
 }
