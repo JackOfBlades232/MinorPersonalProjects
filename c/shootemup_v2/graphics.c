@@ -31,6 +31,11 @@ int init_graphics(term_state *ts)
     return 1;
 }
 
+void refresh_term_state(term_state *ts)
+{
+    getmaxyx(stdscr, ts->row, ts->col);
+}
+
 void deinit_graphics()
 {
     endwin();

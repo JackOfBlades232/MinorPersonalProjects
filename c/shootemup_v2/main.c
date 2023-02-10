@@ -6,7 +6,7 @@
 #include <stdio.h>
 #include <unistd.h>
 
-int controls_test()
+int controls_test(term_state *ts)
 {
     shape *sh;
     input_action action;
@@ -15,26 +15,31 @@ int controls_test()
     sh->pos = point_literal(20, 20);
     sh->fill_sym = '*';
 
+    truncate_shape_pos(sh, ts);
     show_shape(sh);
 
     while ((action = get_player_action()) != exit) {
         switch (action) {
             case up:
-                move_shape(sh, 0, -1);
+                move_shape(sh, 0, -1, ts);
                 break;
             case down:
-                move_shape(sh, 0, 1);
+                move_shape(sh, 0, 1, ts);
                 break;
             case left:
-                move_shape(sh, -1, 0);
+                move_shape(sh, -1, 0, ts);
                 break;
             case right:
-                move_shape(sh, 1, 0);
+                move_shape(sh, 1, 0, ts);
                 break;
             case fire:
                 hide_shape(sh);
                 sh->fill_sym++;
                 show_shape(sh);
+                break;
+            case resize:
+                refresh_term_state(ts);
+                redraw_shape(sh, ts);
                 break;
             default:
                 break;
@@ -57,7 +62,7 @@ int run_game()
     if (!status)
         return 1;
 
-    status = controls_test();
+    status = controls_test(&t_state);
 
     deinit_graphics();
 

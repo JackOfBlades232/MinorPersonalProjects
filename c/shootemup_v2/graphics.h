@@ -15,6 +15,7 @@ point add_points(point p1, point p2);
 int points_are_equal(point p1, point p2);
 
 int init_graphics(term_state *ts);
+void refresh_term_state(term_state *ts);
 void deinit_graphics();
 void draw_pix(point p, char sym);
 void refresh_scr();
