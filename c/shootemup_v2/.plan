@@ -1,0 +1,4 @@
+Closest:
+-Remake asteroid attribute gen (from type to struct on spawn)
+-Make spawn asteroid return ref to it
+-Complete spawn routine in main

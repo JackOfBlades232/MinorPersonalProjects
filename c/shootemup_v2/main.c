@@ -3,13 +3,15 @@
 #include "player.h"
 #include "controls.h"
 #include "asteroid.h"
+#include "spawn.h"
 #include "collisions.h"
 #include "utils.h"
 
 #include <curses.h>
 
 static void init_game(player *p, term_state *ts, 
-        player_bullet_buf player_bullets, asteroid_buf asteroids)
+        player_bullet_buf player_bullets, 
+        asteroid_buf asteroids, spawn_area *spawn)
 {
     init_random();
     init_graphics(ts);
@@ -17,10 +19,11 @@ static void init_game(player *p, term_state *ts,
     init_player(p, 5, ts);
     init_player_bullet_buf(player_bullets);
     init_asteroid_buf(asteroids);
+    init_spawn_area(spawn, ts->col - 2*spawn_area_horizontal_offset);
 }
 
-static void update_moving_entities(
-        player_bullet_buf player_bullets, asteroid_buf asteroids)
+static void update_moving_entities(player_bullet_buf player_bullets, 
+        asteroid_buf asteroids)
 {
     update_live_bullets(player_bullets);
     update_live_asteroids(asteroids);
@@ -33,8 +36,17 @@ static void process_collisions(player *p,
     process_asteroid_to_player_collisions(p, asteroids);
 }
 
+/* test */
+static void process_spawns(term_state *ts, asteroid_buf asteroids, 
+        spawn_area *spawn)
+{
+    int idx;
+    idx = try_spawn_object()
+    
+
 static void game_loop(player *p, term_state *ts,
-        player_bullet_buf player_bullets, asteroid_buf asteroids)
+        player_bullet_buf player_bullets, 
+        asteroid_buf asteroids, spawn_area *spawn)
 {
     input_action action;
     
@@ -83,9 +95,10 @@ static int run_game()
     player p;
     player_bullet_buf player_bullets;
     asteroid_buf asteroids;
+    spawn_area spawn;
 
-    init_game(&p, &t_state, player_bullets, asteroids);
-    game_loop(&p, &t_state, player_bullets, asteroids);
+    init_game(&p, &t_state, player_bullets, asteroids, &spawn);
+    game_loop(&p, &t_state, player_bullets, asteroids, &spawn);
     deinit_game();
 
     return 0;

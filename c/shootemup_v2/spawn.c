@@ -5,8 +5,6 @@
 
 #include <stdlib.h>
 
-enum { spawn_area_vertical_offset = 3, spawn_area_horizontal_offset = 2 };
-
 void init_spawn_area(spawn_area *sa, int length)
 {
     sa->area_length = length;
