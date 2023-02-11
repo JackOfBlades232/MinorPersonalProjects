@@ -7,7 +7,9 @@
 
 enum { player_width = 8, player_height = 4 };
 enum { player_init_screen_edge_offset = 3 };
+
 enum { bullet_emitter_cnt = 2 };
+enum { bullet_movement_frames = 1 };
 
 static const char player_shape[player_height][player_width+1] =
 { 
@@ -124,6 +126,7 @@ static void shoot_bullet(player_bullet *b, int emitter_x, int emitter_y)
 {
     b->pos = point_literal(emitter_x, emitter_y);
     b->is_alive = 1;
+    b->frames_until_move = bullet_movement_frames;
     b->dx = 0;
     b->dy = -1;
     show_bullet(b);
@@ -152,17 +155,23 @@ int player_shoot(player *p, player_bullet_buf bullet_buf)
 static void update_bullet(player_bullet *b)
 {
     if (b->is_alive) {
-        hide_bullet(b);
-        b->pos.x += b->dx;
-        b->pos.y += b->dy;
+        if (b->frames_until_move > 0)
+            b->frames_until_move--;
+        else {
+            hide_bullet(b);
+            b->pos.x += b->dx;
+            b->pos.y += b->dy;
 
-        /* temp */
-        if (b->pos.y < 0) {
-            kill_bullet(b);
-            return;
+            /* temp */
+            if (b->pos.y < 0) {
+                kill_bullet(b);
+                return;
+            }
+
+            show_bullet(b);
+
+            b->frames_until_move = bullet_movement_frames;
         }
-
-        show_bullet(b);
     }
 }
 

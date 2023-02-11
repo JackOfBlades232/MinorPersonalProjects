@@ -16,6 +16,7 @@ typedef struct tag_asteroid {
     int cur_hp;
     int damage;
     int is_alive;
+    int frames_until_move;
 } asteroid;
 
 typedef asteroid asteroid_buf[asteroid_bufsize];

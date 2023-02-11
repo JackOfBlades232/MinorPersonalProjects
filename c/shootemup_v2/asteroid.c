@@ -14,6 +14,24 @@ enum {
     big_asteroid_width = 10, big_asteroid_height = 7
 };
 
+enum { 
+    small_asteroid_movement_frames = 2,
+    medium_asteroid_movement_frames = 3,
+    big_asteroid_movement_frames = 4
+};
+
+enum { 
+    small_asteroid_hp = 1,
+    medium_asteroid_hp = 2,
+    big_asteroid_hp = 4
+};
+
+enum { 
+    small_asteroid_damage = 1,
+    medium_asteroid_damage = 2,
+    big_asteroid_damage = 3
+};
+
 static const char 
     small_asteroid_shape[small_asteroid_height][small_asteroid_width+1] =
 {
@@ -129,8 +147,25 @@ int spawn_asteroid(asteroid_buf buf)
     as->pos = point_literal(0, 0);
     as->is_alive = 1;
     as->type = all_asteroid_types[randint(0, asteroid_type_cnt)];
-    as->damage = 2;
-    as->cur_hp = 1;
+
+    switch (as->type) {
+        case small:
+            as->frames_until_move = small_asteroid_movement_frames;
+            as->cur_hp = small_asteroid_hp;
+            as->damage = small_asteroid_damage;
+            break;
+        case medium:
+            as->frames_until_move = medium_asteroid_movement_frames;
+            as->cur_hp = medium_asteroid_hp;
+            as->damage = medium_asteroid_damage;
+            break;
+        case big:
+            as->frames_until_move = big_asteroid_movement_frames;
+            as->cur_hp = big_asteroid_hp;
+            as->damage = big_asteroid_damage;
+            break;
+    }
+
     as->dx = 0;
     as->dy = 1;
 
@@ -142,17 +177,33 @@ int spawn_asteroid(asteroid_buf buf)
 static void update_asteroid(asteroid *as)
 {
     if (as->is_alive) {
-        hide_asteroid(as);
-        as->pos.x += as->dx;
-        as->pos.y += as->dy;
+        if (as->frames_until_move > 0)
+            as->frames_until_move--;
+        else {
+            hide_asteroid(as);
+            as->pos.x += as->dx;
+            as->pos.y += as->dy;
 
-        /* temp */
-        if (as->pos.y > 20) {
-            kill_asteroid(as);
-            return;
+            /* temp */
+            if (as->pos.y > 20) {
+                kill_asteroid(as);
+                return;
+            }
+
+            show_asteroid(as);
+
+            switch (as->type) {
+                case small:
+                    as->frames_until_move = small_asteroid_movement_frames;
+                    break;
+                case medium:
+                    as->frames_until_move = medium_asteroid_movement_frames;
+                    break;
+                case big:
+                    as->frames_until_move = big_asteroid_movement_frames;
+                    break;
+            }
         }
-
-        show_asteroid(as);
     }
 }    
 
