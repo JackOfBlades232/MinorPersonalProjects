@@ -15,9 +15,11 @@ Features impl:
 * Add score for killing asteroids
 * Implement ammo and autorestoring of ammo
 - Add repair kits:
-    - shape/movement
-    - spawning
-    - collision/heal player
+    * set up types and headers
+    - add shape arr
+    - add static data
+    - impl all funcs from h
+    - insert into main
     - update spawning for random chioce between asteroids and r-kits
 - Refactor ui modules
 - Add centering to var-len lines in game over menu
