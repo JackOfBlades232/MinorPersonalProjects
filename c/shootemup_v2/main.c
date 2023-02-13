@@ -97,6 +97,7 @@ static game_result game_loop(player *p, term_state *ts,
     
     while ((action = get_input_action()) != quit) {
         update_ctimers(1, spawn_timer, NULL);
+        update_player_frame_counters(p);
 
         update_moving_entities(player_bullets, asteroids, crates, spawn, p, ts);
         process_collisions(p, player_bullets, asteroids, crates, spawn);

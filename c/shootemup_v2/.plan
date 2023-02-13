@@ -24,7 +24,7 @@ Features impl:
     * update spawning for random chioce between asteroids and r-kits
 * Refactor ui modules
 * Add centering to var-len lines in game over menu
-- Unify frame-ticking and add speed settings for movement, shooting, ammo repl
+* Unify frame-ticking and add speed settings for movement, shooting, ammo repl
 - Add colors
 
 Bugs:

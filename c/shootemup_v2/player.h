@@ -11,7 +11,7 @@ enum { player_bullet_bufsize = 64 };
 typedef struct tag_player_state {
     int cur_hp, max_hp;
     int cur_ammo, max_ammo;
-    int frames_since_shot;
+    int frames_since_moved, frames_since_shot, frames_since_recovered_ammo;
     int bullet_dmg;
     int score;
 } player_state;
@@ -26,7 +26,7 @@ typedef struct tag_player_bullet {
     int dx, dy;
     int damage;
     int is_alive;
-    int frames_until_move;
+    int frames_since_moved;
 } player_bullet;
 
 typedef player_bullet player_bullet_buf[player_bullet_bufsize];
@@ -52,5 +52,7 @@ int player_shoot(player *p, player_bullet_buf bullet_buf);
 void handle_player_ammo_replenish(player *p);
 void update_live_bullets(player_bullet_buf bullet_buf);
 int kill_bullet(player_bullet *b);
+
+void update_player_frame_counters(player *p);
 
 #endif

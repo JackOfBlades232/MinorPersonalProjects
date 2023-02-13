@@ -21,7 +21,7 @@ typedef struct tag_buff_crate {
     int dx, dy;
     int spawn_area_idx;
     int is_alive;
-    int frames_until_move;
+    int frames_since_moved;
 } buff_crate;
 
 typedef buff_crate crate_buf[crate_bufsize];

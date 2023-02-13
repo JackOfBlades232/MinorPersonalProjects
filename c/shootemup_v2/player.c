@@ -7,7 +7,12 @@
 
 enum { player_init_screen_edge_offset = 3 };
 
-enum { frames_from_shot_to_bullet_replenish = 300 };
+enum { 
+    player_movement_frames = 2,
+    player_shooting_frames = 16,
+    player_ammo_replenish_frames = 9,
+    frames_from_shot_to_bullet_replenish = 300 
+};
 
 enum { bullet_emitter_cnt = 2 };
 enum { bullet_movement_frames = 1 };
@@ -36,7 +41,9 @@ void init_player(player *p,
     p->state.cur_ammo = p->state.max_ammo = max_ammo;
     p->state.bullet_dmg = bullet_dmg;
     p->state.score = 0;
+    p->state.frames_since_moved = player_movement_frames;
     p->state.frames_since_shot = frames_from_shot_to_bullet_replenish;
+    p->state.frames_since_recovered_ammo = player_ammo_replenish_frames;
 
     show_player(p);
 }
@@ -68,11 +75,15 @@ void hide_player(player *p)
 
 void move_player(player *p, int dx, int dy, term_state *ts)
 {
-    hide_player(p);
-    p->pos.x += dx;
-    p->pos.y += dy;
-    truncate_player_pos(p, ts);
-    show_player(p);
+    if (p->state.frames_since_moved >= player_movement_frames) {
+        hide_player(p);
+        p->pos.x += dx;
+        p->pos.y += dy;
+        truncate_player_pos(p, ts);
+        show_player(p);
+
+        p->state.frames_since_moved = 0;
+    }
 }
 
 static int local_point_is_in_player_square(point pt)
@@ -134,13 +145,18 @@ void init_player_bullet_buf(player_bullet_buf bullet_buf)
         bullet_buf[i].is_alive = 0;
 }
 
+static int player_is_eligible_for_ammo_repl(player *p)
+{
+    return p->state.frames_since_shot >= frames_from_shot_to_bullet_replenish &&
+        p->state.frames_since_recovered_ammo >= player_ammo_replenish_frames &&
+        p->state.cur_ammo < p->state.max_ammo;
+}
+
 void handle_player_ammo_replenish(player *p)
 {
-    p->state.frames_since_shot++;
-
-    if (p->state.frames_since_shot >= frames_from_shot_to_bullet_replenish &&
-            p->state.cur_ammo < p->state.max_ammo) {
+    if (player_is_eligible_for_ammo_repl(p)) {
         p->state.cur_ammo++;
+        p->state.frames_since_recovered_ammo = 0;
     }
 }
 
@@ -162,10 +178,16 @@ static void shoot_bullet(player_bullet *b, player *p,
     b->pos = point_literal(emitter_x, emitter_y);
     b->is_alive = 1;
     b->damage = p->state.bullet_dmg;
-    b->frames_until_move = bullet_movement_frames;
+    b->frames_since_moved = 0;
     b->dx = 0;
     b->dy = -1;
     show_bullet(b);
+}
+
+static int player_is_eligible_for_shooting(player *p)
+{
+    return p->state.cur_ammo > 0 && 
+        p->state.frames_since_shot >= player_shooting_frames;
 }
 
 int player_shoot(player *p, player_bullet_buf bullet_buf)
@@ -173,32 +195,33 @@ int player_shoot(player *p, player_bullet_buf bullet_buf)
     int i;
     int emitters_left = bullet_emitter_cnt;
 
-    if (p->state.cur_ammo <= 0)
-        return 0;
-
-    /* temp */
-    for (i = 0; i < player_bullet_bufsize && emitters_left > 0; i++) {
-        if (!bullet_buf[i].is_alive) {
-            emitters_left--;
-            shoot_bullet(
-                &bullet_buf[i], p,
-                p->pos.x + bullet_emitter_positions[emitters_left][0],
-                p->pos.y + bullet_emitter_positions[emitters_left][1]
-            );
-        }
-    }
-
-    p->state.cur_ammo--;
-    p->state.frames_since_shot = 0;
     
-    return bullet_emitter_cnt - emitters_left;
+    /* temp */
+    if (player_is_eligible_for_shooting(p)) {
+        for (i = 0; i < player_bullet_bufsize && emitters_left > 0; i++) {
+            if (!bullet_buf[i].is_alive) {
+                emitters_left--;
+                shoot_bullet(
+                    &bullet_buf[i], p,
+                    p->pos.x + bullet_emitter_positions[emitters_left][0],
+                    p->pos.y + bullet_emitter_positions[emitters_left][1]
+                );
+            }
+        }
+
+        p->state.cur_ammo--;
+        p->state.frames_since_shot = 0;
+        
+        return bullet_emitter_cnt - emitters_left;
+    } else
+        return 0;
 }
 
 static void update_bullet(player_bullet *b)
 {
     if (b->is_alive) {
-        if (b->frames_until_move > 0)
-            b->frames_until_move--;
+        if (b->frames_since_moved < bullet_movement_frames)
+            b->frames_since_moved++;
         else {
             hide_bullet(b);
             b->pos.x += b->dx;
@@ -212,7 +235,7 @@ static void update_bullet(player_bullet *b)
 
             show_bullet(b);
 
-            b->frames_until_move = bullet_movement_frames;
+            b->frames_since_moved = 0;
         }
     }
 }
@@ -230,4 +253,11 @@ int kill_bullet(player_bullet *b)
     hide_bullet(b);
 
     return 1;
+}
+
+void update_player_frame_counters(player *p)
+{
+    p->state.frames_since_moved++;
+    p->state.frames_since_shot++;
+    p->state.frames_since_recovered_ammo++;
 }

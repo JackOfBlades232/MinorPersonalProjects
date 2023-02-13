@@ -190,7 +190,7 @@ void spawn_asteroid(asteroid *as, point pos, int spawn_area_idx)
     as->spawn_area_idx = spawn_area_idx;
 
     as->cur_hp = as->data->max_hp;
-    as->frames_until_move = as->data->movement_frames;
+    as->frames_since_moved = 0;
 
     as->dx = 0;
     as->dy = 1;
@@ -202,8 +202,8 @@ static void update_asteroid(asteroid *as, spawn_area *sa,
         term_state *ts, player *p)
 {
     if (as->is_alive) {
-        if (as->frames_until_move > 0)
-            as->frames_until_move--;
+        if (as->frames_since_moved < as->data->movement_frames)
+            as->frames_since_moved++;
         else {
             hide_asteroid(as);
             as->pos.x += as->dx;
@@ -217,7 +217,7 @@ static void update_asteroid(asteroid *as, spawn_area *sa,
 
             show_asteroid(as);
 
-            as->frames_until_move = as->data->movement_frames;
+            as->frames_since_moved = 0;
         }
     }
 }    

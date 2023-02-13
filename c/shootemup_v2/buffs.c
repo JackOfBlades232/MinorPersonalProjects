@@ -74,7 +74,7 @@ void spawn_crate(buff_crate *crate, point pos, int spawn_area_idx)
     crate->pos = pos;
     crate->spawn_area_idx = spawn_area_idx;
 
-    crate->frames_until_move = crate->data->movement_frames;
+    crate->frames_since_moved = 0;
 
     crate->dx = 0;
     crate->dy = 1;
@@ -85,8 +85,8 @@ void spawn_crate(buff_crate *crate, point pos, int spawn_area_idx)
 static void update_crate(buff_crate *crate, spawn_area *sa, term_state *ts)
 {
     if (crate->is_alive) {
-        if (crate->frames_until_move > 0)
-            crate->frames_until_move--;
+        if (crate->frames_since_moved < crate_movement_frames)
+            crate->frames_since_moved++;
         else {
             hide_crate(crate);
             crate->pos.x += crate->dx;
@@ -99,7 +99,7 @@ static void update_crate(buff_crate *crate, spawn_area *sa, term_state *ts)
 
             show_crate(crate);
 
-            crate->frames_until_move = crate->data->movement_frames;
+            crate->frames_since_moved = 0;
         }
     }
 }    
