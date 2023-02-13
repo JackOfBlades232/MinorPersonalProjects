@@ -1,4 +1,13 @@
 Closest:
--Remake asteroid attribute gen (from type to struct on spawn)
--Make spawn asteroid return ref to it
--Complete spawn routine in main
+* Remake asteroid attribute gen (from type to struct on spawn)
+* Make spawn asteroid return ref to it
+* Complete spawn routine in main
+* Add spawn space blocking and freeing
+* Fix segfault in try_spawn_object
+* Implement correct asteroid death on screen edge
+* Implement asteroid damage from bullets
+* Implement player-asteroid collision
+- Implement asteroid spawning cycle
+- Add player death and restart
+- Add game over/restart ui
+- Add score and ui plack

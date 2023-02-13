@@ -5,11 +5,13 @@
 #include "geom.h"
 #include "graphics.h"
 
+enum { player_width = 8, player_height = 4 };
 enum { player_bullet_bufsize = 64 };
 
 typedef struct tag_player {
     point pos;
     int cur_hp, max_hp;
+    int bullet_dmg;
 } player;
 
 typedef struct tag_player_bullet {
@@ -22,13 +24,16 @@ typedef struct tag_player_bullet {
 
 typedef player_bullet player_bullet_buf[player_bullet_bufsize];
 
-void init_player(player *p, int max_hp, term_state *ts);
+void init_player(player *p, int max_hp, int bullet_dmg, term_state *ts);
 
 void show_player(player *p);
 void hide_player(player *p);
 void move_player(player *p, int dx, int dy, term_state *ts);
 
 int point_is_in_player(player *pl, point pt);
+
+int damage_player(player *p, int damage);
+int player_is_dead(player *p);
 
 void init_player_bullet_buf(player_bullet_buf bullet_buf);
 

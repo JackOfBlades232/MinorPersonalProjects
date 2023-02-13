@@ -57,3 +57,40 @@ point position_of_area_point(spawn_area *sa, int area_idx)
             spawn_area_vertical_offset
             );
 }
+
+static int set_area_for_object(spawn_area *sa, 
+        int area_idx, int object_width, int set_val)
+{
+    int i, fail_idx;
+
+    if (area_idx+object_width > sa->area_length)
+        return 0;
+
+    for (i = area_idx; i < area_idx+object_width; i++) {
+        if (sa->live_objects[i] == set_val) {
+            fail_idx = i;
+            goto revert_lock;
+        }
+
+        sa->live_objects[i] = set_val;
+    }
+
+    return 1;
+
+revert_lock:
+    for (i = area_idx; i < fail_idx; i++)
+        sa->live_objects[i] = !set_val;
+
+    return 0;
+}
+
+int lock_area_for_object(spawn_area *sa, int area_idx, int object_width)
+{
+    return set_area_for_object(sa, area_idx, object_width, 1);
+}
+
+
+int free_area_of_object(spawn_area *sa, int area_idx, int object_width)
+{
+    return set_area_for_object(sa, area_idx, object_width, 0);
+}

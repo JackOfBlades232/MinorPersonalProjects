@@ -1,6 +1,7 @@
 /* shootemup_v2/asteroid.c */
 #include "asteroid.h"
 #include "geom.h"
+#include "spawn.h"
 #include "utils.h"
 
 #include <curses.h>
@@ -17,8 +18,7 @@ enum {
 enum { 
     small_asteroid_movement_frames = 2,
     medium_asteroid_movement_frames = 3,
-    big_asteroid_movement_frames = 4
-};
+    big_asteroid_movement_frames = 4 };
 
 enum { 
     small_asteroid_hp = 1,
@@ -61,6 +61,24 @@ static const char
     "   ****   "
 };
 
+static asteroid_data small_asteroid_data =
+{
+    small, small_asteroid_width, small_asteroid_height, small_asteroid_hp, 
+    small_asteroid_damage, small_asteroid_movement_frames
+};
+
+static asteroid_data medium_asteroid_data =
+{
+    medium, medium_asteroid_width, medium_asteroid_height, medium_asteroid_hp, 
+    medium_asteroid_damage, medium_asteroid_movement_frames
+};
+
+static asteroid_data big_asteroid_data =
+{
+    big, big_asteroid_width, big_asteroid_height, big_asteroid_hp, 
+    big_asteroid_damage, big_asteroid_movement_frames
+};
+
 static const asteroid_type all_asteroid_types[asteroid_type_cnt] = 
 {
     small, medium, big
@@ -82,10 +100,10 @@ void init_asteroid_buf(asteroid_buf buf)
         y++; \
     }
 
-static void show_asteroid(asteroid *as)
+void show_asteroid(asteroid *as)
 {
     int x, y, i;
-    switch (as->type) {
+    switch (as->data->type) {
         case small:
             DRAW_ASTEROID_SHAPE(small_asteroid_shape, 
                     small_asteroid_height, as);
@@ -103,78 +121,61 @@ static void show_asteroid(asteroid *as)
 
 static void hide_asteroid(asteroid *as)
 {
-    int w, h;
     int y, i;
 
-    switch (as->type) {
-        case small:
-            w = small_asteroid_width;
-            h = small_asteroid_height;
-            break;
-        case medium:
-            w = medium_asteroid_width;
-            h = medium_asteroid_height;
-            break;
-        case big:
-            w = big_asteroid_width;
-            h = big_asteroid_height;
-            break;
-    }
-
-    for (y = as->pos.y; y < as->pos.y + h; y++) {
+    for (y = as->pos.y; y < as->pos.y + as->data->height; y++) {
         move(y, as->pos.x);
-        for (i = 0; i < w; i++)
+        for (i = 0; i < as->data->width; i++)
             addch(' ');
     }
 } 
 
-int spawn_asteroid(asteroid_buf buf)
+asteroid *get_queued_asteroid(asteroid_buf buf)
 {
-    int i;
     asteroid *as = NULL;
+    asteroid_type chosen_type;
 
-    for (i = 0; i < asteroid_bufsize; i++) {
-        if (!buf[i].is_alive) {
-            as = buf + i;
+    for (as = buf; as - buf < asteroid_bufsize; as++) {
+        if (!as->is_alive)
             break;
-        }
     }
 
-    if (!as)
-        return 0;
+    if (as - buf >= asteroid_bufsize)
+        return NULL;
 
-    /* temp */
-    as->pos = point_literal(0, 0);
-    as->is_alive = 1;
-    as->type = all_asteroid_types[randint(0, asteroid_type_cnt)];
+    chosen_type = all_asteroid_types[randint(0, asteroid_type_cnt)];
 
-    switch (as->type) {
+    switch (chosen_type) {
         case small:
-            as->frames_until_move = small_asteroid_movement_frames;
-            as->cur_hp = small_asteroid_hp;
-            as->damage = small_asteroid_damage;
+            as->data = &small_asteroid_data;
             break;
         case medium:
-            as->frames_until_move = medium_asteroid_movement_frames;
-            as->cur_hp = medium_asteroid_hp;
-            as->damage = medium_asteroid_damage;
+            as->data = &medium_asteroid_data;
             break;
         case big:
-            as->frames_until_move = big_asteroid_movement_frames;
-            as->cur_hp = big_asteroid_hp;
-            as->damage = big_asteroid_damage;
+            as->data = &big_asteroid_data;
             break;
     }
+
+    return as;
+}
+
+void spawn_asteroid(asteroid *as, point pos, int spawn_area_idx)
+{
+    as->is_alive = 1;
+    as->pos = pos;
+    as->spawn_area_idx = spawn_area_idx;
+
+    as->cur_hp = as->data->max_hp;
+    as->frames_until_move = as->data->movement_frames;
 
     as->dx = 0;
     as->dy = 1;
 
     show_asteroid(as);
-
-    return 1;
 }
 
-static void update_asteroid(asteroid *as)
+static void update_asteroid(asteroid *as, spawn_area *sa, term_state *ts)
 {
     if (as->is_alive) {
         if (as->frames_until_move > 0)
@@ -184,56 +185,50 @@ static void update_asteroid(asteroid *as)
             as->pos.x += as->dx;
             as->pos.y += as->dy;
 
-            /* temp */
-            if (as->pos.y > 20) {
-                kill_asteroid(as);
+            if (as->pos.y + as->data->height >= ts->row) {
+                kill_asteroid(as, sa);
                 return;
             }
 
             show_asteroid(as);
 
-            switch (as->type) {
-                case small:
-                    as->frames_until_move = small_asteroid_movement_frames;
-                    break;
-                case medium:
-                    as->frames_until_move = medium_asteroid_movement_frames;
-                    break;
-                case big:
-                    as->frames_until_move = big_asteroid_movement_frames;
-                    break;
-            }
+            as->frames_until_move = as->data->movement_frames;
         }
     }
 }    
 
-void update_live_asteroids(asteroid_buf buf)
+void update_live_asteroids(asteroid_buf buf, spawn_area *sa, term_state *ts)
 {
     int i;
     for (i = 0; i < asteroid_bufsize; i++)
-        update_asteroid(buf+i);
+        update_asteroid(buf+i, sa, ts);
 }
 
-int damage_asteroid(asteroid *as, int damage)
+int damage_asteroid(asteroid *as, int damage, spawn_area *sa)
 {
     as->cur_hp -= damage;
     if (as->cur_hp <= 0)
-        return kill_asteroid(as);
+        return kill_asteroid(as, sa);
 
     return 0;
 }
 
-int kill_asteroid(asteroid *as)
+int kill_asteroid(asteroid *as, spawn_area *sa)
 {
+    if (!as->is_alive)
+        return 0;
+
     as->is_alive = 0;
     hide_asteroid(as);
+
+    free_area_of_object(sa, as->spawn_area_idx, as->data->width);
     
     return 1;
 }
 
 #define CHECK_POINT_IN_ASTEROID(ARR, W, H, AST, P) \
-    loc_x = AST->pos.x + P.x; \
-    loc_y = AST->pos.y + P.y; \
+    loc_x = P.x - AST->pos.x; \
+    loc_y = P.y - AST->pos.y; \
     if (loc_x < 0 || loc_x >= W || loc_y < 0 || loc_y >= H) \
         return false; \
     else \
@@ -242,7 +237,7 @@ int kill_asteroid(asteroid *as)
 int point_is_in_asteroid(asteroid *as, point p)
 {
     int loc_x, loc_y;
-    switch (as->type) {
+    switch (as->data->type) {
         case small:
             CHECK_POINT_IN_ASTEROID(small_asteroid_shape, 
                     small_asteroid_width, small_asteroid_height,

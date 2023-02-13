@@ -5,7 +5,6 @@
 
 #include <curses.h>
 
-enum { player_width = 8, player_height = 4 };
 enum { player_init_screen_edge_offset = 3 };
 
 enum { bullet_emitter_cnt = 2 };
@@ -24,11 +23,12 @@ static const int bullet_emitter_positions[bullet_emitter_cnt][2] =
     { 2, 2 }, { 5, 2 }
 };
 
-void init_player(player *p, int max_hp, term_state *ts)
+void init_player(player *p, int max_hp, int bullet_dmg, term_state *ts)
 {
     p->pos.x = (ts->col - player_width)/2 + 1;
     p->pos.y = ts->row - player_init_screen_edge_offset - player_height;
     p->cur_hp = p->max_hp = max_hp;
+    p->bullet_dmg = bullet_dmg;
 
     show_player(p);
 }
@@ -103,6 +103,21 @@ int point_is_in_player(player *pl, point pt)
     return not_leftmost && not_rightmost;
 }
 
+int damage_player(player *p, int damage)
+{
+    p->cur_hp -= damage;
+
+    move(0, 0);
+    printw("%d   ", p->cur_hp);
+
+    return player_is_dead(p);
+}
+
+int player_is_dead(player *p)
+{
+    return p->cur_hp <= 0;
+}
+
 void init_player_bullet_buf(player_bullet_buf bullet_buf)
 {
     int i;
@@ -122,10 +137,12 @@ static void hide_bullet(player_bullet *b)
     addch(' ');
 }
 
-static void shoot_bullet(player_bullet *b, int emitter_x, int emitter_y)
+static void shoot_bullet(player_bullet *b, player *p,
+        int emitter_x, int emitter_y)
 {
     b->pos = point_literal(emitter_x, emitter_y);
     b->is_alive = 1;
+    b->damage = p->bullet_dmg;
     b->frames_until_move = bullet_movement_frames;
     b->dx = 0;
     b->dy = -1;
@@ -142,7 +159,7 @@ int player_shoot(player *p, player_bullet_buf bullet_buf)
         if (!bullet_buf[i].is_alive) {
             emitters_left--;
             shoot_bullet(
-                &bullet_buf[i], 
+                &bullet_buf[i], p,
                 p->pos.x + bullet_emitter_positions[emitters_left][0],
                 p->pos.y + bullet_emitter_positions[emitters_left][1]
             );

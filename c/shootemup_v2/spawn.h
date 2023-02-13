@@ -15,5 +15,7 @@ void init_spawn_area(spawn_area *sa, int length);
 void deinit_spawn_area(spawn_area *sa);
 int try_spawn_object(spawn_area *sa, int object_width);
 point position_of_area_point(spawn_area *sa, int area_idx);
+int lock_area_for_object(spawn_area *sa, int area_idx, int object_width);
+int free_area_of_object(spawn_area *sa, int area_idx, int object_width);
 
 #endif
