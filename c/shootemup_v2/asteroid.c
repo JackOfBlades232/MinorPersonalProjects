@@ -37,7 +37,7 @@ enum {
     big_asteroid_score_for_kill = 6
 };
 
-#define SCORE_FOR_SKIP_COEFF 0.5
+#define SCORE_FOR_SKIP_COEFF 0.251
 
 static const char 
     small_asteroid_shape[small_asteroid_height][small_asteroid_width+1] =

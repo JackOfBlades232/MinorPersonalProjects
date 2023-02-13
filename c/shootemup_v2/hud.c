@@ -3,12 +3,21 @@
 
 #include <curses.h>
 
+enum { max_hud_plack_len = 72 };
+
+static void erase_old_plack()
+{
+    int i;
+    move(0, 0);
+    for (i = 0; i < max_hud_plack_len; i++)
+        addch(' ');
+}
+
 void draw_hud_plack(player_state *ps)
 {
     int i;
     
-    move(0, 0);
-    addstr("                                            "); /* erase old */
+    erase_old_plack();
     
     move(0, 0);
     addstr("HP: ");
