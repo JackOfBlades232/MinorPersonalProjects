@@ -5,6 +5,7 @@
 #include "asteroid.h"
 #include "spawn.h"
 #include "collisions.h"
+#include "hud.h"
 #include "menus.h"
 #include "utils.h"
 
@@ -17,6 +18,8 @@ static void init_game(term_state *ts)
     init_random();
     init_graphics(ts);
     init_controls();
+
+    init_asteroid_static_data();
 }
 
 static void reset_game_state(player *p, term_state *ts, 
@@ -25,7 +28,7 @@ static void reset_game_state(player *p, term_state *ts,
 {
     reset_controls_timeout();
 
-    init_player(p, 5, 1, ts);
+    init_player(p, 5, 100, 1, ts);
     init_player_bullet_buf(player_bullets);
     init_asteroid_buf(asteroids);
     init_spawn_area(spawn, ts->col - 2*spawn_area_horizontal_offset);
@@ -33,16 +36,16 @@ static void reset_game_state(player *p, term_state *ts,
 }
 
 static void update_moving_entities(player_bullet_buf player_bullets, 
-        asteroid_buf asteroids, spawn_area *spawn, term_state *ts)
+        asteroid_buf asteroids, spawn_area *spawn, player *p, term_state *ts)
 {
     update_live_bullets(player_bullets);
-    update_live_asteroids(asteroids, spawn, ts);
+    update_live_asteroids(asteroids, spawn, ts, p);
 }
 
 static void process_collisions(player *p, player_bullet_buf player_bullets,
         asteroid_buf asteroids, spawn_area *spawn)
 {
-    process_bullet_to_asteroid_collisions(player_bullets, asteroids, spawn);
+    process_bullet_to_asteroid_collisions(player_bullets, asteroids, spawn, p);
     process_asteroid_to_player_collisions(p, asteroids, spawn);
 }
 
@@ -77,7 +80,7 @@ static game_result game_loop(player *p, term_state *ts,
     while ((action = get_input_action()) != quit) {
         update_ctimers(1, spawn_timer, NULL);
 
-        update_moving_entities(player_bullets, asteroids, spawn, ts);
+        update_moving_entities(player_bullets, asteroids, spawn, p, ts);
         process_collisions(p, player_bullets, asteroids, spawn);
 
         if (player_is_dead(p)) {
@@ -109,6 +112,9 @@ static game_result game_loop(player *p, term_state *ts,
                 break;
         }
 
+        handle_player_ammo_replenish(p);
+
+        draw_hud_plack(&p->state);
         refresh_scr();
     }
 
@@ -147,7 +153,7 @@ start_game:
         case win:
             break;
         case lose:
-            go_menu_res = play_game_over_menu(&t_state);
+            go_menu_res = play_game_over_menu(&t_state, &p.state);
             if (go_menu_res == restart_game)
                 goto start_game;
             break;

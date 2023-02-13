@@ -5,7 +5,7 @@
 #include "player.h"
 
 void process_bullet_to_asteroid_collisions(player_bullet_buf bullet_buf, 
-        asteroid_buf ast_buf, spawn_area *sa)
+        asteroid_buf ast_buf, spawn_area *sa, player *p)
 {
     int i, j;
     
@@ -18,7 +18,7 @@ void process_bullet_to_asteroid_collisions(player_bullet_buf bullet_buf,
             asteroid *as = ast_buf + j;
 
             if (as->is_alive && point_is_in_asteroid(as, b->pos)) {
-                damage_asteroid(as, b->damage, sa);
+                damage_asteroid(as, b->damage, sa, p);
                 kill_bullet(b);
 
                 break;
@@ -42,6 +42,8 @@ void process_asteroid_to_player_collisions(player *p,
                 point pt = point_literal(x, y);
                 if (point_is_in_player(p, pt) && point_is_in_asteroid(as, pt)) {
                     damage_player(p, as->data->damage);
+
+                    add_score(p, as->data->score_for_skip);
                     kill_asteroid(as, sa);
                 }
             }

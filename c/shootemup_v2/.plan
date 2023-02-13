@@ -1,4 +1,4 @@
-Closest:
+Features impl:
 * Remake asteroid attribute gen (from type to struct on spawn)
 * Make spawn asteroid return ref to it
 * Complete spawn routine in main
@@ -11,4 +11,17 @@ Closest:
 * Add player death and restart
 * Add game over/restart ui
 * Fix timeout reset on game over ui
-- Add score and ui plack
+* Add ui plack
+* Add score for killing asteroids
+* Implement ammo and autorestoring of ammo
+- Add repair kits:
+    - shape/movement
+    - spawning
+    - collision/heal player
+    - update spawning for random chioce between asteroids and r-kits
+- Refactor ui modules
+- Add centering to var-len lines in game over menu
+- Unify frame-ticking and add speed settings for movement, shooting, ammo repl
+
+Bugs:
+- After exiting from game over menu got a frame of old game state

@@ -1,6 +1,5 @@
 /* shootemup_v2/asteroid.c */
 #include "asteroid.h"
-#include "geom.h"
 #include "spawn.h"
 #include "utils.h"
 
@@ -31,6 +30,14 @@ enum {
     medium_asteroid_damage = 2,
     big_asteroid_damage = 3
 };
+
+enum {
+    small_asteroid_score_for_kill = 2,
+    medium_asteroid_score_for_kill = 4,
+    big_asteroid_score_for_kill = 6
+};
+
+#define SCORE_FOR_SKIP_COEFF 0.5
 
 static const char 
     small_asteroid_shape[small_asteroid_height][small_asteroid_width+1] =
@@ -64,19 +71,22 @@ static const char
 static asteroid_data small_asteroid_data =
 {
     small, small_asteroid_width, small_asteroid_height, small_asteroid_hp, 
-    small_asteroid_damage, small_asteroid_movement_frames
+    small_asteroid_damage, small_asteroid_movement_frames,
+    small_asteroid_score_for_kill, small_asteroid_score_for_kill
 };
 
 static asteroid_data medium_asteroid_data =
 {
     medium, medium_asteroid_width, medium_asteroid_height, medium_asteroid_hp, 
-    medium_asteroid_damage, medium_asteroid_movement_frames
+    medium_asteroid_damage, medium_asteroid_movement_frames,
+    medium_asteroid_score_for_kill, medium_asteroid_score_for_kill
 };
 
 static asteroid_data big_asteroid_data =
 {
     big, big_asteroid_width, big_asteroid_height, big_asteroid_hp, 
-    big_asteroid_damage, big_asteroid_movement_frames
+    big_asteroid_damage, big_asteroid_movement_frames,
+    big_asteroid_score_for_kill, big_asteroid_score_for_kill
 };
 
 static const asteroid_type all_asteroid_types[asteroid_type_cnt] = 
@@ -89,6 +99,19 @@ void init_asteroid_buf(asteroid_buf buf)
     int i;
     for (i = 0; i < asteroid_bufsize; i++)
         buf[i].is_alive = 0;
+}
+
+void init_asteroid_static_data()
+{
+    small_asteroid_data.score_for_skip = (int) (
+            small_asteroid_data.score_for_kill * SCORE_FOR_SKIP_COEFF
+            );
+    medium_asteroid_data.score_for_skip = (int) (
+            medium_asteroid_data.score_for_kill * SCORE_FOR_SKIP_COEFF
+            );
+    big_asteroid_data.score_for_skip = (int) (
+            big_asteroid_data.score_for_kill * SCORE_FOR_SKIP_COEFF
+            );
 }
 
 #define DRAW_ASTEROID_SHAPE(ARR, H, AST) \
@@ -175,7 +198,8 @@ void spawn_asteroid(asteroid *as, point pos, int spawn_area_idx)
     show_asteroid(as);
 }
 
-static void update_asteroid(asteroid *as, spawn_area *sa, term_state *ts)
+static void update_asteroid(asteroid *as, spawn_area *sa, 
+        term_state *ts, player *p)
 {
     if (as->is_alive) {
         if (as->frames_until_move > 0)
@@ -186,6 +210,7 @@ static void update_asteroid(asteroid *as, spawn_area *sa, term_state *ts)
             as->pos.y += as->dy;
 
             if (as->pos.y + as->data->height >= ts->row) {
+                add_score(p, as->data->score_for_skip);
                 kill_asteroid(as, sa);
                 return;
             }
@@ -197,18 +222,21 @@ static void update_asteroid(asteroid *as, spawn_area *sa, term_state *ts)
     }
 }    
 
-void update_live_asteroids(asteroid_buf buf, spawn_area *sa, term_state *ts)
+void update_live_asteroids(asteroid_buf buf, spawn_area *sa, 
+        term_state *ts, player *p)
 {
     int i;
     for (i = 0; i < asteroid_bufsize; i++)
-        update_asteroid(buf+i, sa, ts);
+        update_asteroid(buf+i, sa, ts, p);
 }
 
-int damage_asteroid(asteroid *as, int damage, spawn_area *sa)
+int damage_asteroid(asteroid *as, int damage, spawn_area *sa, player *p)
 {
     as->cur_hp -= damage;
-    if (as->cur_hp <= 0)
+    if (as->cur_hp <= 0) {
+        add_score(p, as->data->score_for_kill);
         return kill_asteroid(as, sa);
+    }
 
     return 0;
 }
