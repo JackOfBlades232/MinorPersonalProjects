@@ -12,6 +12,7 @@ enum { crate_bufsize = 16 };
 typedef struct tag_buff_data {
     int width, height;
     int hp_restore;
+    int movement_frames;
 } buff_data;
 
 typedef struct tag_buff_crate {
@@ -26,16 +27,14 @@ typedef struct tag_buff_crate {
 typedef buff_crate crate_buf[crate_bufsize];
 
 void init_crate_buf(crate_buf buf);
-void init_crate_static_data();
 
 buff_crate *get_queued_crate(crate_buf buf);
-void spawn_crate(buff_crate *as, point pos, int spawn_area_idx);
-void show_crate(buff_crate *as);
-void update_live_crates(crate_buf buf, spawn_area *sa, 
-        term_state *ts, player *p);
-int collect_crate(buff_crate *as, int damage, spawn_area *sa, player *p);
-int kill_crate(buff_crate *as, spawn_area *sa);
+void spawn_crate(buff_crate *crate, point pos, int spawn_area_idx);
+void show_crate(buff_crate *crate);
+void update_live_crates(crate_buf buf, spawn_area *sa, term_state *ts);
+int collect_crate(buff_crate *crate, spawn_area *sa, player *p);
+int kill_crate(buff_crate *crate, spawn_area *sa);
 
-int point_is_in_crate(buff_crate *as, point p);
+int point_is_in_crate(buff_crate *crate, point p);
 
 #endif

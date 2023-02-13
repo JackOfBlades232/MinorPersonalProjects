@@ -13,22 +13,22 @@ enum { asteroid_type_cnt = 3 };
 typedef enum tag_asteroid_type { small, medium, big } asteroid_type;
 
 typedef struct tag_asteroid_data {
-  asteroid_type type;
-  int width, height;
-  int max_hp;
-  int damage;
-  int movement_frames;
-  int score_for_kill, score_for_skip;
+    asteroid_type type;
+    int width, height;
+    int max_hp;
+    int damage;
+    int movement_frames;
+    int score_for_kill, score_for_skip;
 } asteroid_data;
 
 typedef struct tag_asteroid {
-  asteroid_data *data;
-  point pos;
-  int dx, dy;
-  int spawn_area_idx;
-  int cur_hp;
-  int is_alive;
-  int frames_until_move;
+    asteroid_data *data;
+    point pos;
+    int dx, dy;
+    int spawn_area_idx;
+    int cur_hp;
+    int is_alive;
+    int frames_until_move;
 } asteroid;
 
 typedef asteroid asteroid_buf[asteroid_bufsize];

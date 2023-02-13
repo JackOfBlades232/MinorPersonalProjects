@@ -14,16 +14,19 @@ Features impl:
 * Add ui plack
 * Add score for killing asteroids
 * Implement ammo and autorestoring of ammo
-- Add repair kits:
+* Add repair kits:
     * set up types and headers
-    - add shape arr
-    - add static data
-    - impl all funcs from h
-    - insert into main
-    - update spawning for random chioce between asteroids and r-kits
+    * add shape arr
+    * add static data
+    * impl all funcs from h
+    * impl collisions
+    * insert into main
+    * update spawning for random chioce between asteroids and r-kits
 - Refactor ui modules
 - Add centering to var-len lines in game over menu
 - Unify frame-ticking and add speed settings for movement, shooting, ammo repl
+- Add colors
 
 Bugs:
 - After exiting from game over menu got a frame of old game state
+- Sometimes the game starts and nothing spawns

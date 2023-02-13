@@ -254,11 +254,12 @@ int kill_asteroid(asteroid *as, spawn_area *sa)
     return 1;
 }
 
-#define CHECK_POINT_IN_ASTEROID(ARR, W, H, AST, P) \
+#define CHECK_POINT_IN_ASTEROID(ARR, AST, P) \
     loc_x = P.x - AST->pos.x; \
     loc_y = P.y - AST->pos.y; \
-    if (loc_x < 0 || loc_x >= W || loc_y < 0 || loc_y >= H) \
-        return false; \
+    if (loc_x < 0 || loc_x >= AST->data->width || \
+            loc_y < 0 || loc_y >= AST->data->height) \
+        return 0; \
     else \
         return ARR[loc_y][loc_x] != ' ';
 
@@ -267,17 +268,11 @@ int point_is_in_asteroid(asteroid *as, point p)
     int loc_x, loc_y;
     switch (as->data->type) {
         case small:
-            CHECK_POINT_IN_ASTEROID(small_asteroid_shape, 
-                    small_asteroid_width, small_asteroid_height,
-                    as, p);
+            CHECK_POINT_IN_ASTEROID(small_asteroid_shape, as, p);
         case medium:
-            CHECK_POINT_IN_ASTEROID(medium_asteroid_shape, 
-                    medium_asteroid_width, medium_asteroid_height,
-                    as, p);
+            CHECK_POINT_IN_ASTEROID(medium_asteroid_shape, as, p);
         case big:
-            CHECK_POINT_IN_ASTEROID(big_asteroid_shape, 
-                    big_asteroid_width, big_asteroid_height,
-                    as, p);
+            CHECK_POINT_IN_ASTEROID(big_asteroid_shape, as, p);
     }
 
     return 0;

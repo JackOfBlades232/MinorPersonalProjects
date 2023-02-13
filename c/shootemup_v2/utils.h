@@ -3,10 +3,11 @@
 #define UTILS_SENTRY
 
 typedef struct tag_countdown_timer {
-    int ticks_left;
-    int max_ticks;
+  int ticks_left;
+  int max_ticks;
 } countdown_timer;
 
+int min_int(int n1, int n2);
 void clamp_int(int *val, int min, int max);
 
 void init_random();

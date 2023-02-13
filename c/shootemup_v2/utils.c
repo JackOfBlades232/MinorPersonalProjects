@@ -5,6 +5,11 @@
 #include <stdlib.h>
 #include <time.h>
 
+int min_int(int n1, int n2)
+{
+    return n1 < n2 ? n1 : n2;
+}
+
 void clamp_int(int *val, int min, int max)
 {
     if (*val < min)
