@@ -1,6 +1,7 @@
 /* shootemup_v2/utils.h */
 #include "utils.h"
 
+#include <stdarg.h>
 #include <stdlib.h>
 #include <time.h>
 
@@ -25,4 +26,26 @@ int randint(int min, int max)
 int char_is_symbol(int c)
 {
     return c > 32 && c < 127;
+}
+
+void init_ctimer(countdown_timer *ct, int max_t_val)
+{
+    ct->max_ticks = max_t_val;
+}
+
+void reset_ctimer(countdown_timer *ct)
+{
+    ct->ticks_left = ct->max_ticks;
+}
+
+void update_ctimers(int d_ticks, ...)
+{
+    va_list vl;
+    countdown_timer *ct;
+
+    va_start(vl, d_ticks);
+    while ((ct = va_arg(vl, countdown_timer *)) != NULL)
+        ct->ticks_left -= d_ticks;
+
+    va_end(vl);
 }

@@ -7,6 +7,7 @@ typedef enum tag_input_action {
 } input_action;
 
 void init_controls();
+void reset_controls_timeout();
 input_action get_input_action();
 
 #endif

@@ -35,8 +35,8 @@ void init_player(player *p, int max_hp, int bullet_dmg, term_state *ts)
 
 static void truncate_player_pos(player *p, term_state *ts)
 {
-    clamp_int(&p->pos.x, 0, ts->col-player_width);
-    clamp_int(&p->pos.y, 0, ts->row-player_height);
+    clamp_int(&p->pos.x, 1, ts->col-player_width);
+    clamp_int(&p->pos.y, 1, ts->row-player_height);
 }
 
 void show_player(player *p)
@@ -69,8 +69,8 @@ void move_player(player *p, int dx, int dy, term_state *ts)
 
 static int local_point_is_in_player_square(point pt)
 {
-    return pt.x < 0 || pt.x >= player_width || 
-        pt.y < 0 || pt.y >= player_height;
+    return pt.x >= 0 && pt.x < player_width && 
+        pt.y >= 0 && pt.y < player_height;
 }
 
 int point_is_in_player(player *pl, point pt)

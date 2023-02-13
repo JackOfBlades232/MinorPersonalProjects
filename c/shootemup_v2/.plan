@@ -7,7 +7,8 @@ Closest:
 * Implement correct asteroid death on screen edge
 * Implement asteroid damage from bullets
 * Implement player-asteroid collision
-- Implement asteroid spawning cycle
-- Add player death and restart
-- Add game over/restart ui
+* Implement asteroid spawning cycle
+* Add player death and restart
+* Add game over/restart ui
+* Fix timeout reset on game over ui
 - Add score and ui plack

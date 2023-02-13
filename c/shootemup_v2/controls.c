@@ -10,6 +10,10 @@ void init_controls()
 {
     cbreak();
     keypad(stdscr, 1);
+}
+
+void reset_controls_timeout()
+{
     timeout(frame_duration);
 }
 

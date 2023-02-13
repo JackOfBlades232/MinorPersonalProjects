@@ -39,7 +39,8 @@ void process_asteroid_to_player_collisions(player *p,
 
         for (y = p->pos.y; y < p->pos.y + player_height; y++)
             for (x = p->pos.x; x < p->pos.x + player_width; x++) {
-                if (point_is_in_asteroid(as, point_literal(x, y))) {
+                point pt = point_literal(x, y);
+                if (point_is_in_player(p, pt) && point_is_in_asteroid(as, pt)) {
                     damage_player(p, as->data->damage);
                     kill_asteroid(as, sa);
                 }

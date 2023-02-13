@@ -5,21 +5,31 @@
 #include "asteroid.h"
 #include "spawn.h"
 #include "collisions.h"
+#include "menus.h"
 #include "utils.h"
 
 #include <curses.h>
 
-static void init_game(player *p, term_state *ts, 
-        player_bullet_buf player_bullets, 
-        asteroid_buf asteroids, spawn_area *spawn)
+typedef enum tag_game_result { win, lose, shutdown } game_result;
+
+static void init_game(term_state *ts)
 {
     init_random();
     init_graphics(ts);
     init_controls();
+}
+
+static void reset_game_state(player *p, term_state *ts, 
+        player_bullet_buf player_bullets, asteroid_buf asteroids,
+        spawn_area *spawn, countdown_timer *spawn_timer)
+{
+    reset_controls_timeout();
+
     init_player(p, 5, 1, ts);
     init_player_bullet_buf(player_bullets);
     init_asteroid_buf(asteroids);
     init_spawn_area(spawn, ts->col - 2*spawn_area_horizontal_offset);
+    init_ctimer(spawn_timer, 25);
 }
 
 static void update_moving_entities(player_bullet_buf player_bullets, 
@@ -37,10 +47,14 @@ static void process_collisions(player *p, player_bullet_buf player_bullets,
 }
 
 /* test */
-static void process_spawns(asteroid_buf asteroids, spawn_area *spawn)
+static void process_spawns(asteroid_buf asteroids, 
+        spawn_area *spawn, countdown_timer *spawn_timer)
 {
     int idx;
     asteroid *as;
+
+    if (spawn_timer->ticks_left > 0)
+        return;
 
     as = get_queued_asteroid(asteroids);
     idx = try_spawn_object(spawn, as->data->width);
@@ -48,18 +62,30 @@ static void process_spawns(asteroid_buf asteroids, spawn_area *spawn)
     if (idx >= 0) {
         lock_area_for_object(spawn, idx, as->data->width);
         spawn_asteroid(as, position_of_area_point(spawn, idx), idx);
+
+        reset_ctimer(spawn_timer);
     }
 }
 
-static void game_loop(player *p, term_state *ts,
-        player_bullet_buf player_bullets, 
-        asteroid_buf asteroids, spawn_area *spawn)
+static game_result game_loop(player *p, term_state *ts, 
+        player_bullet_buf player_bullets, asteroid_buf asteroids,
+        spawn_area *spawn, countdown_timer *spawn_timer)
 {
+    game_result g_res = shutdown;
     input_action action;
     
     while ((action = get_input_action()) != quit) {
+        update_ctimers(1, spawn_timer, NULL);
+
         update_moving_entities(player_bullets, asteroids, spawn, ts);
         process_collisions(p, player_bullets, asteroids, spawn);
+
+        if (player_is_dead(p)) {
+            g_res = lose;
+            break;
+        }
+
+        process_spawns(asteroids, spawn, spawn_timer);
 
         switch (action) {
             case up:
@@ -76,7 +102,6 @@ static void game_loop(player *p, term_state *ts,
                 break;
             case fire:
                 player_shoot(p, player_bullets);
-                process_spawns(asteroids, spawn);
                 break;
             case resize:
                 goto end_loop;
@@ -89,6 +114,7 @@ static void game_loop(player *p, term_state *ts,
 
 end_loop:
     hide_player(p);
+    return g_res;
 }
 
 static void deinit_game()
@@ -103,11 +129,33 @@ static int run_game()
     player_bullet_buf player_bullets;
     asteroid_buf asteroids;
     spawn_area spawn;
+    countdown_timer spawn_timer;
 
-    init_game(&p, &t_state, player_bullets, asteroids, &spawn);
-    game_loop(&p, &t_state, player_bullets, asteroids, &spawn);
+    game_result g_res;
+    game_over_menu_res go_menu_res;
+
+    init_game(&t_state);
+
+start_game:
+    reset_game_state(&p, &t_state, player_bullets, 
+            asteroids, &spawn, &spawn_timer);
+
+    g_res = game_loop(&p, &t_state, player_bullets, 
+                asteroids, &spawn, &spawn_timer);
+
+    switch (g_res) {
+        case win:
+            break;
+        case lose:
+            go_menu_res = play_game_over_menu(&t_state);
+            if (go_menu_res == restart_game)
+                goto start_game;
+            break;
+        default:
+            break;
+    }
+
     deinit_game();
-
     return 0;
 }
 
