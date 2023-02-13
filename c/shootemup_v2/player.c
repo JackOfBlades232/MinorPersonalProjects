@@ -56,10 +56,16 @@ static void truncate_player_pos(player *p, term_state *ts)
 
 void show_player(player *p)
 {
-    int i;
+    int i, j;
     for (i = 0; i < player_height; i++) {
         move(p->pos.y + i, p->pos.x);
-        addstr(player_shape[i]);
+        for (j = 0; j < player_width; j++) {
+            char shape_symbol = player_shape[i][j];
+            if (char_is_symbol(shape_symbol))
+                addch(shape_symbol);
+            else
+                move(p->pos.y + i, p->pos.x + j + 1);
+        }
     }
 }
 

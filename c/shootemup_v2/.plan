@@ -26,9 +26,21 @@ Features impl:
 * Add centering to var-len lines in game over menu
 * Unify frame-ticking and add speed settings for movement, shooting, ammo repl
 - Add colors
+    - Add term colors initialization
+    - Choose colors for objects
+    - Set up color pairs (init functions in modules, run in init_game)
+    - Add color switching to show funcs
+
+Enemy fight:
+
 
 Bugs:
-- After exiting from game over menu got a frame of old game state
-- Sometimes the game starts and nothing spawns
-- Before collisions empty parts of shapes are drawn over others
+* After exiting from game over menu got a frame of old game state
+    Random signals of some unknown buttons were outrunning the escape signal,
+    so the game went into restart and then terminated due to esc in main 
+    cycle, so i restricted the resart button to R, and the problem was gone
+* Sometimes the game starts and nothing spawns
+    Solution: I did not reset the spawn timer, so sometimes it would get inited
+    with big "current time"
+* Before collisions empty parts of shapes are drawn over others
     Possible solution: remake drawing to char-by-char and not drawing spaces

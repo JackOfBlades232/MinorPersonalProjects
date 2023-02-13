@@ -114,30 +114,30 @@ void init_asteroid_static_data()
             );
 }
 
-#define DRAW_ASTEROID_SHAPE(ARR, H, AST) \
-    x = AST->pos.x; \
-    y = AST->pos.y; \
-    for (i = 0; i < H; i++) { \
-        move(y, x); \
-        addstr(ARR[i]); \
-        y++; \
+#define DRAW_ASTEROID_SHAPE(ARR, AST) \
+    for (loc_y = 0; loc_y < AST->data->height; loc_y++) { \
+        move(AST->pos.y + loc_y, AST->pos.x); \
+        for (loc_x = 0; loc_x < AST->data->width; loc_x++) { \
+            char shape_symbol = ARR[loc_y][loc_x]; \
+            if (char_is_symbol(shape_symbol)) \
+                addch(shape_symbol); \
+            else \
+                move(AST->pos.y + loc_y, AST->pos.x + loc_x + 1); \
+        } \
     }
 
 void show_asteroid(asteroid *as)
 {
-    int x, y, i;
+    int loc_x, loc_y;
     switch (as->data->type) {
         case small:
-            DRAW_ASTEROID_SHAPE(small_asteroid_shape, 
-                    small_asteroid_height, as);
+            DRAW_ASTEROID_SHAPE(small_asteroid_shape, as);
             break;
         case medium:
-            DRAW_ASTEROID_SHAPE(medium_asteroid_shape, 
-                    medium_asteroid_height, as);
+            DRAW_ASTEROID_SHAPE(medium_asteroid_shape, as);
             break;
         case big:
-            DRAW_ASTEROID_SHAPE(big_asteroid_shape, 
-                    big_asteroid_height, as);
+            DRAW_ASTEROID_SHAPE(big_asteroid_shape, as);
             break;
     }
 }

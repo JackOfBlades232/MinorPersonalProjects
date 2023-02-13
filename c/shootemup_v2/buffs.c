@@ -34,14 +34,18 @@ void init_crate_buf(crate_buf buf)
 
 void show_crate(buff_crate *crate)
 {
-    int i, x, y;
+    int i, j;
     /* temp : remake to macro if multiple types */
-    x = crate->pos.x;
-    y = crate->pos.y;
     for (i = 0; i < crate->data->height; i++) {
-        move(y, x); 
-        addstr(heal_crate_shape[i]);
-        y++;
+        move(crate->pos.y + i, crate->pos.x); 
+
+        for (j = 0; j < crate->data->width; j++) {
+            char shape_symbol = heal_crate_shape[i][j];
+            if (char_is_symbol(shape_symbol))
+                addch(shape_symbol);
+            else
+                move(crate->pos.y + i, crate->pos.x + j + 1); 
+        }
     }
 }
 

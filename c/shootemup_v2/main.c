@@ -10,6 +10,7 @@
 #include "menus.h"
 #include "utils.h"
 
+#include <stdio.h>
 #include <stdlib.h>
 
 typedef enum tag_game_result { win, lose, shutdown } game_result;
@@ -35,6 +36,8 @@ static void reset_game_state(player *p, term_state *ts,
     init_crate_buf(crates);
     init_spawn_area(spawn, ts->col - 2*spawn_area_horizontal_offset);
     init_ctimer(spawn_timer, 25);
+
+    reset_ctimer(spawn_timer);
 }
 
 static void update_moving_entities(player_bullet_buf player_bullets, 
@@ -159,9 +162,14 @@ static int run_game()
     game_result g_res;
     game_over_menu_res go_menu_res;
 
+    FILE *log;
+    log = fopen("debug.log", "w");
+
     init_game(&t_state);
 
 start_game:
+    fprintf(log, "Started game\n");
+
     reset_game_state(&p, &t_state, player_bullets, 
             asteroids, crates, &spawn, &spawn_timer);
 
@@ -181,6 +189,9 @@ start_game:
     }
 
     deinit_game();
+
+    fclose(log);
+    
     return 0;
 }
 

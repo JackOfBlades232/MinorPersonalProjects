@@ -9,5 +9,5 @@ controls.o: controls.c controls.h
 graphics.o: graphics.c graphics.h
 geom.o: geom.c geom.h
 hud.o: hud.c hud.h player.h geom.h graphics.h
-menus.o: menus.c menus.h graphics.h player.h geom.h
+menus.o: menus.c menus.h graphics.h player.h geom.h utils.h
 utils.o: utils.c utils.h

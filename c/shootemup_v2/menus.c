@@ -1,12 +1,13 @@
 /* shootemup_v2/menus.c */
 #include "menus.h"
+#include "utils.h"
 
 #include <curses.h>
 #include <stdio.h>
 #include <string.h>
 #include <unistd.h>
 
-enum { key_escape_c = 27 };
+enum { key_escape_code = 27 };
 
 enum { go_menu_init_delay = 1500 }; /* ms */
 enum { nanosec_in_ms = 1000 };
@@ -20,7 +21,7 @@ static const char text_with_int_fstr[] = "%.52s%d";
 static const char game_over_txt[] = "GAME OVER";
 static const char score_txt[] = "SCORE: ";
 static const char instructions_txt[] = "press <ESC> to exit or "
-                                        "any other key to resart";
+                                       "R to resart";
 
 static void draw_text_in_center(int y, 
         const char *prefix, int *content,
@@ -65,10 +66,17 @@ game_over_menu_res play_game_over_menu(term_state *ts, player_state *ps)
     draw_game_over_menu(ts, ps);
     usleep(go_menu_init_delay*nanosec_in_ms);
 
-    key = getch();
-    erase();
+    while ((key = getch()) != key_escape_code) {
+        switch (key) {
+            case 'r':
+                clear();
+                return restart_game;
+            case KEY_RESIZE:
+                return exit_game;
+            default:
+                break;
+        }
+    }
 
-    return key == key_escape_c || key == KEY_RESIZE ?
-        exit_game :
-        restart_game;
+    return exit_game;
 }

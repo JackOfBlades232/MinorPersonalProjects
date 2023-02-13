@@ -33,6 +33,11 @@ int char_is_symbol(int c)
     return c > 32 && c < 127;
 }
 
+int char_is_ascii(int c)
+{
+    return c >= 0 && c < 128;
+}
+
 void init_ctimer(countdown_timer *ct, int max_t_val)
 {
     ct->max_ticks = max_t_val;

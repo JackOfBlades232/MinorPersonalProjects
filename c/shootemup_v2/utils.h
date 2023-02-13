@@ -14,6 +14,7 @@ void init_random();
 int randint(int min, int max);
 
 int char_is_symbol(int c);
+int char_is_ascii(int c);
 
 void init_ctimer(countdown_timer *ct, int max_t_val);
 void reset_ctimer(countdown_timer *ct);
