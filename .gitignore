@@ -13,6 +13,8 @@
 *.so
 *.ppu
 
+*.dSYM
+
 *.tgz
 
 __pycache__/
