@@ -25,11 +25,11 @@ Features impl:
 * Refactor ui modules
 * Add centering to var-len lines in game over menu
 * Unify frame-ticking and add speed settings for movement, shooting, ammo repl
-- Add colors
-    - Add term colors initialization
-    - Choose colors for objects
-    - Set up color pairs (init functions in modules, run in init_game)
-    - Add color switching to show funcs
+* Add colors
+    * Add term colors initialization
+    * Choose colors for objects
+    * Set up color pairs (init functions in modules, run in init_game)
+    * Add color switching to show funcs
 
 Enemy fight:
 

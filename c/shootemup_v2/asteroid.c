@@ -1,6 +1,7 @@
 /* shootemup_v2/asteroid.c */
 #include "asteroid.h"
 #include "spawn.h"
+#include "colors.h"
 #include "utils.h"
 
 #include <curses.h>
@@ -129,6 +130,7 @@ void init_asteroid_static_data()
 void show_asteroid(asteroid *as)
 {
     int loc_x, loc_y;
+    attrset(get_color_pair(asteroid_color_pair));
     switch (as->data->type) {
         case small:
             DRAW_ASTEROID_SHAPE(small_asteroid_shape, as);
@@ -145,7 +147,7 @@ void show_asteroid(asteroid *as)
 static void hide_asteroid(asteroid *as)
 {
     int y, i;
-
+    attrset(get_color_pair(0));
     for (y = as->pos.y; y < as->pos.y + as->data->height; y++) {
         move(y, as->pos.x);
         for (i = 0; i < as->data->width; i++)

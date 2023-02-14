@@ -8,6 +8,7 @@
 #include "collisions.h"
 #include "hud.h"
 #include "menus.h"
+#include "colors.h"
 #include "utils.h"
 
 #include <stdio.h>
@@ -15,13 +16,22 @@
 
 typedef enum tag_game_result { win, lose, shutdown } game_result;
 
-static void init_game(term_state *ts)
+static int init_game(term_state *ts)
 {
+    int res;
+
+    res = init_graphics(ts);
+    if (!res)
+        return 1;
+
+    init_color_pairs();
+
     init_random();
-    init_graphics(ts);
     init_controls();
 
     init_asteroid_static_data();
+
+    return 0;
 }
 
 static void reset_game_state(player *p, term_state *ts, 
@@ -152,6 +162,8 @@ static void deinit_game()
 
 static int run_game()
 {
+    int status;
+
     term_state t_state;
     player p;
     player_bullet_buf player_bullets;
@@ -163,9 +175,12 @@ static int run_game()
     game_over_menu_res go_menu_res;
 
     FILE *log;
-    log = fopen("debug.log", "w");
 
-    init_game(&t_state);
+    status = init_game(&t_state);
+    if (status != 0)
+        return status;
+
+    log = fopen("debug.log", "w");
 
 start_game:
     fprintf(log, "Started game\n");

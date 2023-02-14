@@ -1,6 +1,7 @@
 /* shootemup_v2/player.c */
 #include "player.h"
 #include "geom.h"
+#include "colors.h"
 #include "utils.h"
 
 #include <curses.h>
@@ -57,6 +58,7 @@ static void truncate_player_pos(player *p, term_state *ts)
 void show_player(player *p)
 {
     int i, j;
+    attrset(get_color_pair(player_color_pair));
     for (i = 0; i < player_height; i++) {
         move(p->pos.y + i, p->pos.x);
         for (j = 0; j < player_width; j++) {
@@ -72,6 +74,7 @@ void show_player(player *p)
 void hide_player(player *p)
 {
     int i, j;
+    attrset(get_color_pair(0));
     for (i = 0; i < player_height; i++) {
         move(p->pos.y + i, p->pos.x);
         for (j = 0; j < player_width; j++)
@@ -168,12 +171,14 @@ void handle_player_ammo_replenish(player *p)
 
 static void show_bullet(player_bullet *b)
 {
+    attrset(switch_and_get_pbullet_color_pair());
     move(b->pos.y, b->pos.x);
     addch('^');
 }
 
 static void hide_bullet(player_bullet *b)
 {
+    attrset(get_color_pair(0));
     move(b->pos.y, b->pos.x);
     addch(' ');
 }

@@ -1,5 +1,6 @@
 /* shootemup_v2/buffs.c */
 #include "buffs.h"
+#include "colors.h"
 #include "utils.h"
 
 #include <curses.h>
@@ -36,6 +37,7 @@ void show_crate(buff_crate *crate)
 {
     int i, j;
     /* temp : remake to macro if multiple types */
+    attrset(get_color_pair(hcrate_color_pair));
     for (i = 0; i < crate->data->height; i++) {
         move(crate->pos.y + i, crate->pos.x); 
 
@@ -52,7 +54,7 @@ void show_crate(buff_crate *crate)
 static void hide_crate(buff_crate *crate)
 {
     int y, i;
-
+    attrset(get_color_pair(0));
     for (y = crate->pos.y; y < crate->pos.y + crate->data->height; y++) {
         move(y, crate->pos.x);
         for (i = 0; i < crate->data->width; i++)

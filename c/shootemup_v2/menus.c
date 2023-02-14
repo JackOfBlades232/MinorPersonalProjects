@@ -1,5 +1,6 @@
 /* shootemup_v2/menus.c */
 #include "menus.h"
+#include "colors.h"
 #include "utils.h"
 
 #include <curses.h>
@@ -43,6 +44,7 @@ static void draw_game_over_menu(term_state *ts, player_state *ps)
 {
     int y;
 
+    attrset(get_color_pair(menu_color_pair));
     erase();
 
     y = (ts->row - 1)/2;
