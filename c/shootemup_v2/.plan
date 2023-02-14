@@ -32,12 +32,11 @@ Features impl:
     * Add color switching to show funcs
 
 Boss fight:
-* Add boss shape, movement, spawn, point-in
-- Add shapes, movement, buffers of boss bullets, mines, gunshots, barrier
-    idea: make a unified projectile buffer, update it all (movement), pick by
-        type for collisions.
+* Add boss shape, movement, spawn, point-in, bullets
+* Impl basics and test with keyboard input
+* Add gunshots (shooting, delay, emitters, updating)
+* Add mines (spawn grid, explode (temp: kill) in some time)
 - Impl explosion effect and it's collision checking
-- Impl moves and test with keyboard input
 - Add boss hp and collisions with player and pbullets
 - Add player-to-boss weapons collisions and gunshots expl near player
 - Add boss hp ui

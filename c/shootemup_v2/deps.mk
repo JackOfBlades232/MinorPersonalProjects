@@ -1,4 +1,5 @@
 player.o: player.c player.h geom.h graphics.h colors.h utils.h
+boss.o: boss.c boss.h graphics.h geom.h colors.h utils.h
 asteroid.o: asteroid.c asteroid.h geom.h graphics.h player.h spawn.h \
  colors.h utils.h
 collisions.o: collisions.c collisions.h player.h geom.h graphics.h \

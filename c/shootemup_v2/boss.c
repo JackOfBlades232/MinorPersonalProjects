@@ -7,11 +7,27 @@
 
 enum { 
     boss_movement_frames = 4,
-    boss_bullet_shooting_frames = 4
+    boss_bullet_shooting_frames = 4,
+    boss_gunshot_shooting_frames = 32
 };
 
-enum { bullet_movement_frames = 1 };
-enum { bullet_emitter_cnt = 4 };
+enum { 
+    bullet_movement_frames = 1,
+    gunshot_movement_frames = 3
+};
+
+enum { 
+    bullet_emitter_cnt = 4,
+    gunshot_emitter_cnt = 2
+};
+
+enum {
+    mine_field_width = 5,
+    mine_field_height = 3,
+    mine_expl_frames = 300
+};
+
+#define MINE_EXPL_RAD 6.0
 
 static const char boss_shape[boss_height][boss_width+1] =
 {
@@ -30,13 +46,23 @@ static const int bullet_emitter_positions[bullet_emitter_cnt][2] =
     { 3, 1 }, { 7, 3 }, { 11, 3 }, { 15, 1 }
 };
 
-void init_boss(boss *bs, int max_hp, int bullet_dmg, term_state *ts)
+static const int gunshot_emitter_positions[gunshot_emitter_cnt][2] =
+{
+    { 7, 3 }, { 11, 3 } 
+};
+
+void init_boss(boss *bs, 
+        int max_hp, int bullet_dmg, int gunshot_dmg, int mine_dmg,
+        term_state *ts)
 {
     bs->pos.x = (ts->col - boss_width)/2;
-    bs->pos.y = 0;
+    bs->pos.y = 1;
 
     bs->state.cur_hp = bs->state.max_hp = max_hp;
+
     bs->state.bullet_dmg = bullet_dmg;
+    bs->state.gunshot_dmg = gunshot_dmg;
+    bs->state.mine_dmg = mine_dmg;
 
     bs->state.frames_since_moved = boss_movement_frames;
     bs->state.frames_since_shot = boss_bullet_shooting_frames;
@@ -152,7 +178,9 @@ static int projectile_color_pair(boss_projectile *pr)
         case gunshot:
             return get_color_pair(gunshot_color_pair);
         case mine:
-            return get_color_pair(mine_color_pair);
+            return get_color_pair(mine_color_pair) | A_BLINK;
+        default:
+            return 0;
     }
 }
 
@@ -165,6 +193,8 @@ static char projectile_symbol(boss_projectile *pr)
             return '|';
         case mine:
             return '$';
+        default:
+            return ' ';
     }
 }
 
@@ -182,32 +212,43 @@ static void hide_projectile(boss_projectile *pr)
     addch(' ');
 }
 
-static void shoot_bullet(boss_projectile *pr, boss *bs,
-        int emitter_x, int emitter_y)
+static void shoot_bullet_or_gunshot(boss_projectile *pr, int is_bullet,
+        boss *bs, int emitter_x, int emitter_y)
 {
+    pr->type = is_bullet ? bullet : gunshot;
     pr->pos = point_literal(emitter_x, emitter_y);
     pr->is_alive = 1;
-    pr->damage = bs->state.bullet_dmg;
+    pr->damage = is_bullet ? bs->state.bullet_dmg : bs->state.gunshot_dmg;
     pr->frames_since_moved = 0;
     pr->dx = 0;
     pr->dy = 1;
     show_projectile(pr);
 }
 
-int boss_shoot_bullet(boss *bs, boss_projectile_buf projectile_buf)
+static int boss_shoot_bullet_or_gunshot(boss *bs, int is_bullet,
+        boss_projectile_buf projectile_buf)
 {
     int i;
-    int emitters_left = bullet_emitter_cnt;
+    int emitters_left = is_bullet ? bullet_emitter_cnt : gunshot_emitter_cnt;
+    int shooting_frames = is_bullet ? 
+        boss_bullet_shooting_frames : 
+        boss_gunshot_shooting_frames;
     
     /* temp (emitters) */
-    if (bs->state.frames_since_shot >= boss_bullet_shooting_frames) {
+    if (bs->state.frames_since_shot >= shooting_frames) {
         for (i = 0; i < boss_projectile_bufsize && emitters_left > 0; i++) {
             if (!projectile_buf[i].is_alive) {
+                const int *emitter_pos;
+                
                 emitters_left--;
-                shoot_bullet(
-                    &projectile_buf[i], bs,
-                    bs->pos.x + bullet_emitter_positions[emitters_left][0],
-                    bs->pos.y + bullet_emitter_positions[emitters_left][1]
+                emitter_pos = is_bullet ?
+                    bullet_emitter_positions[emitters_left] :
+                    gunshot_emitter_positions[emitters_left];
+
+                shoot_bullet_or_gunshot(
+                    &projectile_buf[i], is_bullet, bs,
+                    bs->pos.x + emitter_pos[0],
+                    bs->pos.y + emitter_pos[1]
                 );
             }
         }
@@ -219,9 +260,72 @@ int boss_shoot_bullet(boss *bs, boss_projectile_buf projectile_buf)
         return 0;
 }
 
-static void update_bullet(boss_projectile *pr)
+int boss_shoot_bullet(boss *bs, boss_projectile_buf projectile_buf)
 {
-    if (pr->frames_since_moved < bullet_movement_frames)
+    return boss_shoot_bullet_or_gunshot(bs, 1, projectile_buf);
+}
+
+int boss_shoot_gun(boss *bs, boss_projectile_buf projectile_buf)
+{
+    return boss_shoot_bullet_or_gunshot(bs, 0, projectile_buf);
+}
+
+static int plant_mine(boss_projectile *pr, boss *bs, int x, int y)
+{
+    pr->type = mine;
+    pr->pos = point_literal(x, y);
+
+    if (point_is_in_boss(bs, pr->pos))
+        return 0;
+
+    pr->is_alive = 1;
+    pr->damage = bs->state.mine_dmg;
+    pr->mine_radius = MINE_EXPL_RAD;
+    pr->mine_frames_to_expl = mine_expl_frames;
+
+    show_projectile(pr);
+
+    return 1;
+}
+
+int boss_plant_mines(boss *bs, boss_projectile_buf projectile_buf,
+        term_state *ts)
+{
+    int w_step, h_step;
+    int x, y, i;
+    int mines_cnt = 0;
+
+    w_step = ts->col / mine_field_width;
+    h_step = ts->row / mine_field_height;
+    x = w_step/2;
+    y = h_step/2;
+
+    for (i = 0; i < boss_projectile_bufsize; i++) {
+        if (!projectile_buf[i].is_alive) {
+            mines_cnt += plant_mine(projectile_buf+i, bs, x, y);
+            x += w_step;
+
+            if (x >= ts->col) {
+                x = w_step/2;
+                y += h_step;
+            }
+
+            if (y >= ts->row)
+                break;
+        }
+    }
+
+    return mines_cnt;
+}
+
+static void update_bullet_or_gunshot(boss_projectile *pr, int is_bullet,
+        term_state *ts)
+{
+    int movement_frames = is_bullet ? 
+        bullet_movement_frames : 
+        gunshot_movement_frames;
+
+    if (pr->frames_since_moved < movement_frames)
         pr->frames_since_moved++;
     else {
         hide_projectile(pr);
@@ -229,7 +333,7 @@ static void update_bullet(boss_projectile *pr)
         pr->pos.y += pr->dy;
 
         /* temp */
-        if (pr->pos.y < 0) {
+        if (pr->pos.y >= ts->row) {
             kill_boss_projectile(pr);
             return;
         }
@@ -240,27 +344,38 @@ static void update_bullet(boss_projectile *pr)
     }
 }
 
-static void update_projectile(boss_projectile *pr)
+static void update_mine(boss_projectile *pr)
+{
+    if (pr->mine_frames_to_expl <= 0) 
+        kill_boss_projectile(pr); /* add expl */
+    else
+        pr->mine_frames_to_expl--;
+}
+
+static void update_projectile(boss_projectile *pr, term_state *ts)
 {
     if (!pr->is_alive)
         return;
 
     switch (pr->type) {
         case bullet:
-            update_bullet(pr);
+            update_bullet_or_gunshot(pr, 1, ts);
             break;
         case gunshot:
+            update_bullet_or_gunshot(pr, 0, ts);
             break;
         case mine:
+            update_mine(pr);
             break;
     }
 }
 
-void update_live_boss_projectiles(boss_projectile_buf projectile_buf)
+void update_live_boss_projectiles(boss_projectile_buf projectile_buf,
+        term_state *ts)
 {
     int i;
     for (i = 0; i < boss_projectile_bufsize; i++)
-        update_projectile(projectile_buf+i);
+        update_projectile(projectile_buf+i, ts);
 }
 
 int kill_boss_projectile(boss_projectile *pr)

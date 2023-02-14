@@ -2,6 +2,7 @@
 #include "graphics.h"
 #include "controls.h"
 #include "player.h"
+#include "boss.h"
 #include "asteroid.h"
 #include "buffs.h"
 #include "spawn.h"
@@ -40,14 +41,14 @@ static void reset_game_state(player *p, term_state *ts,
 {
     reset_controls_timeout();
 
-    init_player(p, 5, 100, 1, ts);
+    /* init_player(p, 5, 100, 1, ts);
     init_player_bullet_buf(player_bullets);
     init_asteroid_buf(asteroids);
     init_crate_buf(crates);
     init_spawn_area(spawn, ts->col - 2*spawn_area_horizontal_offset);
     init_ctimer(spawn_timer, 25);
 
-    reset_ctimer(spawn_timer);
+    reset_ctimer(spawn_timer); */
 }
 
 static void update_moving_entities(player_bullet_buf player_bullets, 
@@ -107,13 +108,21 @@ static game_result game_loop(player *p, term_state *ts,
 {
     game_result g_res = shutdown;
     input_action action;
+
+    boss bs; /* test */
+    boss_projectile_buf b_proj;
+    init_boss(&bs, 100, 1, 5, 10, ts);
+    init_boss_projectile_buf(b_proj);
     
     while ((action = get_input_action()) != quit) {
         /* update_ctimers(1, spawn_timer, NULL);
         update_player_frame_counters(p); */
 
-        update_moving_entities(player_bullets, asteroids, crates, spawn, p, ts);
-        /* process_collisions(p, player_bullets, asteroids, crates, spawn);
+        update_boss_frame_counters(&bs); /* test */
+        update_live_boss_projectiles(b_proj, ts);
+
+        /* update_moving_entities(player_bullets, asteroids, crates, spawn, p, ts);
+        process_collisions(p, player_bullets, asteroids, crates, spawn);
 
         if (player_is_dead(p)) {
             g_res = lose;
@@ -125,18 +134,29 @@ static game_result game_loop(player *p, term_state *ts,
         switch (action) {
             case up:
                 /* move_player(p, 0, -1, ts); */
+                move_boss(&bs, 0, -1, ts);
                 break;
             case down:
                 /* move_player(p, 0, 1, ts); */
+                move_boss(&bs, 0, 1, ts);
                 break;
             case left:
                 /* move_player(p, -1, 0, ts); */
+                move_boss(&bs, -1, 0, ts);
                 break;
             case right:
                 /* move_player(p, 1, 0, ts); */
+                move_boss(&bs, 1, 0, ts);
                 break;
             case fire:
                 /* player_shoot(p, player_bullets); */
+                boss_shoot_bullet(&bs, b_proj);
+                break;
+            case fire1: /* boss test */
+                boss_shoot_gun(&bs, b_proj);
+                break;
+            case fire2: /* boss test */
+                boss_plant_mines(&bs, b_proj, ts);
                 break;
             case resize:
                 goto end_loop;
@@ -152,6 +172,9 @@ static game_result game_loop(player *p, term_state *ts,
 
 end_loop:
     /* hide_player(p); */
+
+    hide_boss(&bs); /* test */
+
     return g_res;
 }
 
