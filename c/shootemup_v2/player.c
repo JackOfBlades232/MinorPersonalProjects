@@ -205,7 +205,6 @@ int player_shoot(player *p, player_bullet_buf bullet_buf)
 {
     int i;
     int emitters_left = bullet_emitter_cnt;
-
     
     /* temp */
     if (player_is_eligible_for_shooting(p)) {

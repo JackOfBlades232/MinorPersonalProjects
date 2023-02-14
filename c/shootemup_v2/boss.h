@@ -1,0 +1,56 @@
+/* shootemup_v2/boss.h */
+#ifndef BOSS_SENTRY
+#define BOSS_SENTRY
+
+#include "graphics.h"
+#include "geom.h"
+
+enum { boss_width = 19, boss_height = 8 };
+enum { boss_projectile_bufsize = 128 };
+
+typedef struct tag_boss_state {
+    int cur_hp, max_hp;
+    int frames_since_moved, frames_since_shot;
+    int bullet_dmg;
+} boss_state;
+
+typedef struct tag_boss {
+    point pos;
+    boss_state state;
+} boss;
+
+typedef enum tag_boss_projectile_type {
+    bullet, gunshot, mine
+} boss_projectile_type;
+
+typedef struct tag_boss_projectile {
+    boss_projectile_type type;
+    point pos;
+    int dx, dy;
+    int damage;
+    int is_alive;
+    int frames_since_moved;
+} boss_projectile;
+
+typedef boss_projectile boss_projectile_buf[boss_projectile_bufsize];
+
+void init_boss(boss *bs, int max_hp, int bullet_dmg, term_state *ts);
+
+void show_boss(boss *bs);
+void hide_boss(boss *bs);
+void move_boss(boss *bs, int dx, int dy, term_state *ts);
+
+int point_is_in_boss(boss *bs, point pt);
+
+int damage_boss(boss *bs, int damage);
+int boss_is_dead(boss *bs);
+
+void init_boss_projectile_buf(boss_projectile_buf projectile_buf);
+
+int boss_shoot_bullet(boss *bs, boss_projectile_buf projectile_buf);
+void update_live_boss_projectiles(boss_projectile_buf projectile_buf);
+int kill_boss_projectile(boss_projectile *pr);
+
+void update_boss_frame_counters(boss *bs);
+
+#endif

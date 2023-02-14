@@ -31,8 +31,25 @@ Features impl:
     * Set up color pairs (init functions in modules, run in init_game)
     * Add color switching to show funcs
 
-Enemy fight:
+Boss fight:
+* Add boss shape, movement, spawn, point-in
+- Add shapes, movement, buffers of boss bullets, mines, gunshots, barrier
+    idea: make a unified projectile buffer, update it all (movement), pick by
+        type for collisions.
+- Impl explosion effect and it's collision checking
+- Impl moves and test with keyboard input
+- Add boss hp and collisions with player and pbullets
+- Add player-to-boss weapons collisions and gunshots expl near player
+- Add boss hp ui
+- Insert into game flow (after asteroid phase)
+- Impl boss behaviour:
 
+Addition ideas:
+- Impl adaptive drawing on screen edge (draw part of shape) and make riods, 
+    enemy and crates come out and go out gradually
+- Add buttons for "move&fire" (or learn to get multiple key pressed)
+- Add progressive hardening of the asteroid phase with score (decr spawn delay,
+    decr probability of rep kits, inc ast speed)
 
 Bugs:
 * After exiting from game over menu got a frame of old game state

@@ -109,34 +109,34 @@ static game_result game_loop(player *p, term_state *ts,
     input_action action;
     
     while ((action = get_input_action()) != quit) {
-        update_ctimers(1, spawn_timer, NULL);
-        update_player_frame_counters(p);
+        /* update_ctimers(1, spawn_timer, NULL);
+        update_player_frame_counters(p); */
 
         update_moving_entities(player_bullets, asteroids, crates, spawn, p, ts);
-        process_collisions(p, player_bullets, asteroids, crates, spawn);
+        /* process_collisions(p, player_bullets, asteroids, crates, spawn);
 
         if (player_is_dead(p)) {
             g_res = lose;
             break;
         }
 
-        process_spawns(asteroids, crates, spawn, spawn_timer);
+        process_spawns(asteroids, crates, spawn, spawn_timer); */
 
         switch (action) {
             case up:
-                move_player(p, 0, -1, ts);
+                /* move_player(p, 0, -1, ts); */
                 break;
             case down:
-                move_player(p, 0, 1, ts);
+                /* move_player(p, 0, 1, ts); */
                 break;
             case left:
-                move_player(p, -1, 0, ts);
+                /* move_player(p, -1, 0, ts); */
                 break;
             case right:
-                move_player(p, 1, 0, ts);
+                /* move_player(p, 1, 0, ts); */
                 break;
             case fire:
-                player_shoot(p, player_bullets);
+                /* player_shoot(p, player_bullets); */
                 break;
             case resize:
                 goto end_loop;
@@ -144,14 +144,14 @@ static game_result game_loop(player *p, term_state *ts,
                 break;
         }
 
-        handle_player_ammo_replenish(p);
+        /* handle_player_ammo_replenish(p);
 
-        draw_hud_plack(&p->state);
+        draw_hud_plack(&p->state); */
         refresh_scr();
     }
 
 end_loop:
-    hide_player(p);
+    /* hide_player(p); */
     return g_res;
 }
 
@@ -195,9 +195,9 @@ start_game:
         case win:
             break;
         case lose:
-            go_menu_res = play_game_over_menu(&t_state, &p.state);
+            /* go_menu_res = play_game_over_menu(&t_state, &p.state);
             if (go_menu_res == restart_game)
-                goto start_game;
+                goto start_game; */
             break;
         default:
             break;
