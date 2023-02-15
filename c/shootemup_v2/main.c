@@ -1,4 +1,5 @@
 /* shootemup_v2/main.c */
+#include "geom.h"
 #include "graphics.h"
 #include "controls.h"
 #include "player.h"
@@ -6,6 +7,7 @@
 #include "asteroid.h"
 #include "buffs.h"
 #include "spawn.h"
+#include "explosion.h"
 #include "collisions.h"
 #include "hud.h"
 #include "menus.h"
@@ -111,15 +113,18 @@ static game_result game_loop(player *p, term_state *ts,
 
     boss bs; /* test */
     boss_projectile_buf b_proj;
+    explosion_buf e_buf;
     init_boss(&bs, 100, 1, 5, 10, ts);
     init_boss_projectile_buf(b_proj);
+    init_explosion_buf(e_buf);
     
     while ((action = get_input_action()) != quit) {
         /* update_ctimers(1, spawn_timer, NULL);
         update_player_frame_counters(p); */
 
         update_boss_frame_counters(&bs); /* test */
-        update_live_boss_projectiles(b_proj, ts);
+        update_live_boss_projectiles(b_proj, e_buf, ts);
+        update_live_explosions(e_buf);
 
         /* update_moving_entities(player_bullets, asteroids, crates, spawn, p, ts);
         process_collisions(p, player_bullets, asteroids, crates, spawn);

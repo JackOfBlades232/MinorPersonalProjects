@@ -27,7 +27,7 @@ enum {
     mine_expl_frames = 300
 };
 
-#define MINE_EXPL_RAD 6.0
+#define MINE_EXPL_RAD 10.0
 
 static const char boss_shape[boss_height][boss_width+1] =
 {
@@ -344,15 +344,17 @@ static void update_bullet_or_gunshot(boss_projectile *pr, int is_bullet,
     }
 }
 
-static void update_mine(boss_projectile *pr)
+static void update_mine(boss_projectile *pr, explosion_buf expl_buf)
 {
-    if (pr->mine_frames_to_expl <= 0) 
-        kill_boss_projectile(pr); /* add expl */
-    else
+    if (pr->mine_frames_to_expl <= 0) {
+        kill_boss_projectile(pr);
+        spawn_explosion(expl_buf, pr->pos, pr->mine_radius);
+    } else
         pr->mine_frames_to_expl--;
 }
 
-static void update_projectile(boss_projectile *pr, term_state *ts)
+static void update_projectile(boss_projectile *pr, 
+        explosion_buf expl_buf, term_state *ts)
 {
     if (!pr->is_alive)
         return;
@@ -365,17 +367,17 @@ static void update_projectile(boss_projectile *pr, term_state *ts)
             update_bullet_or_gunshot(pr, 0, ts);
             break;
         case mine:
-            update_mine(pr);
+            update_mine(pr, expl_buf);
             break;
     }
 }
 
 void update_live_boss_projectiles(boss_projectile_buf projectile_buf,
-        term_state *ts)
+        explosion_buf expl_buf, term_state *ts)
 {
     int i;
     for (i = 0; i < boss_projectile_bufsize; i++)
-        update_projectile(projectile_buf+i, ts);
+        update_projectile(projectile_buf+i, expl_buf, ts);
 }
 
 int kill_boss_projectile(boss_projectile *pr)

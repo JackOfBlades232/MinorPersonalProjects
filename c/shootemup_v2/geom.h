@@ -7,5 +7,6 @@ typedef struct tag_point {
 } point;
 
 point point_literal(int x, int y);
+int sq_dist(point p1, point p2);
 
 #endif

@@ -36,7 +36,7 @@ Boss fight:
 * Impl basics and test with keyboard input
 * Add gunshots (shooting, delay, emitters, updating)
 * Add mines (spawn grid, explode (temp: kill) in some time)
-- Impl explosion effect and it's collision checking
+* Impl explosion effect and it's collision checking
 - Add boss hp and collisions with player and pbullets
 - Add player-to-boss weapons collisions and gunshots expl near player
 - Add boss hp ui

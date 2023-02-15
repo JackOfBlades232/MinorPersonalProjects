@@ -1,9 +1,9 @@
 SRCMODULES = player.c asteroid.c buffs.c boss.c spawn.c collisions.c colors.c \
-			 controls.c geom.c graphics.c hud.c menus.c utils.c
+			 explosion.c controls.c geom.c graphics.c hud.c menus.c utils.c
 OBJMODULES = $(SRCMODULES:.c=.o)
 CC = gcc
 CFLAGS = -g -Wall
-LFLAGS = -lncurses
+LFLAGS = -lm -lncurses
 
 %.o: %.c %.h
 	$(CC) $(CFLAGS) -c $< -o $@

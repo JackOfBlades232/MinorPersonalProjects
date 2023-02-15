@@ -2,6 +2,7 @@
 #ifndef BOSS_SENTRY
 #define BOSS_SENTRY
 
+#include "explosion.h"
 #include "graphics.h"
 #include "geom.h"
 
@@ -57,7 +58,7 @@ int boss_plant_mines(boss *bs, boss_projectile_buf projectile_buf,
         term_state *ts);
 
 void update_live_boss_projectiles(boss_projectile_buf projectile_buf,
-        term_state *ts);
+        explosion_buf expl_buf, term_state *ts);
 int kill_boss_projectile(boss_projectile *pr);
 
 void update_boss_frame_counters(boss *bs);
