@@ -44,6 +44,9 @@ void update_live_asteroids(asteroid_buf buf, spawn_area *sa,
 int damage_asteroid(asteroid *as, int damage, spawn_area *sa, player *p);
 int kill_asteroid(asteroid *as, spawn_area *sa);
 
+int buffer_has_live_asteroids(asteroid_buf buf);
+void kill_all_asteroids(asteroid_buf buf, spawn_area *sa);
+
 int point_is_in_asteroid(asteroid *as, point p);
 
 #endif

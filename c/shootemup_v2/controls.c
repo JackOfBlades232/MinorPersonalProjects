@@ -34,14 +34,14 @@ input_action get_input_action()
         return resize;
     else if (key == key_escape)
         return quit;
-    else if (key == '1') /* boss test init */
+    /* else if (key == '1')
         return fire1;
     else if (key == '2')
         return fire2;
     else if (key == '3')
         return fire3;
     else if (key == '4')
-        return fire4; /* boss test end */
+        return fire4; */
     else
         return idle;
 }

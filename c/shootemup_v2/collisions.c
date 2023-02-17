@@ -1,6 +1,7 @@
 /* shootemup_v2/collisions.c */
 #include "collisions.h"
 #include "asteroid.h"
+#include "boss.h"
 #include "buffs.h"
 #include "geom.h"
 #include "player.h"
@@ -106,4 +107,37 @@ nest_break_cp:
     }
 
     show_player(p);
+}
+
+void process_bullet_to_boss_collisions(player_bullet_buf bullet_buf, boss *bs)
+{
+    player_bullet *blt;
+
+    for (blt = bullet_buf; blt - bullet_buf < player_bullet_bufsize; blt++) {
+        if (!blt->is_alive)
+            continue;
+
+        if (point_is_in_boss(bs, blt->pos)) {
+            damage_boss(bs, blt->damage);
+            kill_bullet(blt);
+        }
+    }
+
+    show_boss(bs);
+}
+
+void process_player_to_boss_collisions(player *p, boss *bs)
+{
+    int x, y;
+
+    for (y = p->pos.y; y < p->pos.y + player_height; y++)
+        for (x = p->pos.x; x < p->pos.x + player_width; x++) {
+            point pt = point_literal(x, y);
+            if (point_is_in_player(p, pt) && point_is_in_boss(bs, pt)) {
+                damage_player(p, p->state.cur_hp);
+                break;
+            }
+        }
+
+    show_boss(bs);
 }

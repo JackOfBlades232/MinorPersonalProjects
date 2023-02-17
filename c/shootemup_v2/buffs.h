@@ -35,6 +35,9 @@ void update_live_crates(crate_buf buf, spawn_area *sa, term_state *ts);
 int collect_crate(buff_crate *crate, spawn_area *sa, player *p);
 int kill_crate(buff_crate *crate, spawn_area *sa);
 
+int buffer_has_live_crates(crate_buf buf);
+void kill_all_cratres(crate_buf buf, spawn_area *sa);
+
 int point_is_in_crate(buff_crate *crate, point p);
 
 #endif

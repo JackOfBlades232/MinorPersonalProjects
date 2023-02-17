@@ -16,7 +16,14 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <unistd.h>
 
+enum { 
+    score_for_stage_switch = 15,
+    stage_switch_delay = 1 /* seconds */
+};
+
+typedef enum tag_game_stage { asteroid_field, boss_fight } game_stage;
 typedef enum tag_game_result { win, lose, shutdown } game_result;
 
 static int init_game(term_state *ts)
@@ -43,14 +50,20 @@ static void reset_game_state(player *p, term_state *ts,
 {
     reset_controls_timeout();
 
-    /* init_player(p, 5, 100, 1, ts);
+    init_player(p, 5, 100, 1, ts);
     init_player_bullet_buf(player_bullets);
     init_asteroid_buf(asteroids);
     init_crate_buf(crates);
     init_spawn_area(spawn, ts->col - 2*spawn_area_horizontal_offset);
     init_ctimer(spawn_timer, 25);
 
-    reset_ctimer(spawn_timer); */
+    reset_ctimer(spawn_timer);
+}
+
+static int reached_stage_switch(player *p, game_stage cur_stage)
+{
+    return cur_stage == asteroid_field && 
+        p->state.score >= score_for_stage_switch;
 }
 
 static void update_moving_entities(player_bullet_buf player_bullets, 
@@ -104,81 +117,149 @@ static void process_spawns(asteroid_buf asteroids, crate_buf crates,
         reset_ctimer(spawn_timer);
 }
 
+static void process_asteroid_field_frame(player_bullet_buf player_bullets, 
+        asteroid_buf asteroids, crate_buf crates, spawn_area *spawn, 
+        countdown_timer *spawn_timer, player *p, term_state *ts)
+{
+    update_moving_entities(player_bullets, asteroids, crates, spawn, p, ts);
+    process_collisions(p, player_bullets, asteroids, crates, spawn);
+
+    update_ctimers(1, spawn_timer, NULL);
+    process_spawns(asteroids, crates, spawn, spawn_timer);
+}
+
+static void switch_game_stage(boss *bs, boss_projectile_buf boss_projectiles,
+        explosion_buf explosions, player_bullet_buf player_bullets, 
+        asteroid_buf asteroids, crate_buf crates, spawn_area *spawn,
+        player *p, term_state *ts)
+{
+    kill_all_player_bullets(player_bullets);
+    kill_all_asteroids(asteroids, spawn);
+    kill_all_cratres(crates, spawn);
+
+    hide_player(p);
+    reset_player_pos(p, ts);
+
+    refresh_scr();
+
+    sleep(stage_switch_delay);
+    get_input_action(); /* clear buf */
+
+    init_boss(bs, 250, 1, 5, 10, ts);
+    init_boss_projectile_buf(boss_projectiles);
+    init_explosion_buf(explosions);
+}
+
+static void process_boss_fight_frame(boss *bs, 
+        boss_projectile_buf boss_projectiles, explosion_buf explosions, 
+        player_bullet_buf player_bullets, player *p, term_state *ts)
+{
+    /* TODO : group as movement update */
+    update_live_bullets(player_bullets);
+    update_live_boss_projectiles(boss_projectiles, explosions, ts);
+    update_live_explosions(explosions);
+
+    /* TODO : add collisions, then group in one method */
+    process_bullet_to_boss_collisions(player_bullets, bs);
+    process_player_to_boss_collisions(p, bs);
+
+    update_boss_frame_counters(bs);
+}
+
+static int player_has_won(boss *bs, game_stage g_stage)
+{
+    return g_stage == boss_fight && boss_is_dead(bs);
+}
+
 static game_result game_loop(player *p, term_state *ts, 
         player_bullet_buf player_bullets, asteroid_buf asteroids, 
-        crate_buf crates, spawn_area *spawn, countdown_timer *spawn_timer)
+        crate_buf crates, spawn_area *spawn, countdown_timer *spawn_timer,
+        boss *bs, boss_projectile_buf boss_projectiles, 
+        explosion_buf explosions)
 {
+    game_stage g_stage = asteroid_field;
     game_result g_res = shutdown;
     input_action action;
-
-    boss bs; /* test */
-    boss_projectile_buf b_proj;
-    explosion_buf e_buf;
-    init_boss(&bs, 100, 1, 5, 10, ts);
-    init_boss_projectile_buf(b_proj);
-    init_explosion_buf(e_buf);
     
     while ((action = get_input_action()) != quit) {
-        /* update_ctimers(1, spawn_timer, NULL);
-        update_player_frame_counters(p); */
-
-        update_boss_frame_counters(&bs); /* test */
-        update_live_boss_projectiles(b_proj, e_buf, ts);
-        update_live_explosions(e_buf);
-
-        /* update_moving_entities(player_bullets, asteroids, crates, spawn, p, ts);
-        process_collisions(p, player_bullets, asteroids, crates, spawn);
+        switch (g_stage) {
+            case asteroid_field:
+                process_asteroid_field_frame(player_bullets, asteroids, 
+                        crates, spawn, spawn_timer, p, ts);
+                break;
+            case boss_fight:
+                process_boss_fight_frame(bs, boss_projectiles, explosions,
+                        player_bullets, p, ts);
+                break;
+        }
 
         if (player_is_dead(p)) {
             g_res = lose;
             break;
+        } else if (player_has_won(bs, g_stage)) {
+            g_res = win;
+            break;
+        } else if (reached_stage_switch(p, g_stage)) {
+            g_stage = boss_fight;
+            switch_game_stage(bs, boss_projectiles, explosions,
+                    player_bullets, asteroids, crates, spawn, p, ts);
+
+            continue;
         }
 
-        process_spawns(asteroids, crates, spawn, spawn_timer); */
+        update_player_frame_counters(p);
 
         switch (action) {
             case up:
-                /* move_player(p, 0, -1, ts); */
-                move_boss(&bs, 0, -1, ts);
+                move_player(p, 0, -1, ts);
+                /* move_boss(&bs, 0, -1, ts); */
                 break;
             case down:
-                /* move_player(p, 0, 1, ts); */
-                move_boss(&bs, 0, 1, ts);
+                move_player(p, 0, 1, ts);
+                /* move_boss(&bs, 0, 1, ts); */
                 break;
             case left:
-                /* move_player(p, -1, 0, ts); */
-                move_boss(&bs, -1, 0, ts);
+                move_player(p, -1, 0, ts);
+                /* move_boss(&bs, -1, 0, ts); */
                 break;
             case right:
-                /* move_player(p, 1, 0, ts); */
-                move_boss(&bs, 1, 0, ts);
+                move_player(p, 1, 0, ts);
+                /* move_boss(&bs, 1, 0, ts); */
                 break;
             case fire:
-                /* player_shoot(p, player_bullets); */
-                boss_shoot_bullet(&bs, b_proj);
+                player_shoot(p, player_bullets);
+                /* boss_shoot_bullet(&bs, b_proj); */
                 break;
-            case fire1: /* boss test */
+            /* case fire1:
                 boss_shoot_gun(&bs, b_proj);
                 break;
-            case fire2: /* boss test */
+            case fire2:
                 boss_plant_mines(&bs, b_proj, ts);
-                break;
+                break; */
             case resize:
                 goto end_loop;
             default:
                 break;
         }
 
-        /* handle_player_ammo_replenish(p);
+        handle_player_ammo_replenish(p);
 
-        draw_hud_plack(&p->state); */
+        switch (g_stage) {
+            case asteroid_field:
+                draw_player_hud_plack(&p->state, ts);
+                break;
+            case boss_fight:
+                draw_boss_fight_hud_plack(&p->state, &bs->state, ts);
+                break;
+        }
+
         refresh_scr();
     }
 
 end_loop:
-    /* hide_player(p); */
+    hide_player(p);
 
-    hide_boss(&bs); /* test */
+    /* hide_boss(&bs); */
 
     return g_res;
 }
@@ -199,6 +280,9 @@ static int run_game()
     spawn_area spawn;
     crate_buf crates;
     countdown_timer spawn_timer;
+    boss bs;
+    boss_projectile_buf boss_projectiles;
+    explosion_buf explosions;
     game_result g_res;
     game_over_menu_res go_menu_res;
 
@@ -216,16 +300,17 @@ start_game:
     reset_game_state(&p, &t_state, player_bullets, 
             asteroids, crates, &spawn, &spawn_timer);
 
-    g_res = game_loop(&p, &t_state, player_bullets, 
-                asteroids, crates, &spawn, &spawn_timer);
+    g_res = game_loop(&p, &t_state, player_bullets, asteroids, crates, 
+                      &spawn, &spawn_timer, &bs, boss_projectiles,
+                      explosions);
 
     switch (g_res) {
         case win:
             break;
         case lose:
-            /* go_menu_res = play_game_over_menu(&t_state, &p.state);
+            go_menu_res = play_game_over_menu(&t_state, &p.state);
             if (go_menu_res == restart_game)
-                goto start_game; */
+                goto start_game;
             break;
         default:
             break;

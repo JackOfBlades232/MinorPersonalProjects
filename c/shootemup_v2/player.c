@@ -35,8 +35,6 @@ void init_player(player *p,
         int max_hp, int max_ammo, int bullet_dmg,
         term_state *ts)
 {
-    p->pos.x = (ts->col - player_width)/2 + 1;
-    p->pos.y = ts->row - player_init_screen_edge_offset - player_height;
 
     p->state.cur_hp = p->state.max_hp = max_hp;
     p->state.cur_ammo = p->state.max_ammo = max_ammo;
@@ -45,6 +43,14 @@ void init_player(player *p,
     p->state.frames_since_moved = player_movement_frames;
     p->state.frames_since_shot = frames_from_shot_to_bullet_replenish;
     p->state.frames_since_recovered_ammo = player_ammo_replenish_frames;
+
+    reset_player_pos(p, ts);
+}
+
+void reset_player_pos(player *p, term_state *ts)
+{
+    p->pos.x = (ts->col - player_width)/2 + 1;
+    p->pos.y = ts->row - player_init_screen_edge_offset - player_height;
 
     show_player(p);
 }
@@ -263,6 +269,26 @@ int kill_bullet(player_bullet *b)
     hide_bullet(b);
 
     return 1;
+}
+
+int buffer_has_live_bullets(player_bullet_buf bullet_buf)
+{
+    int i;
+    for (i = 0; i < player_bullet_bufsize; i++) {
+        if (bullet_buf[i].is_alive)
+            return 1;
+    }
+
+    return 0;
+}
+
+void kill_all_player_bullets(player_bullet_buf bullet_buf)
+{
+    int i;
+    for (i = 0; i < player_bullet_bufsize; i++) {
+        if (bullet_buf[i].is_alive)
+            kill_bullet(bullet_buf+i);
+    }
 }
 
 void update_player_frame_counters(player *p)

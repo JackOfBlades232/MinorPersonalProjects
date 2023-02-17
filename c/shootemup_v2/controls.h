@@ -3,8 +3,8 @@
 #define CONTROLS_SENTRY
 
 typedef enum tag_input_action {
-    idle, up, down, left, right, fire, resize, quit,
-    fire1, fire2, fire3, fire4 /* boss test */
+    idle, up, down, left, right, fire, resize, quit /* ,
+    fire1, fire2, fire3, fire4 */
 } input_action;
 
 void init_controls();

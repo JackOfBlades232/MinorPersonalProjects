@@ -146,6 +146,26 @@ int kill_crate(buff_crate *crate, spawn_area *sa)
     return 1;
 }
 
+int buffer_has_live_crates(crate_buf buf)
+{
+    int i;
+    for (i = 0; i < crate_bufsize; i++) {
+        if (buf[i].is_alive)
+            return 1;
+    }
+
+    return 0;
+}
+
+void kill_all_cratres(crate_buf buf, spawn_area *sa)
+{
+    int i;
+    for (i = 0; i < crate_bufsize; i++) {
+        if (buf[i].is_alive)
+            kill_crate(buf+i, sa);
+    }
+}
+
 int point_is_in_crate(buff_crate *crate, point p)
 {
     int loc_x, loc_y;

@@ -34,6 +34,7 @@ typedef player_bullet player_bullet_buf[player_bullet_bufsize];
 void init_player(player *p, 
         int max_hp, int max_ammo, int bullet_dmg,
         term_state *ts);
+void reset_player_pos(player *p, term_state *ts);
 
 void show_player(player *p);
 void hide_player(player *p);
@@ -52,6 +53,9 @@ int player_shoot(player *p, player_bullet_buf bullet_buf);
 void handle_player_ammo_replenish(player *p);
 void update_live_bullets(player_bullet_buf bullet_buf);
 int kill_bullet(player_bullet *b);
+
+int buffer_has_live_bullets(player_bullet_buf bullet_buf);
+void kill_all_player_bullets(player_bullet_buf bullet_buf);
 
 void update_player_frame_counters(player *p);
 

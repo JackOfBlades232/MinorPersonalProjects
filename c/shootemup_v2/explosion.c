@@ -1,5 +1,6 @@
 /* shootemup_v2/explosion.c */
 #include "explosion.h"
+#include "colors.h"
 #include "geom.h"
 #include "graphics.h"
 
@@ -38,6 +39,7 @@ static void draw_expl_circle(explosion *ex, char symbol)
 
 static void show_explosion(explosion *ex)
 {
+    attrset(ex->color_pair);
     draw_expl_circle(ex, EXPL_SYMBOL);
 }
 
@@ -58,7 +60,9 @@ static explosion *get_queued_explosion(explosion_buf buf)
     return NULL;
 }
 
-int spawn_explosion(explosion_buf buf, point pos, double max_rad)
+
+int spawn_explosion(explosion_buf buf, 
+        point pos, double max_rad, int color_pair)
 {
     explosion *ex = get_queued_explosion(buf);
     if (!ex)
@@ -69,6 +73,7 @@ int spawn_explosion(explosion_buf buf, point pos, double max_rad)
     ex->cur_rad = 0;
     ex->updates_left = (int) (max_rad/EXPL_D_RAD_PER_UPDATE);
     ex->frames_to_update = expl_frames_per_update;
+    ex->color_pair = color_pair;
 
     show_explosion(ex);
     return 1;

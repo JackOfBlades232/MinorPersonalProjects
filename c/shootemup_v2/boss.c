@@ -348,7 +348,10 @@ static void update_mine(boss_projectile *pr, explosion_buf expl_buf)
 {
     if (pr->mine_frames_to_expl <= 0) {
         kill_boss_projectile(pr);
-        spawn_explosion(expl_buf, pr->pos, pr->mine_radius);
+        spawn_explosion(
+                expl_buf, pr->pos, pr->mine_radius, 
+                get_color_pair(expl_color_pair)
+                );
     } else
         pr->mine_frames_to_expl--;
 }

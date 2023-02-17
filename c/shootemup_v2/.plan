@@ -37,10 +37,11 @@ Boss fight:
 * Add gunshots (shooting, delay, emitters, updating)
 * Add mines (spawn grid, explode (temp: kill) in some time)
 * Impl explosion effect and it's collision checking
-- Add boss hp and collisions with player and pbullets
+* Add boss hp and collisions with player and pbullets
+* Add boss hp ui
+* Insert into game flow (after asteroid phase)
+- Add win screen ui
 - Add player-to-boss weapons collisions and gunshots expl near player
-- Add boss hp ui
-- Insert into game flow (after asteroid phase)
 - Impl boss behaviour:
 
 Addition ideas:
