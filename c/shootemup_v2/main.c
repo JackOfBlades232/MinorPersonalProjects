@@ -23,8 +23,8 @@ enum {
     stage_switch_delay = 1 /* seconds */
 };
 
-typedef enum tag_game_stage { asteroid_field, boss_fight } game_stage;
-typedef enum tag_game_result { win, lose, shutdown } game_result;
+typedef enum tag_game_stage { asteroid_field = 0, boss_fight = 1 } game_stage;
+typedef enum tag_game_result { win = 0, lose = 1, shutdown = 2 } game_result;
 
 static int init_game(term_state *ts)
 {
@@ -259,8 +259,6 @@ static game_result game_loop(player *p, term_state *ts,
 end_loop:
     hide_player(p);
 
-    /* hide_boss(&bs); */
-
     return g_res;
 }
 
@@ -283,8 +281,9 @@ static int run_game()
     boss bs;
     boss_projectile_buf boss_projectiles;
     explosion_buf explosions;
+
     game_result g_res;
-    game_over_menu_res go_menu_res;
+    menu_res end_menu_res;
 
     FILE *log;
 
@@ -304,17 +303,22 @@ start_game:
                       &spawn, &spawn_timer, &bs, boss_projectiles,
                       explosions);
 
+    fprintf(log, "G-res: %d\n", g_res);
+
     switch (g_res) {
         case win:
+            end_menu_res = play_game_completed_menu(&t_state, &p.state);
             break;
         case lose:
-            go_menu_res = play_game_over_menu(&t_state, &p.state);
-            if (go_menu_res == restart_game)
-                goto start_game;
+            end_menu_res = play_game_over_menu(&t_state, &p.state);
             break;
         default:
+            end_menu_res = exit_game;
             break;
     }
+
+    if (end_menu_res == restart_game)
+        goto start_game;
 
     deinit_game();
 

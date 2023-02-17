@@ -40,7 +40,7 @@ Boss fight:
 * Add boss hp and collisions with player and pbullets
 * Add boss hp ui
 * Insert into game flow (after asteroid phase)
-- Add win screen ui
+* Add win screen ui
 - Add player-to-boss weapons collisions and gunshots expl near player
 - Impl boss behaviour:
 

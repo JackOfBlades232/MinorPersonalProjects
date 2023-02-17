@@ -19,6 +19,7 @@ static char out_text_buf[out_text_bufsize];
 static const char plain_text_fstr[] = "%.63s";
 static const char text_with_int_fstr[] = "%.52s%d";
 
+static const char game_completed_txt[] = "YOU HAVE COMPLETED THE GAME";
 static const char game_over_txt[] = "GAME OVER";
 static const char score_txt[] = "SCORE: ";
 static const char instructions_txt[] = "press <ESC> to exit or "
@@ -40,7 +41,7 @@ static void draw_text_in_center(int y,
     addstr(out_text_buf);
 }
 
-static void draw_game_over_menu(term_state *ts, player_state *ps)
+static void draw_menu(term_state *ts, player_state *ps, int is_win)
 {
     int y;
 
@@ -48,10 +49,15 @@ static void draw_game_over_menu(term_state *ts, player_state *ps)
     erase();
 
     y = (ts->row - 1)/2;
-    draw_text_in_center(y, game_over_txt, NULL, ts);
 
-    y++;
-    draw_text_in_center(y, score_txt, &ps->score, ts);
+    if (is_win) 
+        draw_text_in_center(y, game_completed_txt, NULL, ts);
+    else {
+        draw_text_in_center(y, game_over_txt, NULL, ts);
+
+        y++;
+        draw_text_in_center(y, score_txt, &ps->score, ts);
+    }
 
     y++;
     draw_text_in_center(y, instructions_txt, NULL, ts);
@@ -59,13 +65,13 @@ static void draw_game_over_menu(term_state *ts, player_state *ps)
     refresh_scr();
 }
 
-game_over_menu_res play_game_over_menu(term_state *ts, player_state *ps)
+static menu_res play_menu(term_state *ts, player_state *ps, int is_win)
 {
     int key;
 
     timeout(-1);
 
-    draw_game_over_menu(ts, ps);
+    draw_menu(ts, ps, is_win);
     usleep(go_menu_init_delay*nanosec_in_ms);
 
     while ((key = getch()) != key_escape_code) {
@@ -81,4 +87,14 @@ game_over_menu_res play_game_over_menu(term_state *ts, player_state *ps)
     }
 
     return exit_game;
+}
+
+menu_res play_game_completed_menu(term_state *ts, player_state *ps)
+{
+    return play_menu(ts, ps, 1);
+}
+
+menu_res play_game_over_menu(term_state *ts, player_state *ps)
+{
+    return play_menu(ts, ps, 0);
 }

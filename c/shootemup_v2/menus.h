@@ -5,10 +5,11 @@
 #include "graphics.h"
 #include "player.h"
 
-typedef enum tag_game_over_menu_res { 
+typedef enum tag_menu_res { 
     restart_game, exit_game 
-} game_over_menu_res;
+} menu_res;
 
-game_over_menu_res play_game_over_menu(term_state *ts, player_state *ps);
+menu_res play_game_completed_menu(term_state *ts, player_state *ps);
+menu_res play_game_over_menu(term_state *ts, player_state *ps);
 
 #endif
