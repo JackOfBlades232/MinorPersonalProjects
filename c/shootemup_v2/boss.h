@@ -31,7 +31,6 @@ typedef struct tag_boss_projectile {
     int damage;
     int is_alive;
     int frames_since_moved;
-    double mine_radius;
     int mine_frames_to_expl;
 } boss_projectile;
 
@@ -57,6 +56,9 @@ int boss_shoot_gun(boss *bs, boss_projectile_buf projectile_buf);
 int boss_plant_mines(boss *bs, boss_projectile_buf projectile_buf,
         term_state *ts);
 
+int distance_is_in_gunshot_expl_reach(int dist, boss_projectile *pr);
+
+void set_gunshot_off(boss_projectile *pr, explosion_buf expl_buf);
 void set_mine_off(boss_projectile *pr, explosion_buf expl_buf);
 
 void update_live_boss_projectiles(boss_projectile_buf projectile_buf,

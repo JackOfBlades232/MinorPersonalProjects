@@ -5,6 +5,7 @@
 #include "utils.h"
 
 #include <curses.h>
+#include <math.h>
 
 enum { player_init_screen_edge_offset = 3 };
 
@@ -121,7 +122,7 @@ int point_is_in_player(player *pl, point pt)
     player_line = player_shape[pt.y];
     not_leftmost = not_rightmost = 0;
 
-    for (i = pt.x; i >= 0; i++) {
+    for (i = pt.x; i >= 0; i--) {
         if (char_is_symbol(player_line[i])) {
             not_leftmost = 1;
             break;
@@ -135,6 +136,16 @@ int point_is_in_player(player *pl, point pt)
     }
 
     return not_leftmost && not_rightmost;
+}
+
+double distance_to_player(player *pl, point pt)
+{
+    double player_center_x = (double) pl->pos.x + (double) player_width * 0.5;
+    double player_center_y = (double) pl->pos.y + (double) player_height * 0.5;
+    double dx = (double) pt.x - player_center_x;
+    double dy = (double) pt.y - player_center_y;
+
+    return sqrt(dx*dx + dy*dy);
 }
 
 int damage_player(player *p, int damage)

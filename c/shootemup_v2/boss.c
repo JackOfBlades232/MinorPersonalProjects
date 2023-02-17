@@ -22,11 +22,16 @@ enum {
 };
 
 enum {
+    gunshot_expl_reach = 4
+};
+
+enum {
     mine_field_width = 5,
     mine_field_height = 3,
     mine_expl_frames = 300
 };
 
+#define GUNSHOT_EXPL_RAD 6.0
 #define MINE_EXPL_RAD 10.0
 
 static const char boss_shape[boss_height][boss_width+1] =
@@ -136,7 +141,7 @@ int point_is_in_boss(boss *bs, point pt)
     boss_line = boss_shape[pt.y];
     not_leftmost = not_rightmost = 0;
 
-    for (i = pt.x; i >= 0; i++) {
+    for (i = pt.x; i >= 0; i--) {
         if (char_is_symbol(boss_line[i])) {
             not_leftmost = 1;
             break;
@@ -280,7 +285,6 @@ static int plant_mine(boss_projectile *pr, boss *bs, int x, int y)
 
     pr->is_alive = 1;
     pr->damage = bs->state.mine_dmg;
-    pr->mine_radius = MINE_EXPL_RAD;
     pr->mine_frames_to_expl = mine_expl_frames;
 
     show_projectile(pr);
@@ -344,16 +348,32 @@ static void update_bullet_or_gunshot(boss_projectile *pr, int is_bullet,
     }
 }
 
-void set_mine_off(boss_projectile *pr, explosion_buf expl_buf)
+int distance_is_in_gunshot_expl_reach(int dist, boss_projectile *pr)
 {
-    if (pr->type != mine)
+    return dist <= gunshot_expl_reach;
+}
+
+static void set_expl_projectile_off(boss_projectile *pr, explosion_buf expl_buf,
+        boss_projectile_type target_type, double radius)
+{
+    if (pr->type != target_type)
         return;
 
     kill_boss_projectile(pr);
     spawn_explosion(
-            expl_buf, pr->pos, pr->mine_radius, 
+            expl_buf, pr->pos, radius, pr->damage,
             get_color_pair(expl_color_pair)
             );
+}
+
+void set_gunshot_off(boss_projectile *pr, explosion_buf expl_buf)
+{    
+    set_expl_projectile_off(pr, expl_buf, gunshot, GUNSHOT_EXPL_RAD);
+}
+
+void set_mine_off(boss_projectile *pr, explosion_buf expl_buf)
+{    
+    set_expl_projectile_off(pr, expl_buf, mine, MINE_EXPL_RAD);
 }
 
 static void update_mine(boss_projectile *pr, explosion_buf expl_buf)

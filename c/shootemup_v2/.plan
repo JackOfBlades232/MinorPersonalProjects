@@ -43,16 +43,25 @@ Boss fight:
 * Add win screen ui
 * Restore debug control keys for boss weapons
 * Add player-to-boss bullet collisions
-- Add gunshot explosions and trigger near player
-- Add explosion-to-player-collisions and immediate expl on touching mine
+* Add immediate expl on touching mine
+* Add gunshot explosions and trigger near player
+    * Add calculation of distance to player center
+    * Add explosion params (trigger dist, radius) to gunshots
+    * Add explosion spawning in collisions.c module
+* Add explosion-to-player-collisions 
+    * To note: deactivate damaging ability of expl when hit player, but leave
+        the visuals
 - Impl boss behaviour:
 
 Addition ideas:
+
 - Impl adaptive drawing on screen edge (draw part of shape) and make riods, 
     enemy and crates come out and go out gradually
 - Add buttons for "move&fire" (or learn to get multiple key pressed)
 - Add progressive hardening of the asteroid phase with score (decr spawn delay,
     decr probability of rep kits, inc ast speed)
+- I may be able to lighten some data structures by creating more constants or
+    static datas for things like damage and so on.
 
 To remember:
 - Some effects (namely, explosions to boss) may draw over player/boss ships,
@@ -70,3 +79,5 @@ Bugs:
 * Before collisions empty parts of shapes are drawn over others
     Possible solution: remake drawing to char-by-char and not drawing spaces
 * After explosion a trail is left with the ui attr
+* On the player's right side and the bosses right side (left for the player)
+    the bullets seem to dissapear before the rectangle

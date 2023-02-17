@@ -12,8 +12,6 @@
 #define EXPL_D_RAD_PER_UPDATE 0.8
 #define X_TO_Y_RATIO 0.666666
 
-#define DIST_TOLERANCE 0.51
-
 enum { expl_frames_per_update = 2 };
 
 void init_explosion_buf(explosion_buf buf)
@@ -61,8 +59,8 @@ static explosion *get_queued_explosion(explosion_buf buf)
     return NULL;
 }
 
-int spawn_explosion(explosion_buf buf, 
-        point pos, double max_rad, int color_pair)
+int spawn_explosion(explosion_buf buf, point pos,
+        double max_rad, int damage, int color_pair)
 {
     explosion *ex = get_queued_explosion(buf);
     if (!ex)
@@ -73,6 +71,7 @@ int spawn_explosion(explosion_buf buf,
     ex->cur_rad = 0;
     ex->updates_left = (int) (max_rad/EXPL_D_RAD_PER_UPDATE);
     ex->frames_to_update = expl_frames_per_update;
+    ex->damage = damage;
     ex->color_pair = color_pair;
 
     show_explosion(ex);
@@ -120,7 +119,7 @@ int kill_explosion(explosion *ex)
     return 0;
 }
 
-int point_is_in_explosion(explosion *ex, point p)
+void deactivate_explosion(explosion *ex)
 {
-    return sqrt(sq_dist(ex->center, p)) - ex->cur_rad < DIST_TOLERANCE;
+    ex->damage = 0;
 }

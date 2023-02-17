@@ -1,6 +1,9 @@
 /* shootemup_v2/collisions.c */
 #include "collisions.h"
 #include "geom.h"
+#include "player.h"
+
+#define EXPL_COLLISION_TOLERANCE 1.51
 
 void process_bullet_to_asteroid_collisions(player_bullet_buf bullet_buf, 
         asteroid_buf ast_buf, spawn_area *sa, player *p)
@@ -147,11 +150,21 @@ static void hit_player_with_projectile(boss_projectile *proj,
             kill_boss_projectile(proj);
             break;
         case gunshot:
+            set_gunshot_off(proj, expl_buf);
             break;
         case mine:
             set_mine_off(proj, expl_buf);
             break;
     }
+}
+
+static void try_explode_gunshot_near_player(boss_projectile *proj,
+        player *p, explosion_buf expl_buf)
+{
+    int dist = (int) distance_to_player(p, proj->pos);
+
+    if (distance_is_in_gunshot_expl_reach(dist, proj))
+        set_gunshot_off(proj, expl_buf);
 }
 
 void process_projectile_to_player_collisions(boss_projectile_buf proj_buf,
@@ -165,9 +178,8 @@ void process_projectile_to_player_collisions(boss_projectile_buf proj_buf,
 
         if (point_is_in_player(p, proj->pos))
             hit_player_with_projectile(proj, p, expl_buf);
-        else {
-            /* TODO : implement gunshots/mines exploding from afar */
-        }
+        else if (proj->type == gunshot)
+            try_explode_gunshot_near_player(proj, p, expl_buf);
     }
 
     show_player(p);
@@ -175,4 +187,17 @@ void process_projectile_to_player_collisions(boss_projectile_buf proj_buf,
 
 void process_explosion_to_player_collisions(explosion_buf expl_buf, player *p)
 {
+    explosion *expl;
+    double dist;
+
+    for (expl = expl_buf; expl - expl_buf < explosion_bufsize; expl++) {
+        if (!expl->is_alive)
+            continue;
+
+        dist = distance_to_player(p, expl->center);
+        if (dist <= expl->cur_rad + EXPL_COLLISION_TOLERANCE) {
+            damage_player(p, expl->damage);
+            deactivate_explosion(expl);
+        }
+    }
 }

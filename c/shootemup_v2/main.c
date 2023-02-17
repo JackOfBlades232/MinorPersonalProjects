@@ -147,7 +147,7 @@ static void switch_game_stage(boss *bs, boss_projectile_buf boss_projectiles,
     sleep(stage_switch_delay);
     get_input_action(); /* clear buf */
 
-    init_boss(bs, 250, 1, 5, 10, ts);
+    init_boss(bs, 250, 1, 2, 3, ts);
     init_boss_projectile_buf(boss_projectiles);
     init_explosion_buf(explosions);
 }
