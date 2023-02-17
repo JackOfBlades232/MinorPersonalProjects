@@ -45,6 +45,7 @@ static void show_explosion(explosion *ex)
 
 static void hide_explosion(explosion *ex)
 {
+    attrset(get_color_pair(0));
     draw_expl_circle(ex, ' ');
 }
 
@@ -59,7 +60,6 @@ static explosion *get_queued_explosion(explosion_buf buf)
 
     return NULL;
 }
-
 
 int spawn_explosion(explosion_buf buf, 
         point pos, double max_rad, int color_pair)

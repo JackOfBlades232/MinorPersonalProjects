@@ -5,6 +5,7 @@
 #include "player.h"
 #include "boss.h"
 #include "asteroid.h"
+#include "explosion.h"
 #include "buffs.h"
 #include "spawn.h"
 
@@ -21,5 +22,8 @@ void process_crate_to_player_collisions(player *p,
 /* Boss fight phase */
 void process_bullet_to_boss_collisions(player_bullet_buf bullet_buf, boss *bs);
 void process_player_to_boss_collisions(player *p, boss *bs);
+void process_projectile_to_player_collisions(boss_projectile_buf proj_buf,
+        player *p, explosion_buf expl_buf);
+void process_explosion_to_player_collisions(explosion_buf expl_buf, player *p);
 
 #endif

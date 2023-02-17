@@ -344,15 +344,23 @@ static void update_bullet_or_gunshot(boss_projectile *pr, int is_bullet,
     }
 }
 
+void set_mine_off(boss_projectile *pr, explosion_buf expl_buf)
+{
+    if (pr->type != mine)
+        return;
+
+    kill_boss_projectile(pr);
+    spawn_explosion(
+            expl_buf, pr->pos, pr->mine_radius, 
+            get_color_pair(expl_color_pair)
+            );
+}
+
 static void update_mine(boss_projectile *pr, explosion_buf expl_buf)
 {
-    if (pr->mine_frames_to_expl <= 0) {
-        kill_boss_projectile(pr);
-        spawn_explosion(
-                expl_buf, pr->pos, pr->mine_radius, 
-                get_color_pair(expl_color_pair)
-                );
-    } else
+    if (pr->mine_frames_to_expl <= 0)
+        set_mine_off(pr, expl_buf);
+    else
         pr->mine_frames_to_expl--;
 }
 

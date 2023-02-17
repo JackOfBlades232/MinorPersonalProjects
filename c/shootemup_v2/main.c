@@ -19,7 +19,7 @@
 #include <unistd.h>
 
 enum { 
-    score_for_stage_switch = 15,
+    score_for_stage_switch = 5,
     stage_switch_delay = 1 /* seconds */
 };
 
@@ -66,7 +66,7 @@ static int reached_stage_switch(player *p, game_stage cur_stage)
         p->state.score >= score_for_stage_switch;
 }
 
-static void update_moving_entities(player_bullet_buf player_bullets, 
+static void update_ast_field_moving_entities(player_bullet_buf player_bullets, 
         asteroid_buf asteroids, crate_buf crates,
         spawn_area *spawn, player *p, term_state *ts)
 {
@@ -75,8 +75,9 @@ static void update_moving_entities(player_bullet_buf player_bullets,
     update_live_crates(crates, spawn, ts);
 }
 
-static void process_collisions(player *p, player_bullet_buf player_bullets,
-        asteroid_buf asteroids, crate_buf crates, spawn_area *spawn)
+static void process_ast_field_collisions(player *p, 
+        player_bullet_buf player_bullets, asteroid_buf asteroids, 
+        crate_buf crates, spawn_area *spawn)
 {
     process_bullet_to_asteroid_collisions(player_bullets, asteroids, spawn, p);
     process_bullet_to_crate_collisions(player_bullets, crates, spawn);
@@ -121,8 +122,9 @@ static void process_asteroid_field_frame(player_bullet_buf player_bullets,
         asteroid_buf asteroids, crate_buf crates, spawn_area *spawn, 
         countdown_timer *spawn_timer, player *p, term_state *ts)
 {
-    update_moving_entities(player_bullets, asteroids, crates, spawn, p, ts);
-    process_collisions(p, player_bullets, asteroids, crates, spawn);
+    update_ast_field_moving_entities(player_bullets,
+            asteroids, crates, spawn, p, ts);
+    process_ast_field_collisions(p, player_bullets, asteroids, crates, spawn);
 
     update_ctimers(1, spawn_timer, NULL);
     process_spawns(asteroids, crates, spawn, spawn_timer);
@@ -150,18 +152,33 @@ static void switch_game_stage(boss *bs, boss_projectile_buf boss_projectiles,
     init_explosion_buf(explosions);
 }
 
+static void update_boss_fight_moving_entities(
+        boss_projectile_buf boss_projectiles, explosion_buf explosions, 
+        player_bullet_buf player_bullets, term_state *ts)
+{
+    update_live_bullets(player_bullets);
+    update_live_boss_projectiles(boss_projectiles, explosions, ts);
+    update_live_explosions(explosions);
+}
+
+static void process_boss_fight_collisions(boss *bs, 
+        boss_projectile_buf boss_projectiles, explosion_buf explosions, 
+        player_bullet_buf player_bullets, player *p)
+{
+    process_bullet_to_boss_collisions(player_bullets, bs);
+    process_player_to_boss_collisions(p, bs);
+    process_projectile_to_player_collisions(boss_projectiles, p, explosions);
+    process_explosion_to_player_collisions(explosions, p);
+}
+
 static void process_boss_fight_frame(boss *bs, 
         boss_projectile_buf boss_projectiles, explosion_buf explosions, 
         player_bullet_buf player_bullets, player *p, term_state *ts)
 {
-    /* TODO : group as movement update */
-    update_live_bullets(player_bullets);
-    update_live_boss_projectiles(boss_projectiles, explosions, ts);
-    update_live_explosions(explosions);
-
-    /* TODO : add collisions, then group in one method */
-    process_bullet_to_boss_collisions(player_bullets, bs);
-    process_player_to_boss_collisions(p, bs);
+    update_boss_fight_moving_entities(boss_projectiles,
+            explosions, player_bullets, ts);
+    process_boss_fight_collisions(bs, boss_projectiles, 
+            explosions, player_bullets, p);
 
     update_boss_frame_counters(bs);
 }
@@ -212,30 +229,32 @@ static game_result game_loop(player *p, term_state *ts,
         switch (action) {
             case up:
                 move_player(p, 0, -1, ts);
-                /* move_boss(&bs, 0, -1, ts); */
                 break;
             case down:
                 move_player(p, 0, 1, ts);
-                /* move_boss(&bs, 0, 1, ts); */
                 break;
             case left:
                 move_player(p, -1, 0, ts);
-                /* move_boss(&bs, -1, 0, ts); */
                 break;
             case right:
                 move_player(p, 1, 0, ts);
-                /* move_boss(&bs, 1, 0, ts); */
                 break;
             case fire:
                 player_shoot(p, player_bullets);
-                /* boss_shoot_bullet(&bs, b_proj); */
                 break;
-            /* case fire1:
-                boss_shoot_gun(&bs, b_proj);
+
+            case fire1: /* boss debug */
+                boss_shoot_bullet(bs, boss_projectiles);
                 break;
             case fire2:
-                boss_plant_mines(&bs, b_proj, ts);
-                break; */
+                boss_shoot_gun(bs, boss_projectiles);
+                break;
+            case fire3:
+                boss_plant_mines(bs, boss_projectiles, ts);
+                break;
+            case fire4:
+                break; /* boss debug end */
+
             case resize:
                 goto end_loop;
             default:

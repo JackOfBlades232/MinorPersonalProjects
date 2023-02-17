@@ -41,7 +41,10 @@ Boss fight:
 * Add boss hp ui
 * Insert into game flow (after asteroid phase)
 * Add win screen ui
-- Add player-to-boss weapons collisions and gunshots expl near player
+* Restore debug control keys for boss weapons
+* Add player-to-boss bullet collisions
+- Add gunshot explosions and trigger near player
+- Add explosion-to-player-collisions and immediate expl on touching mine
 - Impl boss behaviour:
 
 Addition ideas:
@@ -50,6 +53,11 @@ Addition ideas:
 - Add buttons for "move&fire" (or learn to get multiple key pressed)
 - Add progressive hardening of the asteroid phase with score (decr spawn delay,
     decr probability of rep kits, inc ast speed)
+
+To remember:
+- Some effects (namely, explosions to boss) may draw over player/boss ships,
+    when the ships are stationary. I should make shure to redraw them if they
+    haven't moved.
 
 Bugs:
 * After exiting from game over menu got a frame of old game state
@@ -61,3 +69,4 @@ Bugs:
     with big "current time"
 * Before collisions empty parts of shapes are drawn over others
     Possible solution: remake drawing to char-by-char and not drawing spaces
+* After explosion a trail is left with the ui attr

@@ -57,6 +57,8 @@ int boss_shoot_gun(boss *bs, boss_projectile_buf projectile_buf);
 int boss_plant_mines(boss *bs, boss_projectile_buf projectile_buf,
         term_state *ts);
 
+void set_mine_off(boss_projectile *pr, explosion_buf expl_buf);
+
 void update_live_boss_projectiles(boss_projectile_buf projectile_buf,
         explosion_buf expl_buf, term_state *ts);
 int kill_boss_projectile(boss_projectile *pr);

@@ -1,10 +1,6 @@
 /* shootemup_v2/collisions.c */
 #include "collisions.h"
-#include "asteroid.h"
-#include "boss.h"
-#include "buffs.h"
 #include "geom.h"
-#include "player.h"
 
 void process_bullet_to_asteroid_collisions(player_bullet_buf bullet_buf, 
         asteroid_buf ast_buf, spawn_area *sa, player *p)
@@ -140,4 +136,43 @@ void process_player_to_boss_collisions(player *p, boss *bs)
         }
 
     show_boss(bs);
+}
+
+static void hit_player_with_projectile(boss_projectile *proj,
+        player *p, explosion_buf expl_buf)
+{
+    switch (proj->type) {
+        case bullet:
+            damage_player(p, proj->damage);
+            kill_boss_projectile(proj);
+            break;
+        case gunshot:
+            break;
+        case mine:
+            set_mine_off(proj, expl_buf);
+            break;
+    }
+}
+
+void process_projectile_to_player_collisions(boss_projectile_buf proj_buf,
+        player *p, explosion_buf expl_buf)
+{
+    boss_projectile *proj;
+
+    for (proj = proj_buf; proj - proj_buf < boss_projectile_bufsize; proj++) {
+        if (!proj->is_alive)
+            continue;
+
+        if (point_is_in_player(p, proj->pos))
+            hit_player_with_projectile(proj, p, expl_buf);
+        else {
+            /* TODO : implement gunshots/mines exploding from afar */
+        }
+    }
+
+    show_player(p);
+}
+
+void process_explosion_to_player_collisions(explosion_buf expl_buf, player *p)
+{
 }
