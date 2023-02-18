@@ -57,7 +57,7 @@ Boss fight:
 Addition ideas:
 
 - Impl adaptive drawing on screen edge (draw part of shape) and make riods, 
-    enemy and crates come out and go out gradually
+    boss and crates come out and go out gradually
 - Add buttons for "move&fire" (or learn to get multiple key pressed)
 - Add progressive hardening of the asteroid phase with score (decr spawn delay,
     decr probability of rep kits, inc ast speed)
@@ -82,3 +82,5 @@ Bugs:
 * After explosion a trail is left with the ui attr
 * On the player's right side and the bosses right side (left for the player)
     the bullets seem to dissapear before the rectangle
+- Because I switch player bullet color pair on draw, sometimes bullets
+    alternate colors. I should assign a color pair index to bullets.
