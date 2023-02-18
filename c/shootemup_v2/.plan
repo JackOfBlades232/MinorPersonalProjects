@@ -53,9 +53,12 @@ Boss fight:
         the visuals
 * Add boss force field spec move (big blue explosion with boss in center)
 - Impl boss behaviour:
+    - Create a module for boss AI interfacing with boss.h
+    - Write out the set of moves the boss can perform
+    - Create a primitive random choice of next move
+    -
 
 Addition ideas:
-
 - Impl adaptive drawing on screen edge (draw part of shape) and make riods, 
     boss and crates come out and go out gradually
 - Add buttons for "move&fire" (or learn to get multiple key pressed)
@@ -65,7 +68,7 @@ Addition ideas:
     static datas for things like damage and so on.
 
 To remember:
-- Some effects (namely, explosions to boss) may draw over player/boss ships,
+* Some effects (namely, explosions to boss) may draw over player/boss ships,
     when the ships are stationary. I should make shure to redraw them if they
     haven't moved.
 
@@ -82,5 +85,5 @@ Bugs:
 * After explosion a trail is left with the ui attr
 * On the player's right side and the bosses right side (left for the player)
     the bullets seem to dissapear before the rectangle
-- Because I switch player bullet color pair on draw, sometimes bullets
+* Because I switch player bullet color pair on draw, sometimes bullets
     alternate colors. I should assign a color pair index to bullets.

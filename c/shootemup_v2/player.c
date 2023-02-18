@@ -188,7 +188,7 @@ void handle_player_ammo_replenish(player *p)
 
 static void show_bullet(player_bullet *b)
 {
-    attrset(switch_and_get_pbullet_color_pair());
+    attrset(b->color_pair);
     move(b->pos.y, b->pos.x);
     addch('^');
 }
@@ -207,6 +207,7 @@ static void shoot_bullet(player_bullet *b, player *p,
     b->is_alive = 1;
     b->damage = p->state.bullet_dmg;
     b->frames_since_moved = 0;
+    b->color_pair = switch_and_get_pbullet_color_pair();
     b->dx = 0;
     b->dy = -1;
     show_bullet(b);

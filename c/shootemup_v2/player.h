@@ -27,6 +27,7 @@ typedef struct tag_player_bullet {
     int damage;
     int is_alive;
     int frames_since_moved;
+    int color_pair;
 } player_bullet;
 
 typedef player_bullet player_bullet_buf[player_bullet_bufsize];
