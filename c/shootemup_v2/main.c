@@ -19,7 +19,7 @@
 #include <unistd.h>
 
 enum { 
-    score_for_stage_switch = 5,
+    score_for_stage_switch = 50,
     stage_switch_delay = 1 /* seconds */
 };
 
@@ -253,6 +253,7 @@ static game_result game_loop(player *p, term_state *ts,
                 boss_plant_mines(bs, boss_projectiles, ts);
                 break;
             case fire4:
+                boss_emit_force_field(bs, explosions);
                 break; /* boss debug end */
 
             case resize:

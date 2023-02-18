@@ -31,8 +31,13 @@ enum {
     mine_expl_frames = 300
 };
 
+enum {
+    force_field_damage = 4
+};
+
 #define GUNSHOT_EXPL_RAD 6.0
 #define MINE_EXPL_RAD 10.0
+#define FFILED_EXPL_RAD 48.0
 
 static const char boss_shape[boss_height][boss_width+1] =
 {
@@ -320,6 +325,19 @@ int boss_plant_mines(boss *bs, boss_projectile_buf projectile_buf,
     }
 
     return mines_cnt;
+}
+
+int boss_emit_force_field(boss *bs, explosion_buf expl_buf)
+{
+    point boss_center = point_literal(
+            bs->pos.x + boss_width/2,
+            bs->pos.y + boss_height/2
+            );
+
+    return spawn_explosion(
+            expl_buf, boss_center, FFILED_EXPL_RAD, force_field_damage,
+            get_color_pair(ffield_color_pair)
+            );
 }
 
 static void update_bullet_or_gunshot(boss_projectile *pr, int is_bullet,

@@ -51,7 +51,7 @@ Boss fight:
 * Add explosion-to-player-collisions 
     * To note: deactivate damaging ability of expl when hit player, but leave
         the visuals
-- Add boss force field spec move (big blue explosion with boss in center)
+* Add boss force field spec move (big blue explosion with boss in center)
 - Impl boss behaviour:
 
 Addition ideas:

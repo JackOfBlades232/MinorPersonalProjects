@@ -55,6 +55,7 @@ int boss_shoot_bullet(boss *bs, boss_projectile_buf projectile_buf);
 int boss_shoot_gun(boss *bs, boss_projectile_buf projectile_buf);
 int boss_plant_mines(boss *bs, boss_projectile_buf projectile_buf,
         term_state *ts);
+int boss_emit_force_field(boss *bs, explosion_buf expl_buf);
 
 int distance_is_in_gunshot_expl_reach(int dist, boss_projectile *pr);
 
