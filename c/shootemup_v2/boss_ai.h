@@ -27,10 +27,7 @@ typedef enum tag_boss_attack_type {
 
 typedef struct tag_boss_attack {
     boss_attack_type type;
-    union {
-        int frames; /* for bullets and mines */
-        int shots; /* for gunshots and force blast */
-    } goal;
+    int frames; 
     int completed;
     boss_attack_type next;
 } boss_attack;
@@ -55,7 +52,13 @@ int move_boss_to_y(boss_behaviour_state *bh,
 int teleport_boss_to_pos(boss_behaviour_state *bh, 
         boss *bs, point pos, term_state *ts);
 
+int perform_boss_bullet_burst(boss_behaviour_state *bh, boss *bs, int frames);
+int perform_boss_gun_volley(boss_behaviour_state *bh, boss *bs, int frames);
+int perform_boss_mine_plant(boss_behaviour_state *bh, boss *bs);
+int perform_boss_force_blast(boss_behaviour_state *bh, boss *bs, int frames);
+
 /* Main function */
-void tick_boss_ai(boss_behaviour_state *bh, boss *bs, term_state *ts);
+void tick_boss_ai(boss_behaviour_state *bh, boss *bs,
+        boss_projectile_buf proj_buf, explosion_buf expl_buf, term_state *ts);
 
 #endif

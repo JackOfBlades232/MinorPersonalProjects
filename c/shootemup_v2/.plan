@@ -55,13 +55,13 @@ Boss fight:
 - Impl boss behaviour:
     * Create a module for boss AI interfacing with boss.h
     * Write out the set of moves the boss can perform
-    - Implement primitive moves:
+    * Implement primitive moves:
         * Fly from a to b (vert or horiz) with speed X
         * Teleport to position
-        - Fire bullets for time X
-        - Fire gunshots N times with delay X
-        - Plant mines and wait until exploded
-        - Fire force field
+        * Fire bullets for time X
+        * Fire gunshots for time X
+        * Plant mines and wait until exploded
+        * Fire force field and wait time X
     - Implement main moves:
         - Move to the side and then move 3/4 of screen with constant bullet fire
         - Move side to side following player with gunshots and bullet bursts
@@ -100,3 +100,6 @@ Bugs:
     the bullets seem to dissapear before the rectangle
 * Because I switch player bullet color pair on draw, sometimes bullets
     alternate colors. I should assign a color pair index to bullets.
+- Force field damages the player too early, may have to tweak player-ex 
+    collision in favor of the player
+- When fired near bottom, bug in drawing force field
