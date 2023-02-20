@@ -53,10 +53,22 @@ Boss fight:
         the visuals
 * Add boss force field spec move (big blue explosion with boss in center)
 - Impl boss behaviour:
-    - Create a module for boss AI interfacing with boss.h
-    - Write out the set of moves the boss can perform
+    * Create a module for boss AI interfacing with boss.h
+    * Write out the set of moves the boss can perform
+    - Implement primitive moves:
+        * Fly from a to b (vert or horiz) with speed X
+        * Teleport to position
+        - Fire bullets for time X
+        - Fire gunshots N times with delay X
+        - Plant mines and wait until exploded
+        - Fire force field
+    - Implement main moves:
+        - Move to the side and then move 3/4 of screen with constant bullet fire
+        - Move side to side following player with gunshots and bullet bursts
+        - 3 times port to player x coord and ram
+        - Port to center up/center/down and plant mines
+        - At 50%hp: fire force field 3 times
     - Create a primitive random choice of next move
-    -
 
 Addition ideas:
 - Impl adaptive drawing on screen edge (draw part of shape) and make riods, 
@@ -66,6 +78,7 @@ Addition ideas:
     decr probability of rep kits, inc ast speed)
 - I may be able to lighten some data structures by creating more constants or
     static datas for things like damage and so on.
+- Implement blink and explosion on boss death
 
 To remember:
 * Some effects (namely, explosions to boss) may draw over player/boss ships,

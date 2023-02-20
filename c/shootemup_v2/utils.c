@@ -18,6 +18,16 @@ void clamp_int(int *val, int min, int max)
         *val = max;
 }
 
+int abs_int(int val)
+{
+    return val >= 0 ? val : -val;
+}
+
+int sgn_int(int val)
+{
+    return val == 0 ? 0 : (val > 0 ? 1 : -1);
+}
+
 void init_random()
 {
     srand(time(NULL));

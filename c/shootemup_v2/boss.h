@@ -11,7 +11,8 @@ enum { boss_projectile_bufsize = 128 };
 
 typedef struct tag_boss_state {
     int cur_hp, max_hp;
-    int frames_since_moved, frames_since_shot;
+    int frames_since_moved, cur_movement_frames;
+    int frames_since_shot;
     int bullet_dmg, gunshot_dmg, mine_dmg;
 } boss_state;
 

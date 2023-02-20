@@ -1,5 +1,6 @@
-SRCMODULES = player.c asteroid.c buffs.c boss.c spawn.c collisions.c colors.c \
-			 explosion.c controls.c geom.c graphics.c hud.c menus.c utils.c
+SRCMODULES = player.c asteroid.c buffs.c boss.c boss_ai.c spawn.c \
+			 collisions.c colors.c explosion.c controls.c geom.c \
+			 graphics.c hud.c menus.c utils.c
 OBJMODULES = $(SRCMODULES:.c=.o)
 CC = gcc
 CFLAGS = -g -Wall

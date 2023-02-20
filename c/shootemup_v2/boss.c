@@ -6,7 +6,7 @@
 #include <curses.h>
 
 enum { 
-    boss_movement_frames = 4,
+    boss_base_movement_frames = 4,
     boss_bullet_shooting_frames = 4,
     boss_gunshot_shooting_frames = 32
 };
@@ -74,7 +74,8 @@ void init_boss(boss *bs,
     bs->state.gunshot_dmg = gunshot_dmg;
     bs->state.mine_dmg = mine_dmg;
 
-    bs->state.frames_since_moved = boss_movement_frames;
+    bs->state.cur_movement_frames = boss_base_movement_frames;
+    bs->state.frames_since_moved = bs->state.cur_movement_frames;
     bs->state.frames_since_shot = boss_bullet_shooting_frames;
 
     show_boss(bs);
@@ -115,7 +116,7 @@ void hide_boss(boss *bs)
 
 void move_boss(boss *bs, int dx, int dy, term_state *ts)
 {
-    if (bs->state.frames_since_moved >= boss_movement_frames) {
+    if (bs->state.frames_since_moved >= bs->state.cur_movement_frames) {
         hide_boss(bs);
         bs->pos.x += dx;
         bs->pos.y += dy;

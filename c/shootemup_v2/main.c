@@ -4,6 +4,7 @@
 #include "controls.h"
 #include "player.h"
 #include "boss.h"
+#include "boss_ai.h"
 #include "asteroid.h"
 #include "buffs.h"
 #include "spawn.h"
@@ -19,7 +20,7 @@
 #include <unistd.h>
 
 enum { 
-    score_for_stage_switch = 50,
+    score_for_stage_switch = 1,
     stage_switch_delay = 1 /* seconds */
 };
 
@@ -191,8 +192,8 @@ static int player_has_won(boss *bs, game_stage g_stage)
 static game_result game_loop(player *p, term_state *ts, 
         player_bullet_buf player_bullets, asteroid_buf asteroids, 
         crate_buf crates, spawn_area *spawn, countdown_timer *spawn_timer,
-        boss *bs, boss_projectile_buf boss_projectiles, 
-        explosion_buf explosions)
+        boss *bs, boss_behaviour_state *boss_beh,
+        boss_projectile_buf boss_projectiles, explosion_buf explosions)
 {
     game_stage g_stage = asteroid_field;
     game_result g_res = shutdown;
@@ -205,6 +206,7 @@ static game_result game_loop(player *p, term_state *ts,
                         crates, spawn, spawn_timer, p, ts);
                 break;
             case boss_fight:
+                tick_boss_ai(boss_beh, bs, ts);
                 process_boss_fight_frame(bs, boss_projectiles, explosions,
                         player_bullets, p, ts);
                 break;
@@ -228,19 +230,24 @@ static game_result game_loop(player *p, term_state *ts,
 
         switch (action) {
             case up:
-                move_player(p, 0, -1, ts);
+                move_boss_to_y(boss_beh, bs, 1, 30, ts);
+                /* move_player(p, 0, -1, ts); */
                 break;
             case down:
-                move_player(p, 0, 1, ts);
+                move_boss_to_y(boss_beh, bs, ts->row - boss_height, 30, ts);
+                /* move_player(p, 0, 1, ts); */
                 break;
             case left:
-                move_player(p, -1, 0, ts);
+                move_boss_to_x(boss_beh, bs, 0, 30, ts);
+                /* move_player(p, -1, 0, ts); */
                 break;
             case right:
-                move_player(p, 1, 0, ts);
+                move_boss_to_x(boss_beh, bs, ts->col - boss_width, 30, ts);
+                /* move_player(p, 1, 0, ts); */
                 break;
             case fire:
-                player_shoot(p, player_bullets);
+                teleport_boss_to_pos(boss_beh, bs, point_literal(0, 1), ts);
+                /* player_shoot(p, player_bullets); */
                 break;
 
             case fire1: /* boss debug */
@@ -290,15 +297,18 @@ static void deinit_game()
 static int run_game()
 {
     int status;
-
     term_state t_state;
+
     player p;
     player_bullet_buf player_bullets;
+
     asteroid_buf asteroids;
-    spawn_area spawn;
     crate_buf crates;
+    spawn_area spawn;
     countdown_timer spawn_timer;
+
     boss bs;
+    boss_behaviour_state boss_beh;
     boss_projectile_buf boss_projectiles;
     explosion_buf explosions;
 
@@ -320,7 +330,7 @@ start_game:
             asteroids, crates, &spawn, &spawn_timer);
 
     g_res = game_loop(&p, &t_state, player_bullets, asteroids, crates, 
-                      &spawn, &spawn_timer, &bs, boss_projectiles,
+                      &spawn, &spawn_timer, &bs, &boss_beh, boss_projectiles,
                       explosions);
 
     fprintf(log, "G-res: %d\n", g_res);

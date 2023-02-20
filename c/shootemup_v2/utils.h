@@ -9,6 +9,8 @@ typedef struct tag_countdown_timer {
 
 int min_int(int n1, int n2);
 void clamp_int(int *val, int min, int max);
+int abs_int(int val);
+int sgn_int(int val);
 
 void init_random();
 int randint(int min, int max);
