@@ -148,7 +148,8 @@ static void switch_game_stage(boss *bs, boss_projectile_buf boss_projectiles,
     sleep(stage_switch_delay);
     get_input_action(); /* clear buf */
 
-    init_boss(bs, 250, 1, 2, 3, ts);
+    /* init_boss(bs, 250, 1, 2, 3, ts); */
+    init_boss(bs, 250, 0, 0, 0, ts);
     init_boss_projectile_buf(boss_projectiles);
     init_explosion_buf(explosions);
 }
@@ -159,17 +160,18 @@ static void update_boss_fight_moving_entities(
 {
     update_live_bullets(player_bullets);
     update_live_boss_projectiles(boss_projectiles, explosions, ts);
-    update_live_explosions(explosions);
+    update_live_explosions(explosions, ts);
 }
 
 static void process_boss_fight_collisions(boss *bs, 
         boss_projectile_buf boss_projectiles, explosion_buf explosions, 
-        player_bullet_buf player_bullets, player *p)
+        player_bullet_buf player_bullets, player *p, term_state *ts)
 {
     process_bullet_to_boss_collisions(player_bullets, bs);
     process_player_to_boss_collisions(p, bs);
-    process_projectile_to_player_collisions(boss_projectiles, p, explosions);
-    process_explosion_to_player_collisions(explosions, p);
+    process_projectile_to_player_collisions(
+            boss_projectiles, p, explosions, ts);
+    process_explosion_to_player_collisions(explosions, p, ts);
 }
 
 static void process_boss_fight_frame(boss *bs, 
@@ -179,7 +181,7 @@ static void process_boss_fight_frame(boss *bs,
     update_boss_fight_moving_entities(boss_projectiles,
             explosions, player_bullets, ts);
     process_boss_fight_collisions(bs, boss_projectiles, 
-            explosions, player_bullets, p);
+            explosions, player_bullets, p, ts);
 
     update_boss_frame_counters(bs);
 }

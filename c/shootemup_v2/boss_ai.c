@@ -165,7 +165,7 @@ static void tick_mine_plant(boss_behaviour_state *bh, boss *bs,
 }
 
 static void tick_force_blast(boss_behaviour_state *bh, 
-        boss *bs, explosion_buf expl_buf)
+        boss *bs, explosion_buf expl_buf, term_state *ts)
 {
     if (bh->current_attack.completed) {
         bh->current_attack.frames--;
@@ -173,7 +173,7 @@ static void tick_force_blast(boss_behaviour_state *bh,
         if (bh->current_attack.frames <= 0)
             bh->current_attack.type = no_attack;
     } else { 
-        boss_emit_force_field(bs, expl_buf);
+        boss_emit_force_field(bs, expl_buf, ts);
         bh->current_attack.completed = 1;
     }
 }
@@ -208,7 +208,7 @@ void tick_boss_ai(boss_behaviour_state *bh, boss *bs,
             tick_mine_plant(bh, bs, proj_buf, ts);
             break;
         case force_blast:
-            tick_force_blast(bh, bs, expl_buf);
+            tick_force_blast(bh, bs, expl_buf, ts);
             break;
     }     
 }

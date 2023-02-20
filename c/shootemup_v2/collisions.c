@@ -3,6 +3,7 @@
 #include "geom.h"
 #include "player.h"
 
+#define Y_TO_X_RATIO 1/X_TO_Y_RATIO
 #define EXPL_COLLISION_TOLERANCE 1.51
 
 void process_bullet_to_asteroid_collisions(player_bullet_buf bullet_buf, 
@@ -142,7 +143,7 @@ void process_player_to_boss_collisions(player *p, boss *bs)
 }
 
 static void hit_player_with_projectile(boss_projectile *proj,
-        player *p, explosion_buf expl_buf)
+        player *p, explosion_buf expl_buf, term_state *ts)
 {
     switch (proj->type) {
         case bullet:
@@ -150,25 +151,25 @@ static void hit_player_with_projectile(boss_projectile *proj,
             kill_boss_projectile(proj);
             break;
         case gunshot:
-            set_gunshot_off(proj, expl_buf);
+            set_gunshot_off(proj, expl_buf, ts);
             break;
         case mine:
-            set_mine_off(proj, expl_buf);
+            set_mine_off(proj, expl_buf, ts);
             break;
     }
 }
 
 static void try_explode_gunshot_near_player(boss_projectile *proj,
-        player *p, explosion_buf expl_buf)
+        player *p, explosion_buf expl_buf, term_state *ts)
 {
-    int dist = (int) distance_to_player(p, proj->pos);
+    int dist = (int) distance_to_player(p, proj->pos, Y_TO_X_RATIO);
 
     if (distance_is_in_gunshot_expl_reach(dist, proj))
-        set_gunshot_off(proj, expl_buf);
+        set_gunshot_off(proj, expl_buf, ts);
 }
 
 void process_projectile_to_player_collisions(boss_projectile_buf proj_buf,
-        player *p, explosion_buf expl_buf)
+        player *p, explosion_buf expl_buf, term_state *ts)
 {
     boss_projectile *proj;
 
@@ -177,15 +178,16 @@ void process_projectile_to_player_collisions(boss_projectile_buf proj_buf,
             continue;
 
         if (point_is_in_player(p, proj->pos))
-            hit_player_with_projectile(proj, p, expl_buf);
+            hit_player_with_projectile(proj, p, expl_buf, ts);
         else if (proj->type == gunshot)
-            try_explode_gunshot_near_player(proj, p, expl_buf);
+            try_explode_gunshot_near_player(proj, p, expl_buf, ts);
     }
 
     show_player(p);
 }
 
-void process_explosion_to_player_collisions(explosion_buf expl_buf, player *p)
+void process_explosion_to_player_collisions(
+        explosion_buf expl_buf, player *p, term_state *ts)
 {
     explosion *expl;
     double dist;
@@ -194,7 +196,7 @@ void process_explosion_to_player_collisions(explosion_buf expl_buf, player *p)
         if (!expl->is_alive)
             continue;
 
-        dist = distance_to_player(p, expl->center);
+        dist = distance_to_player(p, expl->center, Y_TO_X_RATIO);
         if (dist <= expl->cur_rad + EXPL_COLLISION_TOLERANCE) {
             damage_player(p, expl->damage);
             deactivate_explosion(expl);

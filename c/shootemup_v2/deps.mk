@@ -10,7 +10,7 @@ spawn.o: spawn.c spawn.h geom.h utils.h
 collisions.o: collisions.c collisions.h player.h geom.h graphics.h boss.h \
  explosion.h asteroid.h spawn.h buffs.h
 colors.o: colors.c colors.h
-explosion.o: explosion.c explosion.h geom.h colors.h graphics.h
+explosion.o: explosion.c explosion.h geom.h graphics.h colors.h
 controls.o: controls.c controls.h
 geom.o: geom.c geom.h
 graphics.o: graphics.c graphics.h geom.h

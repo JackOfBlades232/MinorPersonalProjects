@@ -1,6 +1,7 @@
 /* shootemup_v2/boss.c */
 #include "boss.h"
 #include "colors.h"
+#include "graphics.h"
 #include "utils.h"
 
 #include <curses.h>
@@ -32,7 +33,7 @@ enum {
 };
 
 enum {
-    force_field_damage = 4
+    force_field_damage = 0 /* test */
 };
 
 #define GUNSHOT_EXPL_RAD 6.0
@@ -328,7 +329,7 @@ int boss_plant_mines(boss *bs, boss_projectile_buf projectile_buf,
     return mines_cnt;
 }
 
-int boss_emit_force_field(boss *bs, explosion_buf expl_buf)
+int boss_emit_force_field(boss *bs, explosion_buf expl_buf, term_state *ts)
 {
     point boss_center = point_literal(
             bs->pos.x + boss_width/2,
@@ -337,7 +338,7 @@ int boss_emit_force_field(boss *bs, explosion_buf expl_buf)
 
     return spawn_explosion(
             expl_buf, boss_center, FFILED_EXPL_RAD, force_field_damage,
-            get_color_pair(ffield_color_pair)
+            get_color_pair(ffield_color_pair), ts
             );
 }
 
@@ -373,7 +374,7 @@ int distance_is_in_gunshot_expl_reach(int dist, boss_projectile *pr)
 }
 
 static void set_expl_projectile_off(boss_projectile *pr, explosion_buf expl_buf,
-        boss_projectile_type target_type, double radius)
+        boss_projectile_type target_type, double radius, term_state *ts)
 {
     if (pr->type != target_type)
         return;
@@ -381,24 +382,27 @@ static void set_expl_projectile_off(boss_projectile *pr, explosion_buf expl_buf,
     kill_boss_projectile(pr);
     spawn_explosion(
             expl_buf, pr->pos, radius, pr->damage,
-            get_color_pair(expl_color_pair)
+            get_color_pair(expl_color_pair), ts
             );
 }
 
-void set_gunshot_off(boss_projectile *pr, explosion_buf expl_buf)
+void set_gunshot_off(boss_projectile *pr,
+        explosion_buf expl_buf, term_state *ts)
 {    
-    set_expl_projectile_off(pr, expl_buf, gunshot, GUNSHOT_EXPL_RAD);
+    set_expl_projectile_off(pr, expl_buf, gunshot, GUNSHOT_EXPL_RAD, ts);
 }
 
-void set_mine_off(boss_projectile *pr, explosion_buf expl_buf)
+void set_mine_off(boss_projectile *pr,
+        explosion_buf expl_buf, term_state *ts)
 {    
-    set_expl_projectile_off(pr, expl_buf, mine, MINE_EXPL_RAD);
+    set_expl_projectile_off(pr, expl_buf, mine, MINE_EXPL_RAD, ts);
 }
 
-static void update_mine(boss_projectile *pr, explosion_buf expl_buf)
+static void update_mine(boss_projectile *pr, 
+        explosion_buf expl_buf, term_state *ts)
 {
     if (pr->mine_frames_to_expl <= 0)
-        set_mine_off(pr, expl_buf);
+        set_mine_off(pr, expl_buf, ts);
     else
         pr->mine_frames_to_expl--;
 }
@@ -417,7 +421,7 @@ static void update_projectile(boss_projectile *pr,
             update_bullet_or_gunshot(pr, 0, ts);
             break;
         case mine:
-            update_mine(pr, expl_buf);
+            update_mine(pr, expl_buf, ts);
             break;
     }
 }

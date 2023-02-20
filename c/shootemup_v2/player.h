@@ -42,7 +42,7 @@ void hide_player(player *p);
 void move_player(player *p, int dx, int dy, term_state *ts);
 
 int point_is_in_player(player *pl, point pt);
-double distance_to_player(player *pl, point pt);
+double distance_to_player(player *pl, point pt, double x_to_y_mod);
 
 int damage_player(player *p, int damage);
 int player_is_dead(player *p);

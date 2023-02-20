@@ -100,6 +100,6 @@ Bugs:
     the bullets seem to dissapear before the rectangle
 * Because I switch player bullet color pair on draw, sometimes bullets
     alternate colors. I should assign a color pair index to bullets.
-- Force field damages the player too early, may have to tweak player-ex 
+* When fired near bottom, bug in drawing force field
+* Force field damages the player too early, may have to tweak player-ex 
     collision in favor of the player
-- When fired near bottom, bug in drawing force field

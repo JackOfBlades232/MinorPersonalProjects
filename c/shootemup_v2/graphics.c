@@ -4,6 +4,8 @@
 #include <curses.h>
 #include <stdio.h>
 
+enum { screen_top_y_padding = 1 };
+
 int init_graphics(term_state *ts)
 {
     initscr();
@@ -32,10 +34,24 @@ void refresh_scr()
     refresh();
 }
 
-void draw_local_point(int loc_y, int loc_x, point base, char symbol)
+int point_is_in_bounds(point p, term_state *ts)
 {
-    move(base.y + loc_y, base.x + loc_x);
-    addch(symbol);
+    return p.x >= 0 && p.x < ts->col &&
+        p.y >= screen_top_y_padding && p.y <= ts->row;
+}
+
+void draw_point(point p, char symbol, term_state *ts)
+{
+    if (point_is_in_bounds(p, ts)) {
+        move(p.y, p.x);
+        addch(symbol);
+    }
+}
+
+void draw_local_point(int loc_y, int loc_x, point base, 
+        char symbol, term_state *ts)
+{
+    draw_point(point_sum(base, point_literal(loc_x, loc_y)), symbol, ts);
 }
 
 int obj_is_in_bounds(point pos, int width, int height, term_state *ts)

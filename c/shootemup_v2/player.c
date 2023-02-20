@@ -138,12 +138,15 @@ int point_is_in_player(player *pl, point pt)
     return not_leftmost && not_rightmost;
 }
 
-double distance_to_player(player *pl, point pt)
+double distance_to_player(player *pl, point pt, double y_to_x_mod)
 {
-    double player_center_x = (double) pl->pos.x + (double) player_width * 0.5;
-    double player_center_y = (double) pl->pos.y + (double) player_height * 0.5;
+    double player_center_x = 
+        (double) pl->pos.x + ((double) player_width) * 0.5;
+    double player_center_y = 
+        (double) pl->pos.y + ((double) player_height) * 0.5;
+
     double dx = (double) pt.x - player_center_x;
-    double dy = (double) pt.y - player_center_y;
+    double dy = ((double) pt.y - player_center_y) * y_to_x_mod;
 
     return sqrt(dx*dx + dy*dy);
 }

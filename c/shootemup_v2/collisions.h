@@ -23,7 +23,8 @@ void process_crate_to_player_collisions(player *p,
 void process_bullet_to_boss_collisions(player_bullet_buf bullet_buf, boss *bs);
 void process_player_to_boss_collisions(player *p, boss *bs);
 void process_projectile_to_player_collisions(boss_projectile_buf proj_buf,
-        player *p, explosion_buf expl_buf);
-void process_explosion_to_player_collisions(explosion_buf expl_buf, player *p);
+        player *p, explosion_buf expl_buf, term_state *ts);
+void process_explosion_to_player_collisions(
+        explosion_buf expl_buf, player *p, term_state *ts);
 
 #endif

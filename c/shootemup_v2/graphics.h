@@ -15,7 +15,10 @@ void deinit_graphics();
 
 void refresh_scr();
 
-void draw_local_point(int loc_y, int loc_x, point base, char symbol);
+int point_is_in_bounds(point p, term_state *ts);
+void draw_point(point p, char symbol, term_state *ts);
+void draw_local_point(int loc_y, int loc_x, point base, 
+        char symbol, term_state *ts);
 int obj_is_in_bounds(point pos, int width, int height, term_state *ts);
 
 #endif
