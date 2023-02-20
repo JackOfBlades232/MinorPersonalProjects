@@ -63,6 +63,7 @@ Boss fight:
         * Plant mines and wait until exploded
         * Fire force field and wait time X
     - Implement main moves:
+        * Write processing of move sequences
         - Move to the side and then move 3/4 of screen with constant bullet fire
         - Move side to side following player with gunshots and bullet bursts
         - 3 times port to player x coord and ram

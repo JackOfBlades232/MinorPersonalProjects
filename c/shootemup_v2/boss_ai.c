@@ -3,141 +3,127 @@
 #include "explosion.h"
 #include "utils.h"
 
-int move_boss_to_x(boss_behaviour_state *bh, 
-        boss *bs, int x, int frames, term_state *ts)
+#include <stdlib.h>
+
+void init_boss_ai(boss_behaviour *beh)
 {
-    if (x < 0 || x > ts->col - boss_width || bs->pos.x == x)
+    beh->current_state.movement.type = not_moving;
+    beh->current_state.attack.type = no_attack;
+    beh->current_sequence = NULL;
+}
+
+static int target_is_in_bounds(boss *bs, 
+        boss_movement_type type, int tg, term_state *ts)
+{
+    if (type == horizontal)
+        return tg >= 0 && tg <= ts->col - boss_width && bs->pos.x != tg;
+    else if (type == vertical)
+        return tg >= 1 && tg <= ts->row - boss_height && bs->pos.y != tg;
+    else
+        return 0;
+}
+
+static int move_boss_to_xy(boss_behaviour *beh, boss *bs, 
+        boss_movement_type type, int tg, int frames, term_state *ts)
+{
+    if (!target_is_in_bounds(bs, type, tg, ts))
         return 0;
 
-    bh->current_movement.type = horizontal;
-    bh->current_movement.goal.x = x;
-    bh->current_movement.completed = 0;
+    beh->current_state.movement.type = type;
+    if (type == horizontal)
+        beh->current_state.movement.goal.x = tg;
+    else
+        beh->current_state.movement.goal.y = tg;
+    beh->current_state.movement.completed = 0;
 
-    bs->state.cur_movement_frames = frames / abs_int(x - bs->pos.x);
+    bs->state.cur_movement_frames = 
+        frames / abs_int(tg - (type == horizontal ? bs->pos.x : bs->pos.y));
 
     return 1;
 }
 
-int move_boss_to_y(boss_behaviour_state *bh, 
-        boss *bs, int y, int frames, term_state *ts)
-{
-    if (y < 1 || y > ts->row - boss_height || bs->pos.y == y)
-        return 0;
-
-    bh->current_movement.type = vertical;
-    bh->current_movement.goal.y = y;
-    bh->current_movement.completed = 0;
-
-    bs->state.cur_movement_frames = frames / abs_int(y - bs->pos.y);
-
-    return 1;
-}
-
-int teleport_boss_to_pos(boss_behaviour_state *bh, 
+static int teleport_boss_to_pos(boss_behaviour *beh, 
         boss *bs, point pos, term_state *ts)
 {
     if (!obj_is_in_bounds(pos, boss_width, boss_height, ts))
         return 0;
 
-    bh->current_movement.type = teleport;
-    bh->current_movement.goal.pos = pos;
-    bh->current_movement.completed = 0;
+    beh->current_state.movement.type = teleport;
+    beh->current_state.movement.goal.pos = pos;
+    beh->current_state.movement.completed = 0;
 
     return 1;
 }
 
-int perform_boss_bullet_burst(boss_behaviour_state *bh, boss *bs, int frames)
+int perform_boss_attack(boss_behaviour *beh, boss *bs,
+                        boss_attack_type type, int frames)
 {
-    bh->current_attack.type = bullet_burst;
-    bh->current_attack.frames = frames;
-    bh->current_attack.completed = 0;
+    beh->current_state.attack.type = type;
+    beh->current_state.attack.completed = 0;
+
+    if (type != mine_field)
+        beh->current_state.attack.frames = frames;
 
     return 1;
 }
 
-int perform_boss_gun_volley(boss_behaviour_state *bh, boss *bs, int frames)
-{
-    bh->current_attack.type = gun_volley;
-    bh->current_attack.frames = frames;
-    bh->current_attack.completed = 0;
-
-    return 1;
-}
-
-int perform_boss_mine_plant(boss_behaviour_state *bh, boss *bs)
-{
-    bh->current_attack.type = mine_field;
-    bh->current_attack.completed = 0;
-
-    return 1;
-}
-
-int perform_boss_force_blast(boss_behaviour_state *bh, boss *bs, int frames)
-{
-    bh->current_attack.type = force_blast;
-    bh->current_attack.frames = frames;
-    bh->current_attack.completed = 0;
-
-    return 1;
-}
-
-static void tick_horizontal_movement(boss_behaviour_state *bh, 
+static void tick_horizontal_movement(boss_behaviour *beh, 
         boss *bs, term_state *ts)
 {
-    int dx = sgn_int(bh->current_movement.goal.x - bs->pos.x);
+    int dx = sgn_int(beh->current_state.movement.goal.x - bs->pos.x);
     move_boss(bs, dx, 0, ts);
 
-    if (bs->pos.x == bh->current_movement.goal.x) {
-        bh->current_movement.completed = 1;
-        bh->current_movement.type = not_moving;
+    if (bs->pos.x == beh->current_state.movement.goal.x) {
+        beh->current_state.movement.completed = 1;
+        beh->current_state.movement.type = not_moving;
     }
 }
 
-static void tick_vertical_movement(boss_behaviour_state *bh, 
+static void tick_vertical_movement(boss_behaviour *beh, 
         boss *bs, term_state *ts)
 {
-    int dy = sgn_int(bh->current_movement.goal.y - bs->pos.y);
+    int dy = sgn_int(beh->current_state.movement.goal.y - bs->pos.y);
     move_boss(bs, 0, dy, ts);
 
-    if (bs->pos.y == bh->current_movement.goal.y) {
-        bh->current_movement.completed = 1;
-        bh->current_movement.type = not_moving;
+    if (bs->pos.y == beh->current_state.movement.goal.y) {
+        beh->current_state.movement.completed = 1;
+        beh->current_state.movement.type = not_moving;
     }
 }
 
-static void perform_teleport(boss_behaviour_state *bh, boss *bs)
+static void perform_teleport(boss_behaviour *beh, boss *bs)
 {
     hide_boss(bs);
-    bs->pos = bh->current_movement.goal.pos;
+    bs->pos = beh->current_state.movement.goal.pos;
     show_boss(bs);
 
-    bh->current_movement.completed = 1;
-    bh->current_movement.type = not_moving;
+    beh->current_state.movement.completed = 1;
+    beh->current_state.movement.type = not_moving;
 }
 
-static void tick_bullet_burst(boss_behaviour_state *bh, boss *bs,
+static void tick_bullet_burst(boss_behaviour *beh, boss *bs,
         boss_projectile_buf proj_buf)
 {
     boss_shoot_bullet(bs, proj_buf);
 
-    bh->current_attack.frames--;
+    beh->current_state.attack.frames--;
 
-    if (bh->current_attack.frames <= 0) {
-        bh->current_attack.completed = 1;
-        bh->current_attack.type = no_attack;
+    if (beh->current_state.attack.frames <= 0) {
+        beh->current_state.attack.completed = 1;
+        beh->current_state.attack.type = no_attack;
     }
 };
 
-static void tick_gun_volley(boss_behaviour_state *bh, boss *bs,
+static void tick_gun_volley(boss_behaviour *beh, boss *bs,
         boss_projectile_buf proj_buf)
 {
     boss_shoot_gun(bs, proj_buf);
 
-    bh->current_attack.frames--;
+    beh->current_state.attack.frames--;
 
-    if (bh->current_attack.frames <= 0) {
-        bh->current_attack.completed = 1;
-        bh->current_attack.type = no_attack;
+    if (beh->current_state.attack.frames <= 0) {
+        beh->current_state.attack.completed = 1;
+        beh->current_state.attack.type = no_attack;
     }
 }
 
@@ -152,63 +138,92 @@ static int all_mines_dead(boss_projectile_buf proj_buf)
     return 1;
 }
 
-static void tick_mine_plant(boss_behaviour_state *bh, boss *bs,
+static void tick_mine_plant(boss_behaviour *beh, boss *bs,
         boss_projectile_buf proj_buf, term_state *ts)
 {
-    if (bh->current_attack.completed) {
+    if (beh->current_state.attack.completed) {
         if (all_mines_dead(proj_buf))
-            bh->current_attack.type = no_attack;
+            beh->current_state.attack.type = no_attack;
     } else { 
         boss_plant_mines(bs, proj_buf, ts);
-        bh->current_attack.completed = 1;
+        beh->current_state.attack.completed = 1;
     }
 }
 
-static void tick_force_blast(boss_behaviour_state *bh, 
+static void tick_force_blast(boss_behaviour *beh, 
         boss *bs, explosion_buf expl_buf, term_state *ts)
 {
-    if (bh->current_attack.completed) {
-        bh->current_attack.frames--;
+    if (beh->current_state.attack.completed) {
+        beh->current_state.attack.frames--;
 
-        if (bh->current_attack.frames <= 0)
-            bh->current_attack.type = no_attack;
+        if (beh->current_state.attack.frames <= 0)
+            beh->current_state.attack.type = no_attack;
     } else { 
         boss_emit_force_field(bs, expl_buf, ts);
-        bh->current_attack.completed = 1;
+        beh->current_state.attack.completed = 1;
     }
 }
 
-void tick_boss_ai(boss_behaviour_state *bh, boss *bs,
-        boss_projectile_buf proj_buf, explosion_buf expl_buf, term_state *ts)
+static void tick_boss_movement(boss_behaviour *beh, boss *bs, term_state *ts)
 {
-    switch (bh->current_movement.type) {
+    switch (beh->current_state.movement.type) {
         case not_moving:
             break;
         case horizontal:
-            tick_horizontal_movement(bh, bs, ts);
+            tick_horizontal_movement(beh, bs, ts);
             break;
         case vertical:
-            tick_vertical_movement(bh, bs, ts);
+            tick_vertical_movement(beh, bs, ts);
             break;
         case teleport:
-            perform_teleport(bh, bs);
+            perform_teleport(beh, bs);
             break;
     }     
+}
 
-    switch (bh->current_attack.type) {
+static void tick_boss_attack(boss_behaviour *beh, boss *bs,
+        boss_projectile_buf proj_buf, explosion_buf expl_buf, term_state *ts)
+{
+    switch (beh->current_state.attack.type) {
         case no_attack:
             break;
         case bullet_burst:
-            tick_bullet_burst(bh, bs, proj_buf);
+            tick_bullet_burst(beh, bs, proj_buf);
             break;
         case gun_volley:
-            tick_gun_volley(bh, bs, proj_buf);
+            tick_gun_volley(beh, bs, proj_buf);
             break;
         case mine_field:
-            tick_mine_plant(bh, bs, proj_buf, ts);
+            tick_mine_plant(beh, bs, proj_buf, ts);
             break;
         case force_blast:
-            tick_force_blast(bh, bs, expl_buf, ts);
+            tick_force_blast(beh, bs, expl_buf, ts);
             break;
     }     
+}
+
+static int next_sequence_elem_ready(boss_behaviour *beh)
+{
+    return beh->current_sequence && 
+        beh->current_state.movement.completed &&
+        beh->current_state.attack.completed;
+}
+
+static void tick_boss_sequence(boss_behaviour *beh, boss *bs, term_state *ts)
+{
+    if (next_sequence_elem_ready(beh)) {
+        (*(beh->current_sequence->move))(beh, bs, ts);
+        (*(beh->current_sequence->atk))(beh, bs);
+
+        beh->current_sequence++;
+    }
+}
+
+void tick_boss_ai(boss_behaviour *beh, boss *bs,
+        boss_projectile_buf proj_buf, explosion_buf expl_buf, term_state *ts)
+{
+    tick_boss_movement(beh, bs, ts);
+    tick_boss_attack(beh, bs, proj_buf, expl_buf, ts);
+
+    tick_boss_sequence(beh, bs, ts);
 }

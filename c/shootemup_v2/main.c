@@ -131,7 +131,8 @@ static void process_asteroid_field_frame(player_bullet_buf player_bullets,
     process_spawns(asteroids, crates, spawn, spawn_timer);
 }
 
-static void switch_game_stage(boss *bs, boss_projectile_buf boss_projectiles,
+static void switch_game_stage(boss *bs, boss_behaviour *boss_beh,
+        boss_projectile_buf boss_projectiles,
         explosion_buf explosions, player_bullet_buf player_bullets, 
         asteroid_buf asteroids, crate_buf crates, spawn_area *spawn,
         player *p, term_state *ts)
@@ -150,6 +151,7 @@ static void switch_game_stage(boss *bs, boss_projectile_buf boss_projectiles,
 
     /* init_boss(bs, 250, 1, 2, 3, ts); */
     init_boss(bs, 250, 0, 0, 0, ts);
+    init_boss_ai(boss_beh);
     init_boss_projectile_buf(boss_projectiles);
     init_explosion_buf(explosions);
 }
@@ -194,7 +196,7 @@ static int player_has_won(boss *bs, game_stage g_stage)
 static game_result game_loop(player *p, term_state *ts, 
         player_bullet_buf player_bullets, asteroid_buf asteroids, 
         crate_buf crates, spawn_area *spawn, countdown_timer *spawn_timer,
-        boss *bs, boss_behaviour_state *boss_beh,
+        boss *bs, boss_behaviour *boss_beh,
         boss_projectile_buf boss_projectiles, explosion_buf explosions)
 {
     game_stage g_stage = asteroid_field;
@@ -222,7 +224,7 @@ static game_result game_loop(player *p, term_state *ts,
             break;
         } else if (reached_stage_switch(p, g_stage)) {
             g_stage = boss_fight;
-            switch_game_stage(bs, boss_projectiles, explosions,
+            switch_game_stage(bs, boss_beh, boss_projectiles, explosions,
                     player_bullets, asteroids, crates, spawn, p, ts);
 
             continue;
@@ -232,37 +234,32 @@ static game_result game_loop(player *p, term_state *ts,
 
         switch (action) {
             case up:
-                move_boss_to_y(boss_beh, bs, 1, 30, ts);
-                /* move_player(p, 0, -1, ts); */
+                move_player(p, 0, -1, ts);
                 break;
             case down:
-                move_boss_to_y(boss_beh, bs, ts->row - boss_height, 30, ts);
-                /* move_player(p, 0, 1, ts); */
+                move_player(p, 0, 1, ts);
                 break;
             case left:
-                move_boss_to_x(boss_beh, bs, 0, 30, ts);
-                /* move_player(p, -1, 0, ts); */
+                move_player(p, -1, 0, ts);
                 break;
             case right:
-                move_boss_to_x(boss_beh, bs, ts->col - boss_width, 30, ts);
-                /* move_player(p, 1, 0, ts); */
+                move_player(p, 1, 0, ts);
                 break;
             case fire:
-                teleport_boss_to_pos(boss_beh, bs, point_literal(0, 1), ts);
-                /* player_shoot(p, player_bullets); */
+                player_shoot(p, player_bullets);
                 break;
 
             case fire1: /* boss debug */
-                perform_boss_bullet_burst(boss_beh, bs, 75);
+                perform_boss_attack(boss_beh, bs, bullet_burst, 75);
                 break;
             case fire2:
-                perform_boss_gun_volley(boss_beh, bs, 161);
+                perform_boss_attack(boss_beh, bs, gun_volley, 161);
                 break;
             case fire3:
-                perform_boss_mine_plant(boss_beh, bs);                
+                perform_boss_attack(boss_beh, bs, mine_field, 0);
                 break;
             case fire4:
-                perform_boss_force_blast(boss_beh, bs, 100);
+                perform_boss_attack(boss_beh, bs, force_blast, 100);
                 break; /* boss debug end */
 
             case resize:
@@ -310,7 +307,7 @@ static int run_game()
     countdown_timer spawn_timer;
 
     boss bs;
-    boss_behaviour_state boss_beh;
+    boss_behaviour boss_beh;
     boss_projectile_buf boss_projectiles;
     explosion_buf explosions;
 

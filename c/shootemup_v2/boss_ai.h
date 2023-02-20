@@ -18,7 +18,6 @@ typedef struct tag_boss_movement {
         int y;
     } goal;
     int completed;
-    boss_movement_type next;
 } boss_movement;
 
 typedef enum tag_boss_attack_type {
@@ -29,36 +28,39 @@ typedef struct tag_boss_attack {
     boss_attack_type type;
     int frames; 
     int completed;
-    boss_attack_type next;
 } boss_attack;
 
-typedef enum tag_boss_sequence_type {
-    no_sequence,
-    side_bullet_spray, side_to_side_shooting, 
-    battering_ram, mine_field_plant,
-    force_field_emission
-} boss_sequence_type;
-
 typedef struct tag_boss_behaviour_state {
-    boss_movement current_movement;
-    boss_attack current_attack;
+    boss_movement movement;
+    boss_attack attack;
 } boss_behaviour_state;
 
-/* TODO: make static later */
-int move_boss_to_x(boss_behaviour_state *bh, 
-        boss *bs, int x, int frames, term_state *ts);
-int move_boss_to_y(boss_behaviour_state *bh, 
-        boss *bs, int y, int frames, term_state *ts);
-int teleport_boss_to_pos(boss_behaviour_state *bh, 
-        boss *bs, point pos, term_state *ts);
+struct tag_boss_behaviour;
 
-int perform_boss_bullet_burst(boss_behaviour_state *bh, boss *bs, int frames);
-int perform_boss_gun_volley(boss_behaviour_state *bh, boss *bs, int frames);
-int perform_boss_mine_plant(boss_behaviour_state *bh, boss *bs);
-int perform_boss_force_blast(boss_behaviour_state *bh, boss *bs, int frames);
+typedef int (*boss_movement_func)(
+        struct tag_boss_behaviour *, boss *, term_state *
+        );
+
+typedef int (*boss_attack_func)(struct tag_boss_behaviour *, boss *);
+
+typedef struct tag_boss_sequence_elem {
+    boss_movement_func move;
+    boss_attack_func atk;
+} boss_sequence_elem;
+
+typedef struct tag_boss_behaviour {
+    boss_sequence_elem *current_sequence;
+    boss_behaviour_state current_state;
+} boss_behaviour;
+
+void init_boss_ai(boss_behaviour *beh);
+
+/* TODO: make static later */
+int perform_boss_attack(boss_behaviour *beh, boss *bs,
+                        boss_attack_type type, int frames);
 
 /* Main function */
-void tick_boss_ai(boss_behaviour_state *bh, boss *bs,
+void tick_boss_ai(boss_behaviour *beh, boss *bs,
         boss_projectile_buf proj_buf, explosion_buf expl_buf, term_state *ts);
 
 #endif
