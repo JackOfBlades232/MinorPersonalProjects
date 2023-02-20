@@ -67,16 +67,20 @@ int perform_boss_attack(boss_behaviour *beh, boss *bs,
     return 1;
 }
 
+static void halt_movement(boss_behaviour *beh)
+{
+    beh->current_state.movement.completed = 1;
+    beh->current_state.movement.type = not_moving;
+}
+
 static void tick_horizontal_movement(boss_behaviour *beh, 
         boss *bs, term_state *ts)
 {
     int dx = sgn_int(beh->current_state.movement.goal.x - bs->pos.x);
     move_boss(bs, dx, 0, ts);
 
-    if (bs->pos.x == beh->current_state.movement.goal.x) {
-        beh->current_state.movement.completed = 1;
-        beh->current_state.movement.type = not_moving;
-    }
+    if (bs->pos.x == beh->current_state.movement.goal.x)
+        halt_movement(beh);
 }
 
 static void tick_vertical_movement(boss_behaviour *beh, 
@@ -85,10 +89,8 @@ static void tick_vertical_movement(boss_behaviour *beh,
     int dy = sgn_int(beh->current_state.movement.goal.y - bs->pos.y);
     move_boss(bs, 0, dy, ts);
 
-    if (bs->pos.y == beh->current_state.movement.goal.y) {
-        beh->current_state.movement.completed = 1;
-        beh->current_state.movement.type = not_moving;
-    }
+    if (bs->pos.y == beh->current_state.movement.goal.y)
+        halt_movement(beh);
 }
 
 static void perform_teleport(boss_behaviour *beh, boss *bs)
@@ -97,8 +99,13 @@ static void perform_teleport(boss_behaviour *beh, boss *bs)
     bs->pos = beh->current_state.movement.goal.pos;
     show_boss(bs);
 
-    beh->current_state.movement.completed = 1;
-    beh->current_state.movement.type = not_moving;
+    halt_movement(beh);
+}
+
+static void halt_attack(boss_behaviour *beh)
+{
+    beh->current_state.attack.completed = 1;
+    beh->current_state.attack.type = no_attack;
 }
 
 static void tick_bullet_burst(boss_behaviour *beh, boss *bs,
@@ -108,10 +115,8 @@ static void tick_bullet_burst(boss_behaviour *beh, boss *bs,
 
     beh->current_state.attack.frames--;
 
-    if (beh->current_state.attack.frames <= 0) {
-        beh->current_state.attack.completed = 1;
-        beh->current_state.attack.type = no_attack;
-    }
+    if (beh->current_state.attack.frames <= 0)
+        halt_attack(beh);
 };
 
 static void tick_gun_volley(boss_behaviour *beh, boss *bs,
@@ -121,10 +126,8 @@ static void tick_gun_volley(boss_behaviour *beh, boss *bs,
 
     beh->current_state.attack.frames--;
 
-    if (beh->current_state.attack.frames <= 0) {
-        beh->current_state.attack.completed = 1;
-        beh->current_state.attack.type = no_attack;
-    }
+    if (beh->current_state.attack.frames <= 0)
+        halt_attack(beh);
 }
 
 static int all_mines_dead(boss_projectile_buf proj_buf)
