@@ -3,6 +3,7 @@
 #define BOSS_AI_SENTRY
 
 #include "boss.h"
+#include "player.h"
 #include "geom.h"
 #include "graphics.h"
 
@@ -38,10 +39,10 @@ typedef struct tag_boss_behaviour_state {
 struct tag_boss_behaviour;
 
 typedef int (*boss_movement_func)(
-        struct tag_boss_behaviour *, boss *, term_state *
+        struct tag_boss_behaviour *, boss *, player *, term_state *
         );
 
-typedef int (*boss_attack_func)(struct tag_boss_behaviour *, boss *);
+typedef int (*boss_attack_func)(struct tag_boss_behaviour *, boss *, player *);
 
 typedef struct tag_boss_sequence_elem {
     boss_movement_func move;
@@ -56,13 +57,12 @@ typedef struct tag_boss_behaviour {
 void init_boss_ai(boss_behaviour *beh);
 
 int perform_bullet_burst(boss_behaviour *beh);
-
-/* TODO: make static later */
-int perform_boss_attack(boss_behaviour *beh, boss *bs,
-                        boss_attack_type type, int frames);
+int perform_battering_ram(boss_behaviour *beh);
+int perform_mine_plant(boss_behaviour *beh);
+int perform_force_blast(boss_behaviour *beh);
 
 /* Main function */
-void tick_boss_ai(boss_behaviour *beh, boss *bs,
+void tick_boss_ai(boss_behaviour *beh, boss *bs, player *p,
         boss_projectile_buf proj_buf, explosion_buf expl_buf, term_state *ts);
 
 #endif

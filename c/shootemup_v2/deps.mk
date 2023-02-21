@@ -5,7 +5,7 @@ buffs.o: buffs.c buffs.h geom.h spawn.h player.h graphics.h colors.h \
  utils.h
 boss.o: boss.c boss.h explosion.h geom.h graphics.h colors.h utils.h
 boss_ai.o: boss_ai.c boss_ai.h boss.h explosion.h geom.h graphics.h \
- utils.h
+ player.h utils.h
 spawn.o: spawn.c spawn.h geom.h utils.h
 collisions.o: collisions.c collisions.h player.h geom.h graphics.h boss.h \
  explosion.h asteroid.h spawn.h buffs.h

@@ -37,7 +37,7 @@ void refresh_scr()
 int point_is_in_bounds(point p, term_state *ts)
 {
     return p.x >= 0 && p.x < ts->col &&
-        p.y >= screen_top_y_padding && p.y <= ts->row;
+        p.y >= screen_top_y_padding && p.y < ts->row;
 }
 
 void draw_point(point p, char symbol, term_state *ts)

@@ -1,6 +1,7 @@
 /* shootemup_v2/boss_ai.c */
 #include "boss_ai.h"
 #include "explosion.h"
+#include "geom.h"
 #include "utils.h"
 
 #include <stdlib.h>
@@ -8,6 +9,14 @@
 enum {
     bullet_burst_first_move_frames = 150,
     bullet_burst_move_and_spray_frames = 225
+};
+
+enum {
+    battering_ram_thrust_frames = 100
+};
+
+enum {
+    force_blast_frames = 100
 };
 
 #define BULLET_BURST_SCREEN_FRAC 0.6
@@ -64,7 +73,7 @@ static int teleport_boss_to_pos(boss_behaviour *beh,
     return 1;
 }
 
-int perform_boss_attack(boss_behaviour *beh, boss *bs,
+static int perform_boss_attack(boss_behaviour *beh, boss *bs,
                         boss_attack_type type, int frames)
 {
     beh->current_state.attack.type = type;
@@ -76,8 +85,31 @@ int perform_boss_attack(boss_behaviour *beh, boss *bs,
     return 1;
 }
 
+static int ready_for_sequence(boss_behaviour *beh)
+{
+    return beh->current_state.movement.completed &&
+        beh->current_state.movement.type == not_moving &&
+        beh->current_state.attack.completed &&
+        beh->current_state.attack.type == no_attack;
+}
+
+static int teleport_to_init_pos(
+        boss_behaviour *beh, boss *bs, player *p, term_state *ts)
+{
+    int x = (ts->col-boss_width)/2;
+    int y = 4; /* test */
+    return teleport_boss_to_pos(beh, bs, point_literal(x, y), ts);
+}
+
+static int bullet_burst_preliminary_movement(
+        boss_behaviour *beh, boss *bs, player *p, term_state *ts)
+{
+    return move_boss_to_xy(beh, bs, 
+            vertical, 1, bullet_burst_first_move_frames, ts);
+}
+
 static int bullet_burst_first_movement(
-        boss_behaviour *beh, boss *bs, term_state *ts)
+        boss_behaviour *beh, boss *bs, player *p, term_state *ts)
 {
     int x = randint(0, 2) ? 0 : ts->col - boss_width; /* choose left or right */
 
@@ -86,7 +118,7 @@ static int bullet_burst_first_movement(
 }
 
 static int bullet_burst_second_movement(
-        boss_behaviour *beh, boss *bs, term_state *ts)
+        boss_behaviour *beh, boss *bs, player *p, term_state *ts)
 {
     int x = bs->pos.x + (
             (int) ((double)ts->col * BULLET_BURST_SCREEN_FRAC - 1) *
@@ -96,7 +128,7 @@ static int bullet_burst_second_movement(
             horizontal, x, bullet_burst_move_and_spray_frames, ts);
 }
 
-static int bullet_burst_second_attack(boss_behaviour *beh, boss *bs)
+static int bullet_burst_second_attack(boss_behaviour *beh, boss *bs, player *p)
 {
     return perform_boss_attack(beh, bs, 
             bullet_burst, bullet_burst_move_and_spray_frames);
@@ -104,6 +136,7 @@ static int bullet_burst_second_attack(boss_behaviour *beh, boss *bs)
 
 static const boss_sequence_elem bullet_burst_seq[] =
 {
+    { bullet_burst_preliminary_movement, NULL },
     { bullet_burst_first_movement, NULL },
     { bullet_burst_second_movement, bullet_burst_second_attack },
     { NULL, NULL }
@@ -111,9 +144,102 @@ static const boss_sequence_elem bullet_burst_seq[] =
 
 int perform_bullet_burst(boss_behaviour *beh)
 {
-    if (beh->current_state.movement.completed && 
-            beh->current_state.attack.completed) {
+    if (ready_for_sequence(beh)) {
         beh->current_sequence = bullet_burst_seq;
+        return 1;
+    }
+
+    return 0;
+}
+
+static int battering_ram_teleport(
+        boss_behaviour *beh, boss *bs, player *p, term_state *ts)
+{
+    int x = min_int(
+            p->pos.x + (player_width-boss_width)/2,
+            ts->col - boss_width
+            );
+    return teleport_boss_to_pos(beh, bs, point_literal(x, 1), ts);
+}
+
+static int battering_ram_forward_thrust(
+        boss_behaviour *beh, boss *bs, player *p, term_state *ts)
+{
+    int y = min_int(p->pos.y, ts->row - boss_height);
+    return move_boss_to_xy(
+            beh, bs, vertical, y, battering_ram_thrust_frames, ts
+            );
+}
+
+static const boss_sequence_elem battering_ram_seq[] =
+{
+    { battering_ram_teleport, NULL },
+    { battering_ram_forward_thrust, NULL },
+    { battering_ram_teleport, NULL },
+    { battering_ram_forward_thrust, NULL },
+    { battering_ram_teleport, NULL },
+    { battering_ram_forward_thrust, NULL },
+    { teleport_to_init_pos, NULL },
+    { NULL, NULL }
+};
+
+int perform_battering_ram(boss_behaviour *beh)
+{
+    if (ready_for_sequence(beh)) {
+        beh->current_sequence = battering_ram_seq;
+        return 1;
+    }
+
+    return 0;
+}
+
+static int mine_plant_attack(boss_behaviour *beh, boss *bs, player *p)
+{
+    return perform_boss_attack(beh, bs, mine_field, 0);
+}
+
+static const boss_sequence_elem mine_plant_seq[] = 
+{
+    { teleport_to_init_pos, mine_plant_attack },
+    { NULL, NULL }
+};
+
+int perform_mine_plant(boss_behaviour *beh)
+{
+    if (ready_for_sequence(beh)) {
+        beh->current_sequence = mine_plant_seq;
+        return 1;
+    }
+    
+    return 0;
+}
+
+static int teleport_to_center(
+        boss_behaviour *beh, boss *bs, player *p, term_state *ts)
+{
+    int x = (ts->col-boss_width)/2;
+    int y = (ts->row-boss_height)/2;
+    return teleport_boss_to_pos(beh, bs, point_literal(x, y), ts);
+}
+
+static int force_blast_attack(boss_behaviour *beh, boss *bs, player *p)
+{
+    return perform_boss_attack(beh, bs, force_blast, force_blast_frames);
+}
+
+static const boss_sequence_elem force_blast_seq[] =
+{
+    { teleport_to_center, NULL },
+    { NULL, force_blast_attack },
+    { NULL, force_blast_attack },
+    { NULL, force_blast_attack },
+    { NULL, NULL }
+};
+
+int perform_force_blast(boss_behaviour *beh)
+{
+    if (ready_for_sequence(beh)) {
+        beh->current_sequence = force_blast_seq;
         return 1;
     }
 
@@ -260,24 +386,23 @@ static void tick_boss_attack(boss_behaviour *beh, boss *bs,
 
 static int next_sequence_elem_ready(boss_behaviour *beh)
 {
-    return beh->current_sequence && 
-        beh->current_state.movement.completed &&
-        beh->current_state.attack.completed;
+    return beh->current_sequence && ready_for_sequence(beh);
 }
 
-static void tick_boss_sequence(boss_behaviour *beh, boss *bs, term_state *ts)
+static void tick_boss_sequence(boss_behaviour *beh, boss *bs, 
+        player *p, term_state *ts)
 {
     if (next_sequence_elem_ready(beh)) {
         int res = beh->current_sequence->move || beh->current_sequence->atk;
 
         if (res) {
             if (beh->current_sequence->move) 
-                (*(beh->current_sequence->move))(beh, bs, ts);
+                (*(beh->current_sequence->move))(beh, bs, p, ts);
             else
                 beh->current_state.movement.completed = 1;
 
             if (beh->current_sequence->atk) 
-                (*(beh->current_sequence->atk))(beh, bs);
+                (*(beh->current_sequence->atk))(beh, bs, p);
             else
                 beh->current_state.attack.completed = 1;
 
@@ -287,11 +412,11 @@ static void tick_boss_sequence(boss_behaviour *beh, boss *bs, term_state *ts)
     }
 }
 
-void tick_boss_ai(boss_behaviour *beh, boss *bs,
+void tick_boss_ai(boss_behaviour *beh, boss *bs, player *p,
         boss_projectile_buf proj_buf, explosion_buf expl_buf, term_state *ts)
 {
     tick_boss_movement(beh, bs, ts);
     tick_boss_attack(beh, bs, proj_buf, expl_buf, ts);
 
-    tick_boss_sequence(beh, bs, ts);
+    tick_boss_sequence(beh, bs, p, ts);
 }

@@ -210,7 +210,7 @@ static game_result game_loop(player *p, term_state *ts,
                         crates, spawn, spawn_timer, p, ts);
                 break;
             case boss_fight:
-                tick_boss_ai(boss_beh, bs, boss_projectiles, explosions, ts);
+                tick_boss_ai(boss_beh, bs, p, boss_projectiles, explosions, ts);
                 process_boss_fight_frame(bs, boss_projectiles, explosions,
                         player_bullets, p, ts);
                 break;
@@ -253,13 +253,13 @@ static game_result game_loop(player *p, term_state *ts,
                 perform_bullet_burst(boss_beh);
                 break;
             case fire2:
-                perform_boss_attack(boss_beh, bs, gun_volley, 161);
+                perform_battering_ram(boss_beh);
                 break;
             case fire3:
-                perform_boss_attack(boss_beh, bs, mine_field, 0);
+                perform_mine_plant(boss_beh);
                 break;
             case fire4:
-                perform_boss_attack(boss_beh, bs, force_blast, 100);
+                perform_force_blast(boss_beh);
                 break; /* boss debug end */
 
             case resize:

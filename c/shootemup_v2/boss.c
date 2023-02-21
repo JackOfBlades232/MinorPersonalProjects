@@ -67,7 +67,8 @@ void init_boss(boss *bs,
         term_state *ts)
 {
     bs->pos.x = (ts->col - boss_width)/2;
-    bs->pos.y = 1;
+    /* bs->pos.y = 1; */
+    bs->pos.y = 4;
 
     bs->state.cur_hp = bs->state.max_hp = max_hp;
 
