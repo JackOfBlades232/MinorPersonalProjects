@@ -41,8 +41,10 @@ input_action get_input_action()
         return fire2;
     else if (key == '3')
         return fire3;
-    else if (key == '4') /* boss debug end */
+    else if (key == '4')
         return fire4;
+    else if (key == '5') /* boss debug end */
+        return fire5;
 
     else
         return idle;

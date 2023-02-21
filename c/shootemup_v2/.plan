@@ -62,7 +62,7 @@ Boss fight:
         * Fire gunshots for time X
         * Plant mines and wait until exploded
         * Fire force field and wait time X
-        - Stay idle for X time
+        * Stay idle for X time
     - Implement main moves:
         * Write processing of move sequences
         * Move to the side and then move 3/4 of screen with constant bullet fire
@@ -70,9 +70,12 @@ Boss fight:
         * 3 times port to player x coord and ram
         * Port to center up and plant mines
         * Fire force field 3 times
-        - Move side to side following player with gunshots and bullet bursts
+        * Move side to side following player with gunshots and bullet bursts
     - Create a primitive random choice of next move
+        - Add uniform next seq choice
+        - Add inter-seq delay
         - Set up force field move for 50% hp
+    - Add delays inside moves
 
 Addition ideas:
 - Impl adaptive drawing on screen edge (draw part of shape) and make riods, 

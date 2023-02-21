@@ -260,6 +260,9 @@ static game_result game_loop(player *p, term_state *ts,
                 break;
             case fire4:
                 perform_force_blast(boss_beh);
+                break;
+            case fire5:
+                perform_sliding_volley(boss_beh);
                 break; /* boss debug end */
 
             case resize:

@@ -7,6 +7,11 @@
 #include <stdlib.h>
 
 enum {
+    left_movement_aim = 3,
+    right_movement_aim = -3
+};
+
+enum {
     bullet_burst_first_move_frames = 150,
     bullet_burst_move_and_spray_frames = 225
 };
@@ -17,6 +22,11 @@ enum {
 
 enum {
     force_blast_frames = 100
+};
+
+enum {
+    sliding_volley_movement_frames = 350,
+    sliding_volley_attack_frames = 275
 };
 
 #define BULLET_BURST_SCREEN_FRAC 0.6
@@ -85,6 +95,18 @@ static int perform_boss_attack(boss_behaviour *beh, boss *bs,
     return 1;
 }
 
+static int perform_delay(boss_behaviour *beh, boss *bs, int frames)
+{
+    beh->current_state.movement.type = not_moving;
+    beh->current_state.attack.type = no_attack;
+    beh->current_state.movement.completed = 0;
+    beh->current_state.attack.completed = 0;
+
+    beh->current_state.attack.frames = frames;
+
+    return 1;
+}
+
 static int ready_for_sequence(boss_behaviour *beh)
 {
     return beh->current_state.movement.completed &&
@@ -101,7 +123,7 @@ static int teleport_to_init_pos(
     return teleport_boss_to_pos(beh, bs, point_literal(x, y), ts);
 }
 
-static int bullet_burst_preliminary_movement(
+static int return_to_top_movement(
         boss_behaviour *beh, boss *bs, player *p, term_state *ts)
 {
     return move_boss_to_xy(beh, bs, 
@@ -111,7 +133,9 @@ static int bullet_burst_preliminary_movement(
 static int bullet_burst_first_movement(
         boss_behaviour *beh, boss *bs, player *p, term_state *ts)
 {
-    int x = randint(0, 2) ? 0 : ts->col - boss_width; /* choose left or right */
+    int x = randint(0, 2) ? 
+        left_movement_aim : 
+        ts->col - boss_width + right_movement_aim; /* choose left or right */
 
     return move_boss_to_xy(beh, bs, 
             horizontal, x, bullet_burst_first_move_frames, ts);
@@ -122,7 +146,7 @@ static int bullet_burst_second_movement(
 {
     int x = bs->pos.x + (
             (int) ((double)ts->col * BULLET_BURST_SCREEN_FRAC - 1) *
-            (bs->pos.x == 0 ? 1 : -1)
+            (bs->pos.x <= left_movement_aim ? 1 : -1)
             );
     return move_boss_to_xy(beh, bs, 
             horizontal, x, bullet_burst_move_and_spray_frames, ts);
@@ -136,7 +160,7 @@ static int bullet_burst_second_attack(boss_behaviour *beh, boss *bs, player *p)
 
 static const boss_sequence_elem bullet_burst_seq[] =
 {
-    { bullet_burst_preliminary_movement, NULL },
+    { return_to_top_movement, NULL },
     { bullet_burst_first_movement, NULL },
     { bullet_burst_second_movement, bullet_burst_second_attack },
     { NULL, NULL }
@@ -240,6 +264,51 @@ int perform_force_blast(boss_behaviour *beh)
 {
     if (ready_for_sequence(beh)) {
         beh->current_sequence = force_blast_seq;
+        return 1;
+    }
+
+    return 0;
+}
+
+static int sliding_volley_movement(
+        boss_behaviour *beh, boss *bs, player *p, term_state *ts)
+{
+    int x;
+
+    if (bs->pos.x <= left_movement_aim || 
+            bs->pos.x >= ts->col - boss_width + right_movement_aim) {
+        x = (ts->col-boss_width)/2;
+    } else {
+        x = randint(0, 2) ? 
+            left_movement_aim : 
+            ts->col - boss_width + right_movement_aim;
+    }
+
+    return move_boss_to_xy(beh, bs, horizontal, 
+            x, sliding_volley_movement_frames, ts);
+}
+
+static int sliding_volley_random_attack(
+        boss_behaviour *beh, boss *bs, player *p)
+{
+    boss_attack_type type = randint(0, 2) ? gun_volley : bullet_burst;
+    return perform_boss_attack(beh, bs, type, sliding_volley_attack_frames);
+}
+
+static const boss_sequence_elem sliding_volley_seq[] =
+{
+    { return_to_top_movement, NULL },
+    { sliding_volley_movement, sliding_volley_random_attack },
+    { sliding_volley_movement, sliding_volley_random_attack },
+    { sliding_volley_movement, sliding_volley_random_attack },
+    { sliding_volley_movement, sliding_volley_random_attack },
+    { NULL, NULL }
+};
+
+int perform_sliding_volley(boss_behaviour *beh)
+{
+    if (ready_for_sequence(beh)) {
+        beh->current_sequence = sliding_volley_seq;
         return 1;
     }
 
@@ -363,6 +432,14 @@ static void tick_boss_movement(boss_behaviour *beh, boss *bs, term_state *ts)
     }     
 }
 
+static int boss_is_in_delay(boss_behaviour *beh)
+{
+    return beh->current_state.movement.type == not_moving &&
+        beh->current_state.attack.type == no_attack &&
+        !beh->current_state.movement.completed &&
+        !beh->current_state.attack.completed;
+}
+
 static void tick_boss_attack(boss_behaviour *beh, boss *bs,
         boss_projectile_buf proj_buf, explosion_buf expl_buf, term_state *ts)
 {
@@ -382,6 +459,18 @@ static void tick_boss_attack(boss_behaviour *beh, boss *bs,
             tick_force_blast(beh, bs, expl_buf, ts);
             break;
     }     
+}
+
+static void tick_boss_delay(boss_behaviour *beh)
+{
+    if (boss_is_in_delay(beh)) {
+        beh->current_state.attack.frames--;
+
+        if (beh->current_state.attack.frames <= 0) {
+            beh->current_state.movement.completed = 1;
+            beh->current_state.attack.completed = 1;
+        }
+    }
 }
 
 static int next_sequence_elem_ready(boss_behaviour *beh)
@@ -417,6 +506,7 @@ void tick_boss_ai(boss_behaviour *beh, boss *bs, player *p,
 {
     tick_boss_movement(beh, bs, ts);
     tick_boss_attack(beh, bs, proj_buf, expl_buf, ts);
+    tick_boss_delay(beh);
 
     tick_boss_sequence(beh, bs, p, ts);
 }
