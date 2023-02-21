@@ -79,10 +79,9 @@ Boss fight:
 
 Addition ideas:
 * Add buttons for "move&fire" (or learn to get multiple key pressed)
-- Implement blink and explosion on boss death
-- For bullet spray not random dir, but closest to player
-- Impl adaptive drawing on screen edge (draw part of shape) and make riods, 
-    boss and crates come out and go out gradually
+* Implement blink and explosion on boss death
+* Extract all constants
+* For bullet spray not random dir, but closest to player
 - Add progressive hardening of the asteroid phase with score (decr spawn delay,
     decr probability of rep kits, inc ast speed)
 

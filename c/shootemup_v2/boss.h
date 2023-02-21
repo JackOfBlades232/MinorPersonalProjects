@@ -8,12 +8,13 @@
 
 enum { boss_width = 19, boss_height = 8 };
 enum { boss_projectile_bufsize = 128 };
+enum { boss_init_pos_y = 4 };
 
 typedef struct tag_boss_state {
     int cur_hp, max_hp;
     int frames_since_moved, cur_movement_frames;
     int frames_since_shot;
-    int bullet_dmg, gunshot_dmg, mine_dmg;
+    int bullet_dmg, gunshot_dmg, mine_dmg, ffield_dmg;
 } boss_state;
 
 typedef struct tag_boss {
@@ -37,13 +38,15 @@ typedef struct tag_boss_projectile {
 
 typedef boss_projectile boss_projectile_buf[boss_projectile_bufsize];
 
-void init_boss(boss *bs, 
-        int max_hp, int bullet_dmg, int gunshot_dmg, int mine_dmg,
+void init_boss(boss *bs, int max_hp, int bullet_dmg,
+        int gunshot_dmg, int mine_dmg, int ffield_dmg,
         term_state *ts);
 
 void show_boss(boss *bs);
 void hide_boss(boss *bs);
 void move_boss(boss *bs, int dx, int dy, term_state *ts);
+
+void show_boss_with_blink(boss *bs);
 
 int point_is_in_boss(boss *bs, point pt);
 
@@ -67,6 +70,7 @@ void set_mine_off(boss_projectile *pr, explosion_buf expl_buf, term_state *ts);
 void update_live_boss_projectiles(boss_projectile_buf projectile_buf,
         explosion_buf expl_buf, term_state *ts);
 int kill_boss_projectile(boss_projectile *pr);
+void kill_all_boss_pojectiles(boss_projectile_buf projectile_buf);
 
 void update_boss_frame_counters(boss *bs);
 

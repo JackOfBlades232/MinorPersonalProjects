@@ -118,6 +118,13 @@ int kill_explosion(explosion *ex, term_state *ts)
     return 0;
 }
 
+void kill_all_explosions(explosion_buf buf, term_state *ts)
+{
+    int i;
+    for (i = 0; i < explosion_bufsize; i++)
+        kill_explosion(buf+i, ts);
+}
+
 void deactivate_explosion(explosion *ex)
 {
     ex->damage = 0;

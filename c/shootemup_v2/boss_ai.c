@@ -135,8 +135,8 @@ static int teleport_to_init_pos(
         boss_behaviour *beh, boss *bs, player *p, term_state *ts)
 {
     int x = (ts->col-boss_width)/2;
-    int y = 4; /* test */
-    return teleport_boss_to_pos(beh, bs, point_literal(x, y), ts);
+    return teleport_boss_to_pos(beh, bs, 
+            point_literal(x, boss_init_pos_y), ts);
 }
 
 static int return_to_top_movement(
@@ -258,11 +258,10 @@ static int sliding_volley_movement(
     if (bs->pos.x <= left_movement_aim || 
             bs->pos.x >= ts->col - boss_width + right_movement_aim) {
         x = (ts->col-boss_width)/2;
-    } else {
-        x = randint(0, 2) ? 
-            left_movement_aim : 
-            ts->col - boss_width + right_movement_aim;
-    }
+    } else if (p->pos.x <= (ts->col - player_width)/2)
+        x = left_movement_aim;
+    else 
+        x = ts->col - boss_width + right_movement_aim;
 
     return move_boss_to_xy(beh, bs, horizontal, 
             x, sliding_volley_movement_frames, ts);
@@ -488,7 +487,7 @@ static void try_decide_next_sequence(boss_behaviour *beh, boss *bs)
         beh->current_sequence = force_blast_seq;
         beh->has_reached_half_hp = 1;
     } else {
-        beh->current_sequence = 
+        beh->current_sequence =
             all_sequences[randint(0, num_regular_sequences)];
     }
 

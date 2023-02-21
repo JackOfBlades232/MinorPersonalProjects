@@ -45,3 +45,10 @@ input_action get_input_action()
     else
         return idle;
 }
+
+void flush_input()
+{
+    int key;
+    while ((key = getch()) != ERR)
+        {}
+}

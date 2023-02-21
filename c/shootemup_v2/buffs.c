@@ -119,12 +119,6 @@ void update_live_crates(crate_buf buf, spawn_area *sa, term_state *ts)
 
 int collect_crate(buff_crate *crate, spawn_area *sa, player *p)
 {
-    move(0, 50);
-    printw("%d", min_int(
-            p->state.cur_hp + crate->data->hp_restore,
-            p->state.max_hp
-            ) - p->state.cur_hp);
-
     p->state.cur_hp = min_int(
             p->state.cur_hp + crate->data->hp_restore,
             p->state.max_hp

@@ -32,10 +32,6 @@ enum {
     mine_expl_frames = 300
 };
 
-enum {
-    force_field_damage = 0 /* test */
-};
-
 #define GUNSHOT_EXPL_RAD 6.0
 #define MINE_EXPL_RAD 10.0
 #define FFILED_EXPL_RAD 48.0
@@ -62,19 +58,19 @@ static const int gunshot_emitter_positions[gunshot_emitter_cnt][2] =
     { 7, 3 }, { 11, 3 } 
 };
 
-void init_boss(boss *bs, 
-        int max_hp, int bullet_dmg, int gunshot_dmg, int mine_dmg,
+void init_boss(boss *bs, int max_hp, int bullet_dmg,
+        int gunshot_dmg, int mine_dmg, int ffield_dmg,
         term_state *ts)
 {
     bs->pos.x = (ts->col - boss_width)/2;
-    /* bs->pos.y = 1; */
-    bs->pos.y = 4;
+    bs->pos.y = boss_init_pos_y;
 
     bs->state.cur_hp = bs->state.max_hp = max_hp;
 
     bs->state.bullet_dmg = bullet_dmg;
     bs->state.gunshot_dmg = gunshot_dmg;
     bs->state.mine_dmg = mine_dmg;
+    bs->state.ffield_dmg = ffield_dmg;
 
     bs->state.cur_movement_frames = boss_base_movement_frames;
     bs->state.frames_since_moved = bs->state.cur_movement_frames;
@@ -89,10 +85,9 @@ static void truncate_boss_pos(boss *bs, term_state *ts)
     clamp_int(&bs->pos.y, 1, ts->row-boss_height);
 }
 
-void show_boss(boss *bs)
+static void show_boss_no_color(boss *bs)
 {
     int i, j;
-    attrset(get_color_pair(boss_color_pair));
     for (i = 0; i < boss_height; i++) {
         move(bs->pos.y + i, bs->pos.x);
         for (j = 0; j < boss_width; j++) {
@@ -103,6 +98,12 @@ void show_boss(boss *bs)
                 move(bs->pos.y + i, bs->pos.x + j + 1);
         }
     }
+}
+
+void show_boss(boss *bs)
+{
+    attrset(get_color_pair(boss_color_pair));
+    show_boss_no_color(bs);
 }
 
 void hide_boss(boss *bs)
@@ -127,6 +128,12 @@ void move_boss(boss *bs, int dx, int dy, term_state *ts)
 
         bs->state.frames_since_moved = 0;
     }
+}
+
+void show_boss_with_blink(boss *bs)
+{
+    attrset(get_color_pair(boss_color_pair) | A_BLINK);
+    show_boss_no_color(bs);
 }
 
 static int local_point_is_in_boss_square(point pt)
@@ -338,7 +345,7 @@ int boss_emit_force_field(boss *bs, explosion_buf expl_buf, term_state *ts)
             );
 
     return spawn_explosion(
-            expl_buf, boss_center, FFILED_EXPL_RAD, force_field_damage,
+            expl_buf, boss_center, FFILED_EXPL_RAD, bs->state.ffield_dmg,
             get_color_pair(ffield_color_pair), ts
             );
 }
@@ -441,6 +448,13 @@ int kill_boss_projectile(boss_projectile *pr)
     hide_projectile(pr);
 
     return 1;
+}
+
+void kill_all_boss_pojectiles(boss_projectile_buf projectile_buf)
+{
+    int i;
+    for (i = 0; i < boss_projectile_bufsize; i++)
+        kill_boss_projectile(projectile_buf+i);
 }
 
 void update_boss_frame_counters(boss *bs)

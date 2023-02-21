@@ -10,7 +10,7 @@
 enum { player_init_screen_edge_offset = 3 };
 
 enum { 
-    player_movement_frames = 2,
+    player_movement_frames = 1,
     player_shooting_frames = 16,
     player_ammo_replenish_frames = 9,
     frames_from_shot_to_bullet_replenish = 300 

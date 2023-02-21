@@ -28,6 +28,7 @@ int spawn_explosion(explosion_buf buf, point pos, double max_rad,
 
 void update_live_explosions(explosion_buf buf, term_state *ts);
 int kill_explosion(explosion *ex, term_state *ts);
+void kill_all_explosions(explosion_buf buf, term_state *ts);
 
 void deactivate_explosion(explosion *ex);
 

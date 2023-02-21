@@ -56,8 +56,6 @@ typedef struct tag_boss_behaviour {
 } boss_behaviour;
 
 void init_boss_ai(boss_behaviour *beh);
-
-/* Main function */
 void tick_boss_ai(boss_behaviour *beh, boss *bs, player *p,
         boss_projectile_buf proj_buf, explosion_buf expl_buf, term_state *ts);
 
