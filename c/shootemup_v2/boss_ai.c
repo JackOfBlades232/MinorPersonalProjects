@@ -5,10 +5,19 @@
 
 #include <stdlib.h>
 
+enum {
+    bullet_burst_first_move_frames = 150,
+    bullet_burst_move_and_spray_frames = 225
+};
+
+#define BULLET_BURST_SCREEN_FRAC 0.6
+
 void init_boss_ai(boss_behaviour *beh)
 {
     beh->current_state.movement.type = not_moving;
     beh->current_state.attack.type = no_attack;
+    beh->current_state.movement.completed = 1;
+    beh->current_state.attack.completed = 1;
     beh->current_sequence = NULL;
 }
 
@@ -65,6 +74,50 @@ int perform_boss_attack(boss_behaviour *beh, boss *bs,
         beh->current_state.attack.frames = frames;
 
     return 1;
+}
+
+static int bullet_burst_first_movement(
+        boss_behaviour *beh, boss *bs, term_state *ts)
+{
+    int x = randint(0, 2) ? 0 : ts->col - boss_width; /* choose left or right */
+
+    return move_boss_to_xy(beh, bs, 
+            horizontal, x, bullet_burst_first_move_frames, ts);
+}
+
+static int bullet_burst_second_movement(
+        boss_behaviour *beh, boss *bs, term_state *ts)
+{
+    int x = bs->pos.x + (
+            (int) ((double)ts->col * BULLET_BURST_SCREEN_FRAC - 1) *
+            (bs->pos.x == 0 ? 1 : -1)
+            );
+    return move_boss_to_xy(beh, bs, 
+            horizontal, x, bullet_burst_move_and_spray_frames, ts);
+}
+
+static int bullet_burst_second_attack(boss_behaviour *beh, boss *bs)
+{
+    return perform_boss_attack(beh, bs, 
+            bullet_burst, bullet_burst_move_and_spray_frames);
+}
+
+static const boss_sequence_elem bullet_burst_seq[] =
+{
+    { bullet_burst_first_movement, NULL },
+    { bullet_burst_second_movement, bullet_burst_second_attack },
+    { NULL, NULL }
+};
+
+int perform_bullet_burst(boss_behaviour *beh)
+{
+    if (beh->current_state.movement.completed && 
+            beh->current_state.attack.completed) {
+        beh->current_sequence = bullet_burst_seq;
+        return 1;
+    }
+
+    return 0;
 }
 
 static void halt_movement(boss_behaviour *beh)
@@ -215,10 +268,22 @@ static int next_sequence_elem_ready(boss_behaviour *beh)
 static void tick_boss_sequence(boss_behaviour *beh, boss *bs, term_state *ts)
 {
     if (next_sequence_elem_ready(beh)) {
-        (*(beh->current_sequence->move))(beh, bs, ts);
-        (*(beh->current_sequence->atk))(beh, bs);
+        int res = beh->current_sequence->move || beh->current_sequence->atk;
 
-        beh->current_sequence++;
+        if (res) {
+            if (beh->current_sequence->move) 
+                (*(beh->current_sequence->move))(beh, bs, ts);
+            else
+                beh->current_state.movement.completed = 1;
+
+            if (beh->current_sequence->atk) 
+                (*(beh->current_sequence->atk))(beh, bs);
+            else
+                beh->current_state.attack.completed = 1;
+
+            beh->current_sequence++;
+        } else
+            beh->current_sequence = NULL;
     }
 }
 

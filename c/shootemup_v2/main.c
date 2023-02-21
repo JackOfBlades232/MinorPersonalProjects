@@ -250,7 +250,7 @@ static game_result game_loop(player *p, term_state *ts,
                 break;
 
             case fire1: /* boss debug */
-                perform_boss_attack(boss_beh, bs, bullet_burst, 75);
+                perform_bullet_burst(boss_beh);
                 break;
             case fire2:
                 perform_boss_attack(boss_beh, bs, gun_volley, 161);

@@ -49,11 +49,13 @@ typedef struct tag_boss_sequence_elem {
 } boss_sequence_elem;
 
 typedef struct tag_boss_behaviour {
-    boss_sequence_elem *current_sequence;
+    const boss_sequence_elem *current_sequence;
     boss_behaviour_state current_state;
 } boss_behaviour;
 
 void init_boss_ai(boss_behaviour *beh);
+
+int perform_bullet_burst(boss_behaviour *beh);
 
 /* TODO: make static later */
 int perform_boss_attack(boss_behaviour *beh, boss *bs,

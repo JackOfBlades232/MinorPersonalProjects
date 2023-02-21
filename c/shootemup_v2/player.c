@@ -58,7 +58,7 @@ void reset_player_pos(player *p, term_state *ts)
 
 static void truncate_player_pos(player *p, term_state *ts)
 {
-    clamp_int(&p->pos.x, 1, ts->col-player_width);
+    clamp_int(&p->pos.x, 0, ts->col-player_width);
     clamp_int(&p->pos.y, 1, ts->row-player_height);
 }
 

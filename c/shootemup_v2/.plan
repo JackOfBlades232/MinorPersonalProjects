@@ -65,6 +65,7 @@ Boss fight:
     - Implement main moves:
         * Write processing of move sequences
         - Move to the side and then move 3/4 of screen with constant bullet fire
+            - Might have to get boss in Y pos first
         - Move side to side following player with gunshots and bullet bursts
         - 3 times port to player x coord and ram
         - Port to center up/center/down and plant mines
@@ -104,3 +105,4 @@ Bugs:
 * When fired near bottom, bug in drawing force field
 * Force field damages the player too early, may have to tweak player-ex 
     collision in favor of the player
+- Need to check whether randint is inclusive

@@ -84,7 +84,7 @@ void init_boss(boss *bs,
 
 static void truncate_boss_pos(boss *bs, term_state *ts)
 {
-    clamp_int(&bs->pos.x, 1, ts->col-boss_width);
+    clamp_int(&bs->pos.x, 0, ts->col-boss_width);
     clamp_int(&bs->pos.y, 1, ts->row-boss_height);
 }
 
