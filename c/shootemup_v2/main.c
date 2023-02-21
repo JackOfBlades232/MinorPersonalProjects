@@ -24,7 +24,12 @@ enum {
     stage_switch_delay = 1 /* seconds */
 };
 
-typedef enum tag_game_stage { asteroid_field = 0, boss_fight = 1 } game_stage;
+typedef enum tag_game_stage { 
+    asteroid_field = 0,
+    boss_fight = 1,
+    boss_expl = 2
+} game_stage;
+
 typedef enum tag_game_result { win = 0, lose = 1, shutdown = 2 } game_result;
 
 static int init_game(term_state *ts)
@@ -188,6 +193,22 @@ static void process_boss_fight_frame(boss *bs,
     update_boss_frame_counters(bs);
 }
 
+static void start_boss_expl(boss *bs, boss_behaviour *boss_beh,
+        explosion_buf explosions, term_state *ts)
+{
+}
+
+static void process_boss_expl_frame(boss *bs, 
+        boss_projectile_buf boss_projectiles, explosion_buf explosions, 
+        player_bullet_buf player_bullets, player *p, term_state *ts)
+{
+}
+
+static int boss_expl_ended()
+{
+    return 1;
+}
+
 static int player_has_won(boss *bs, game_stage g_stage)
 {
     return g_stage == boss_fight && boss_is_dead(bs);
@@ -214,13 +235,14 @@ static game_result game_loop(player *p, term_state *ts,
                 process_boss_fight_frame(bs, boss_projectiles, explosions,
                         player_bullets, p, ts);
                 break;
+            case boss_expl:
+                process_boss_expl_frame(bs, boss_projectiles, 
+                        explosions, player_bullets, p, ts);
+                continue;
         }
 
         if (player_is_dead(p)) {
             g_res = lose;
-            break;
-        } else if (player_has_won(bs, g_stage)) {
-            g_res = win;
             break;
         } else if (reached_stage_switch(p, g_stage)) {
             g_stage = boss_fight;
@@ -228,7 +250,12 @@ static game_result game_loop(player *p, term_state *ts,
                     player_bullets, asteroids, crates, spawn, p, ts);
 
             continue;
-        }
+        } else if (player_has_won(bs, g_stage)) {
+            g_res = win;
+            start_boss_expl(bs, boss_beh, explosions, ts);
+            continue;
+        } else if (boss_expl_ended())
+            break;
 
         update_player_frame_counters(p);
 
