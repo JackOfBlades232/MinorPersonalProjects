@@ -248,23 +248,22 @@ static game_result game_loop(player *p, term_state *ts,
             case fire:
                 player_shoot(p, player_bullets);
                 break;
-
-            case fire1: /* boss debug */
-                perform_bullet_burst(boss_beh);
+            case fire_up:
+                move_player(p, 0, -1, ts);
+                player_shoot(p, player_bullets);
                 break;
-            case fire2:
-                perform_battering_ram(boss_beh);
+            case fire_down:
+                move_player(p, 0, 1, ts);
+                player_shoot(p, player_bullets);
                 break;
-            case fire3:
-                perform_mine_plant(boss_beh);
+            case fire_left:
+                move_player(p, -1, 0, ts);
+                player_shoot(p, player_bullets);
                 break;
-            case fire4:
-                perform_force_blast(boss_beh);
+            case fire_right:
+                move_player(p, 1, 0, ts);
+                player_shoot(p, player_bullets);
                 break;
-            case fire5:
-                perform_sliding_volley(boss_beh);
-                break; /* boss debug end */
-
             case resize:
                 goto end_loop;
             default:

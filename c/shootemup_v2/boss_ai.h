@@ -52,16 +52,10 @@ typedef struct tag_boss_sequence_elem {
 typedef struct tag_boss_behaviour {
     const boss_sequence_elem *current_sequence;
     boss_behaviour_state current_state;
+    int has_reached_half_hp;
 } boss_behaviour;
 
 void init_boss_ai(boss_behaviour *beh);
-
-/* TODO: these, too, are to become static */
-int perform_bullet_burst(boss_behaviour *beh);
-int perform_battering_ram(boss_behaviour *beh);
-int perform_mine_plant(boss_behaviour *beh);
-int perform_force_blast(boss_behaviour *beh);
-int perform_sliding_volley(boss_behaviour *beh);
 
 /* Main function */
 void tick_boss_ai(boss_behaviour *beh, boss *bs, player *p,

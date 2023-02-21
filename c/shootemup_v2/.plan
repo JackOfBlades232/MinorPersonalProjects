@@ -63,7 +63,7 @@ Boss fight:
         * Plant mines and wait until exploded
         * Fire force field and wait time X
         * Stay idle for X time
-    - Implement main moves:
+    * Implement main moves:
         * Write processing of move sequences
         * Move to the side and then move 3/4 of screen with constant bullet fire
             * Might have to get boss in Y pos first
@@ -71,22 +71,20 @@ Boss fight:
         * Port to center up and plant mines
         * Fire force field 3 times
         * Move side to side following player with gunshots and bullet bursts
-    - Create a primitive random choice of next move
-        - Add uniform next seq choice
-        - Add inter-seq delay
-        - Set up force field move for 50% hp
-    - Add delays inside moves
+    * Create a primitive random choice of next move
+        * Add uniform next seq choice
+        * Add inter-seq delay
+        * Set up force field move for 50% hp
+    * Add delays inside moves
 
 Addition ideas:
-- Impl adaptive drawing on screen edge (draw part of shape) and make riods, 
-    boss and crates come out and go out gradually
-- Add buttons for "move&fire" (or learn to get multiple key pressed)
-- Add progressive hardening of the asteroid phase with score (decr spawn delay,
-    decr probability of rep kits, inc ast speed)
-- I may be able to lighten some data structures by creating more constants or
-    static datas for things like damage and so on.
+* Add buttons for "move&fire" (or learn to get multiple key pressed)
 - Implement blink and explosion on boss death
 - For bullet spray not random dir, but closest to player
+- Impl adaptive drawing on screen edge (draw part of shape) and make riods, 
+    boss and crates come out and go out gradually
+- Add progressive hardening of the asteroid phase with score (decr spawn delay,
+    decr probability of rep kits, inc ast speed)
 
 To remember:
 * Some effects (namely, explosions to boss) may draw over player/boss ships,
@@ -113,3 +111,4 @@ Bugs:
     collision in favor of the player
 * When 2 or more force blasts alive, explosion drawing breaks
 * Need to check whether randint is inclusive (verdict -- exclusive)
+- Some mines do not show on mine plant

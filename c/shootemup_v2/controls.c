@@ -28,24 +28,20 @@ input_action get_input_action()
         return left;
     else if (key == 'd' || key == KEY_RIGHT)
         return right;
+    if (key == 'k')
+        return fire_up;
+    else if (key == 'j')
+        return fire_down;
+    else if (key == 'h')
+        return fire_left;
+    else if (key == 'l')
+        return fire_right;
     else if (key == ' ' || key == '\r')
         return fire;
     else if (key == KEY_RESIZE)
         return resize;
     else if (key == key_escape)
         return quit;
-
-    else if (key == '1') /* boss debug */
-        return fire1;
-    else if (key == '2')
-        return fire2;
-    else if (key == '3')
-        return fire3;
-    else if (key == '4')
-        return fire4;
-    else if (key == '5') /* boss debug end */
-        return fire5;
-
     else
         return idle;
 }

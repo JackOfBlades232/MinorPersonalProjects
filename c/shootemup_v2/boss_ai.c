@@ -12,6 +12,10 @@ enum {
 };
 
 enum {
+    in_move_delay_frames = 50
+};
+
+enum {
     bullet_burst_first_move_frames = 150,
     bullet_burst_move_and_spray_frames = 225
 };
@@ -29,6 +33,12 @@ enum {
     sliding_volley_attack_frames = 275
 };
 
+enum {
+    num_regular_sequences = 5,
+    inter_sequence_delay_frames_min = 100,
+    inter_sequence_delay_frames_max = 200
+};
+
 #define BULLET_BURST_SCREEN_FRAC 0.6
 
 void init_boss_ai(boss_behaviour *beh)
@@ -38,6 +48,7 @@ void init_boss_ai(boss_behaviour *beh)
     beh->current_state.movement.completed = 1;
     beh->current_state.attack.completed = 1;
     beh->current_sequence = NULL;
+    beh->has_reached_half_hp = 0;
 }
 
 static int target_is_in_bounds(boss *bs, 
@@ -107,6 +118,11 @@ static int perform_delay(boss_behaviour *beh, boss *bs, int frames)
     return 1;
 }
 
+static int perform_in_move_delay(boss_behaviour *beh, boss *bs, player *p)
+{
+    return perform_delay(beh, bs, in_move_delay_frames);
+}
+
 static int ready_for_sequence(boss_behaviour *beh)
 {
     return beh->current_state.movement.completed &&
@@ -166,16 +182,6 @@ static const boss_sequence_elem bullet_burst_seq[] =
     { NULL, NULL }
 };
 
-int perform_bullet_burst(boss_behaviour *beh)
-{
-    if (ready_for_sequence(beh)) {
-        beh->current_sequence = bullet_burst_seq;
-        return 1;
-    }
-
-    return 0;
-}
-
 static int battering_ram_teleport(
         boss_behaviour *beh, boss *bs, player *p, term_state *ts)
 {
@@ -198,6 +204,7 @@ static int battering_ram_forward_thrust(
 static const boss_sequence_elem battering_ram_seq[] =
 {
     { battering_ram_teleport, NULL },
+    { NULL, perform_in_move_delay },
     { battering_ram_forward_thrust, NULL },
     { battering_ram_teleport, NULL },
     { battering_ram_forward_thrust, NULL },
@@ -207,16 +214,6 @@ static const boss_sequence_elem battering_ram_seq[] =
     { NULL, NULL }
 };
 
-int perform_battering_ram(boss_behaviour *beh)
-{
-    if (ready_for_sequence(beh)) {
-        beh->current_sequence = battering_ram_seq;
-        return 1;
-    }
-
-    return 0;
-}
-
 static int mine_plant_attack(boss_behaviour *beh, boss *bs, player *p)
 {
     return perform_boss_attack(beh, bs, mine_field, 0);
@@ -224,19 +221,11 @@ static int mine_plant_attack(boss_behaviour *beh, boss *bs, player *p)
 
 static const boss_sequence_elem mine_plant_seq[] = 
 {
-    { teleport_to_init_pos, mine_plant_attack },
+    { teleport_to_init_pos, NULL },
+    { NULL, perform_in_move_delay },
+    { NULL, mine_plant_attack },
     { NULL, NULL }
 };
-
-int perform_mine_plant(boss_behaviour *beh)
-{
-    if (ready_for_sequence(beh)) {
-        beh->current_sequence = mine_plant_seq;
-        return 1;
-    }
-    
-    return 0;
-}
 
 static int teleport_to_center(
         boss_behaviour *beh, boss *bs, player *p, term_state *ts)
@@ -254,21 +243,12 @@ static int force_blast_attack(boss_behaviour *beh, boss *bs, player *p)
 static const boss_sequence_elem force_blast_seq[] =
 {
     { teleport_to_center, NULL },
+    { NULL, perform_in_move_delay },
     { NULL, force_blast_attack },
     { NULL, force_blast_attack },
     { NULL, force_blast_attack },
     { NULL, NULL }
 };
-
-int perform_force_blast(boss_behaviour *beh)
-{
-    if (ready_for_sequence(beh)) {
-        beh->current_sequence = force_blast_seq;
-        return 1;
-    }
-
-    return 0;
-}
 
 static int sliding_volley_movement(
         boss_behaviour *beh, boss *bs, player *p, term_state *ts)
@@ -304,16 +284,6 @@ static const boss_sequence_elem sliding_volley_seq[] =
     { sliding_volley_movement, sliding_volley_random_attack },
     { NULL, NULL }
 };
-
-int perform_sliding_volley(boss_behaviour *beh)
-{
-    if (ready_for_sequence(beh)) {
-        beh->current_sequence = sliding_volley_seq;
-        return 1;
-    }
-
-    return 0;
-}
 
 static void halt_movement(boss_behaviour *beh)
 {
@@ -501,6 +471,36 @@ static void tick_boss_sequence(boss_behaviour *beh, boss *bs,
     }
 }
 
+static const boss_sequence_elem *all_sequences[num_regular_sequences] = 
+{
+    bullet_burst_seq, 
+    battering_ram_seq, 
+    mine_plant_seq,
+    sliding_volley_seq
+};
+
+static void try_decide_next_sequence(boss_behaviour *beh, boss *bs)
+{
+    if (beh->current_sequence || !ready_for_sequence(beh))
+        return;
+
+    if (!beh->has_reached_half_hp && bs->state.cur_hp <= bs->state.max_hp / 2) {
+        beh->current_sequence = force_blast_seq;
+        beh->has_reached_half_hp = 1;
+    } else {
+        beh->current_sequence = 
+            all_sequences[randint(0, num_regular_sequences)];
+    }
+
+    perform_delay(
+            beh, bs,
+            randint(
+                inter_sequence_delay_frames_min, 
+                inter_sequence_delay_frames_max
+                )
+            );
+}
+
 void tick_boss_ai(boss_behaviour *beh, boss *bs, player *p,
         boss_projectile_buf proj_buf, explosion_buf expl_buf, term_state *ts)
 {
@@ -509,4 +509,6 @@ void tick_boss_ai(boss_behaviour *beh, boss *bs, player *p,
     tick_boss_delay(beh);
 
     tick_boss_sequence(beh, bs, p, ts);
+
+    try_decide_next_sequence(beh, bs);
 }
