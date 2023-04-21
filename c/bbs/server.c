@@ -1,13 +1,19 @@
 /* bbs/server.c */
 #include "utils.h"
-#include <sys/select.h>
 #include <stdio.h>
+#include <stdlib.h>
+#include <unistd.h>
 #include <errno.h>
+#include <sys/select.h>
+#include <sys/socket.h>
+#include <netinet/in.h>
 
 enum { listen_queue_len = 16 };
 
 int main(int argc, char **argv)
 {
+    int result = 0;
+
     int ls = -1;
     struct sockaddr_in addr;
     char *endptr;
@@ -46,6 +52,7 @@ int main(int argc, char **argv)
     listen(ls, listen_queue_len);
 
     // @TODO: should I daemonize the server?
+    // @TODO: init database from folder
     // @TODO: data structure for all sessions
 
     for (;;) {
@@ -60,5 +67,5 @@ int main(int argc, char **argv)
 
 defer:
     if (ls == -1) close(ls);
-    return 0;
+    return result;
 }
