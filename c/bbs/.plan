@@ -1,0 +1,3 @@
+- init protocol step: confiramtion
+    * Client check & response
+    - Server check and fsm advance

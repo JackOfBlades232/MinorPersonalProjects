@@ -1,5 +1,6 @@
 /* bbs/server.c */
 #include "utils.h"
+#include "protocol.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -15,7 +16,12 @@ enum {
     INBUFSIZE = 128
 };
 
-enum session_state { sstate_idle, sstate_finish, sstate_error };
+enum session_state { 
+    sstate_unconfirmed, 
+    sstate_idle, 
+    sstate_finish, 
+    sstate_error 
+};
 
 struct session {
     int fd;
@@ -40,10 +46,10 @@ struct session *make_session(int fd,
     sess->from_ip = ntohl(from_ip);
     sess->from_port = ntohs(from_port);
     sess->buf_used = 0;
-    sess->state = sstate_idle;
+    sess->state = sstate_unconfirmed;
 
-    // @TODO: do something to start dialogue? Placeholder for now
-    session_send_msg(sess, "Hullo\n");
+    // Protocol step one: state that it is a bbs server
+    session_send_msg(sess, server_init_msg);
 
     return sess;
 }
@@ -58,14 +64,12 @@ int session_read(struct session *sess)
     }
     sess->buf_used += rc;
     
-    // @TODO: impl msg parsing logic with states, now placeholder
-    for (; sess->buf_used > 0; sess->buf_used--) {
-        if (sess->buf[sess->buf_used] == '\n') {
-            session_send_msg(sess, "NL Boi\n");
-            sess->state = sstate_finish;
-        }
-    }
+    // @TODO: impl parsing logic, switch+subfuncs
+    //  1. Parse client confirmation
+    printf("%.*s\n", sess->buf_used, sess->buf);
+    for (; sess->buf_used > 0; sess->buf_used--) {}
 
+    sess->state = sstate_finish;
     return sess->state != sstate_finish;
 }
 
