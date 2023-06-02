@@ -1,3 +1,9 @@
-- init protocol step: confiramtion
+* init protocol step: confirmation
     * Client check & response
-    - Server check and fsm advance
+    * Server check and fsm advance
+- Login:
+    - Create unified message type (prefix, diff for serv&client
+        +content, unified separators)
+    - Make unified message checking (first check header, then parse content)
+    - Send login&passwd to server
+    - Parse and match with file server side

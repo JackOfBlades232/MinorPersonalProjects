@@ -17,7 +17,7 @@ enum {
 };
 
 enum session_state { 
-    sstate_unconfirmed, 
+    sstate_init, 
     sstate_idle, 
     sstate_finish, 
     sstate_error 
@@ -30,12 +30,23 @@ struct session {
     char buf[INBUFSIZE];
     int buf_used;
     enum session_state state;
+    union {
+        struct {
+            const char *req_msg;
+            int req_msg_idx;
+        } match;
+    } state_data;
 };
 
 void session_send_msg(struct session *sess, const char *str)
 {
     // messages are small strings => no need to wait for writefds, just send
     write(sess->fd, str, strlen(str));
+}
+
+char session_match_cur_char(struct session *sess)
+{
+    return sess->state_data.match.req_msg[sess->state_data.match.req_msg_idx];
 }
 
 struct session *make_session(int fd,
@@ -46,12 +57,40 @@ struct session *make_session(int fd,
     sess->from_ip = ntohl(from_ip);
     sess->from_port = ntohs(from_port);
     sess->buf_used = 0;
-    sess->state = sstate_unconfirmed;
+
+    sess->state = sstate_init;
+    sess->state_data.match.req_msg = client_init_response;
+    sess->state_data.match.req_msg_idx = 0;
 
     // Protocol step one: state that it is a bbs server
     session_send_msg(sess, server_init_msg);
 
     return sess;
+}
+
+void session_do_match(struct session *sess)
+{
+    int bufp;
+
+    for (bufp = 0; bufp < sess->buf_used; bufp++) {
+        char cur_match_c = session_match_cur_char(sess);
+        if (cur_match_c != sess->buf[bufp]) {
+            sess->state = sstate_error;
+            break;
+        }
+
+        sess->state_data.match.req_msg_idx++;
+        if (session_match_cur_char(sess) == '\0') {
+            sess->state = sstate_idle;
+
+            // @TEST
+            sess->state = sstate_finish;
+            break;
+        }
+    }
+
+    // If completed/failed, discard rest of buffer content (shouldn't be any)
+    sess->buf_used = 0;
 }
 
 int session_read(struct session *sess)
@@ -64,13 +103,20 @@ int session_read(struct session *sess)
     }
     sess->buf_used += rc;
     
-    // @TODO: impl parsing logic, switch+subfuncs
-    //  1. Parse client confirmation
-    printf("%.*s\n", sess->buf_used, sess->buf);
-    for (; sess->buf_used > 0; sess->buf_used--) {}
+    switch (sess->state) {
+        case sstate_init:
+            session_do_match(sess);
+            break;
 
-    sess->state = sstate_finish;
-    return sess->state != sstate_finish;
+        case sstate_idle:
+            break;
+
+        default:
+            break;
+    }
+
+    return sess->state != sstate_finish &&
+           sess->state != sstate_error;
 }
 
 struct server {
