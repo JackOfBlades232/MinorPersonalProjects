@@ -16,43 +16,49 @@ enum {
     INBUFSIZE = 128
 };
 
-enum session_state { 
+typedef enum session_state_tag { 
     sstate_init, 
     sstate_idle, 
     sstate_finish, 
     sstate_error 
-};
+} session_state;
 
-struct session {
+typedef struct session_tag {
     int fd;
     unsigned int from_ip;
     unsigned short from_port;
     char buf[INBUFSIZE];
     int buf_used;
-    enum session_state state;
+    session_state state;
     union {
         struct {
             const char *req_msg;
             int req_msg_idx;
         } match;
     } state_data;
-};
+} session;
 
-void session_send_msg(struct session *sess, const char *str)
+typedef struct server_tag {
+    int ls;
+    session **sessions;
+    int sessions_size;
+} server;
+
+void session_send_msg(session *sess, const char *str)
 {
     // messages are small strings => no need to wait for writefds, just send
     write(sess->fd, str, strlen(str));
 }
 
-char session_match_cur_char(struct session *sess)
+char session_match_cur_char(session *sess)
 {
     return sess->state_data.match.req_msg[sess->state_data.match.req_msg_idx];
 }
 
-struct session *make_session(int fd,
+session *make_session(int fd,
         unsigned int from_ip, unsigned short from_port)
 {
-    struct session *sess = malloc(sizeof(struct session));
+    session *sess = malloc(sizeof(session));
     sess->fd = fd;
     sess->from_ip = ntohl(from_ip);
     sess->from_port = ntohs(from_port);
@@ -68,7 +74,7 @@ struct session *make_session(int fd,
     return sess;
 }
 
-void session_do_match(struct session *sess)
+void session_do_match(session *sess)
 {
     int bufp;
 
@@ -93,7 +99,7 @@ void session_do_match(struct session *sess)
     sess->buf_used = 0;
 }
 
-int session_read(struct session *sess)
+int session_read(session *sess)
 {
     int rc, bufp = sess->buf_used;
     rc = read(sess->fd, sess->buf + bufp, INBUFSIZE-bufp);
@@ -119,13 +125,7 @@ int session_read(struct session *sess)
            sess->state != sstate_error;
 }
 
-struct server {
-    int ls;
-    struct session **sessions;
-    int sessions_size;
-};
-
-int server_init(struct server *serv, int port)
+int server_init(server *serv, int port)
 {
     int sock, opt;
     struct sockaddr_in addr;
@@ -159,7 +159,7 @@ int server_init(struct server *serv, int port)
     return 1;
 }
 
-void server_accept_client(struct server *serv)
+void server_accept_client(server *serv)
 {
     int sd, i;
     struct sockaddr_in addr;
@@ -184,14 +184,14 @@ void server_accept_client(struct server *serv)
     serv->sessions[sd] = make_session(sd, addr.sin_addr.s_addr, addr.sin_port);
 }
 
-void server_close_session(struct server *serv, int sd)
+void server_close_session(server *serv, int sd)
 {
     close(sd);
     free(serv->sessions[sd]);
     serv->sessions[sd] = NULL;
 }
 
-void server_deinit(struct server *serv)
+void server_deinit(server *serv)
 {
     if (serv->ls != -1) 
         close(serv->ls);
@@ -208,7 +208,7 @@ int main(int argc, char **argv)
 {
     int result = 0;
 
-    struct server serv;
+    server serv;
     char *endptr;
     long port;
 

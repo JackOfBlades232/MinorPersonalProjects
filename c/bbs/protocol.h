@@ -1,17 +1,29 @@
 /* bbs/protocol.h */
+#ifndef PROTOCOL_SENTRY
+#define PROTOCOL_SENTRY
 
-#define DELIM ':'
+#include <stddef.h>
 
-const char msg_prefix[] = "BBS232:";
+typedef enum p_role_tag { 
+    r_server = 0, 
+    r_client = 1
+} p_role;
 
-enum {
-    LOGIN_BUFSIZE = 256
-};
+typedef enum p_type_tag { 
+    s_init = 0,
+    c_login = 1
+} p_type;
 
-struct login_info {
-    char usernm[LOGIN_BUFSIZE], passwd[LOGIN_BUFSIZE];
-};
+typedef struct p_message_tag {
+    p_role role;
+    p_type type;
+    char **words;
+    size_t cnt, cap;
+} p_message;
 
-// @TEST
-const char server_init_msg[] = "BBS232:CONNECTED";
-const char client_init_response[] = "BBS232:CLIENT:CONFIRM";
+p_message *p_create_message(p_role role, p_type type);
+void p_free_message(p_message *msg);
+void p_add_word_to_message(p_message *msg, const char *word);
+char *p_construct_sendable_message(p_message *msg);
+
+#endif

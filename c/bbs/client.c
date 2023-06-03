@@ -14,7 +14,8 @@
 #include <termios.h>
 
 enum {
-    MSG_BUFSIZE = 128
+    MSG_BUFSIZE = 128,
+    LOGIN_BUFSIZE = 64
 };
 
 static const char title[] = 
@@ -81,23 +82,31 @@ void strip_nl(char *str)
 
 int log_in(int sock) 
 {
-    struct login_info li;
+    p_message *msg;
+    char usernm[LOGIN_BUFSIZE], passwd[LOGIN_BUFSIZE];
     struct termios ts;
 
+    msg = p_create_message(r_client, c_login);
+
     printf("Username: ");
-    fgets(li.usernm, sizeof(li.usernm), stdin);
-    strip_nl(li.usernm);    
+    fgets(usernm, sizeof(usernm), stdin);
+    strip_nl(usernm);    
+    p_add_word_to_message(msg, usernm);
 
     disable_echo(&ts);
     printf("Password: ");
-    fgets(li.passwd, sizeof(li.passwd), stdin);
-    strip_nl(li.passwd);    
+    fgets(passwd, sizeof(passwd), stdin);
+    strip_nl(passwd);    
+    p_add_word_to_message(msg, passwd);
+
     putchar('\n');
     tcsetattr(STDIN_FILENO, TCSANOW, &ts);
 
     // @TEST
-    printf("%s, %s\n", li.usernm, li.passwd);
-    write(sock, client_init_response, strlen(client_init_response));
+    char *smsg = p_construct_sendable_message(msg);
+    printf("%s\n", smsg);
+    free(smsg);
+    p_free_message(msg);
     return 1;
 }
 
