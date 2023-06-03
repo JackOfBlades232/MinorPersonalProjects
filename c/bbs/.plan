@@ -2,8 +2,10 @@
     * Client check & response
     * Server check and fsm advance
 - Login:
-    - Create unified message type (prefix, diff for serv&client
+    * Create unified message type (prefix, diff for serv&client
         +content, unified separators)
     - Make unified message checking (first check header, then parse content)
+        - Impl in client, check init msg
+        - Insert into sess
     - Send login&passwd to server
     - Parse and match with file server side

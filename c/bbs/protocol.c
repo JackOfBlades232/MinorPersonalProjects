@@ -5,9 +5,13 @@
 
 #define DELIM ':'
 
-enum { MESSAGE_BASE_CAP = 64 };
+enum { 
+    MESSAGE_BASE_CAP = 64,
+    HEADER_LEN = 6,
+    TYPES_AND_CUTOFF_LEN = 5
+};
 
-const char msg_header[] = "BBS232:";
+const char header[HEADER_LEN+1] = "BBS232";
 
 p_message *p_create_message(p_role role, p_type type)
 {
@@ -38,7 +42,7 @@ void p_add_word_to_message(p_message *msg, const char *word)
 
     size_t wlen = strlen(word);
     msg->words[msg->cnt] = malloc((wlen+1) * sizeof(char));
-    strncpy(msg->words[msg->cnt], word, wlen);
+    memcpy(msg->words[msg->cnt], word, wlen);
     msg->words[msg->cnt][wlen] = '\0';
 
     msg->cnt++;
@@ -48,16 +52,15 @@ char *p_construct_sendable_message(p_message *msg)
 {
     char *full_msg, *write_p;
     size_t full_len;
-    size_t h_len = strlen(msg_header);
 
-    full_len = h_len + 4; // 2 delim & bytes for role/type 
+    full_len = HEADER_LEN + TYPES_AND_CUTOFF_LEN; // 2 delim & bytes for role/type + '\n' cutoff
     for (size_t i = 0; i < msg->cnt; i++)
         full_len += strlen(msg->words[i]) + 1;
 
     full_msg = malloc((full_len+1) * sizeof(char));
-    strncpy(full_msg, msg_header, h_len);
+    memcpy(full_msg, header, HEADER_LEN);
 
-    write_p = full_msg + h_len;
+    write_p = full_msg + HEADER_LEN;
 
     // Role & type
     *write_p = DELIM;
@@ -76,9 +79,30 @@ char *p_construct_sendable_message(p_message *msg)
         *write_p = DELIM;
         write_p++;
 
-        strncpy(write_p, word, wlen);
+        memcpy(write_p, word, wlen);
+        write_p += wlen;
     }
         
-    full_msg[full_len] = '\n';
+    full_msg[full_len-1] = '\n';
+    full_msg[full_len] = '\0';
+
     return full_msg;
+}
+
+void p_init_reader(p_message_reader *reader)
+{
+    reader->state = rs_header;
+    reader->msg = p_create_message(r_unknown, t_unknown);
+}
+
+void p_clear_reader(p_message_reader *reader)
+{
+    reader->state = rs_empty;
+    p_free_message(reader->msg);
+    reader->msg = NULL;
+}
+
+void p_reader_process_str(p_message_reader *reader, const char *str, size_t len)
+{
+    // @TODO: write state-dependant chunk processing
 }

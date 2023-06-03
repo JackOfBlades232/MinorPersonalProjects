@@ -1,6 +1,6 @@
 /* bbs/server.c */
-#include "utils.h"
 #include "protocol.h"
+#include "utils.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -29,13 +29,8 @@ typedef struct session_tag {
     unsigned short from_port;
     char buf[INBUFSIZE];
     int buf_used;
+    p_message *in_msg;
     session_state state;
-    union {
-        struct {
-            const char *req_msg;
-            int req_msg_idx;
-        } match;
-    } state_data;
 } session;
 
 typedef struct server_tag {
@@ -44,15 +39,18 @@ typedef struct server_tag {
     int sessions_size;
 } server;
 
-void session_send_msg(session *sess, const char *str)
+void session_send_str(session *sess, const char *str)
 {
     // messages are small strings => no need to wait for writefds, just send
     write(sess->fd, str, strlen(str));
 }
 
-char session_match_cur_char(session *sess)
+void session_send_msg(session *sess, p_message *msg)
 {
-    return sess->state_data.match.req_msg[sess->state_data.match.req_msg_idx];
+    // @TODO: will there be long messages so as to add writes to select?
+    char *msg_str = p_construct_sendable_message(msg);
+    write(sess->fd, msg_str, strlen(msg_str));
+    free(msg_str);
 }
 
 session *make_session(int fd,
@@ -63,40 +61,15 @@ session *make_session(int fd,
     sess->from_ip = ntohl(from_ip);
     sess->from_port = ntohs(from_port);
     sess->buf_used = 0;
-
+    sess->in_msg = NULL;
     sess->state = sstate_init;
-    sess->state_data.match.req_msg = client_init_response;
-    sess->state_data.match.req_msg_idx = 0;
 
     // Protocol step one: state that it is a bbs server
-    session_send_msg(sess, server_init_msg);
+    p_message *msg = p_create_message(r_server, ts_init);
+    session_send_msg(sess, msg);
+    p_free_message(msg);
 
     return sess;
-}
-
-void session_do_match(session *sess)
-{
-    int bufp;
-
-    for (bufp = 0; bufp < sess->buf_used; bufp++) {
-        char cur_match_c = session_match_cur_char(sess);
-        if (cur_match_c != sess->buf[bufp]) {
-            sess->state = sstate_error;
-            break;
-        }
-
-        sess->state_data.match.req_msg_idx++;
-        if (session_match_cur_char(sess) == '\0') {
-            sess->state = sstate_idle;
-
-            // @TEST
-            sess->state = sstate_finish;
-            break;
-        }
-    }
-
-    // If completed/failed, discard rest of buffer content (shouldn't be any)
-    sess->buf_used = 0;
 }
 
 int session_read(session *sess)
@@ -109,9 +82,10 @@ int session_read(session *sess)
     }
     sess->buf_used += rc;
     
+    // @TEST
     switch (sess->state) {
         case sstate_init:
-            session_do_match(sess);
+            sess->state = sstate_finish;
             break;
 
         case sstate_idle:

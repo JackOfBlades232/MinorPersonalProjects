@@ -28,27 +28,6 @@ void send_message(int fd, const char *msg)
     write(fd, msg, strlen(msg));
 }
 
-int match_message_from_fd(int fd, const char *req_msg)
-{
-    int read_res;
-    int msg_comp_idx;
-    char msg_buf[MSG_BUFSIZE];
-
-    msg_comp_idx = 0;
-    while ((read_res = read(fd, msg_buf, sizeof(msg_buf))) > 0) {
-        for (int i = 0; i < read_res; i++) {
-            if (msg_buf[i] != req_msg[msg_comp_idx])
-                break;
-
-            msg_comp_idx++;
-            if (req_msg[msg_comp_idx] == '\0')
-                return 1;
-        }
-    }
-
-    return 0;
-}
-
 void disable_echo(struct termios *bkp_ts)
 { 
     struct termios ts;
@@ -67,8 +46,8 @@ int connect_to_server(struct sockaddr_in serv_addr)
     if (connect(sock, (struct sockaddr *) &serv_addr, sizeof(serv_addr)) == -1)
         return -1;
 
-    // Init protocol steps (to establish that it is indeed my bbs)
-    if (match_message_from_fd(sock, server_init_msg))
+    // @TODO: wait for server init message and parse it
+    if (1)
         return sock;
 
     return -1;
@@ -86,7 +65,7 @@ int log_in(int sock)
     char usernm[LOGIN_BUFSIZE], passwd[LOGIN_BUFSIZE];
     struct termios ts;
 
-    msg = p_create_message(r_client, c_login);
+    msg = p_create_message(r_client, tc_login);
 
     printf("Username: ");
     fgets(usernm, sizeof(usernm), stdin);
@@ -104,7 +83,7 @@ int log_in(int sock)
 
     // @TEST
     char *smsg = p_construct_sendable_message(msg);
-    printf("%s\n", smsg);
+    printf("%s", smsg);
     free(smsg);
     p_free_message(msg);
     return 1;
