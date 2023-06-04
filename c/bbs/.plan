@@ -1,11 +1,33 @@
 * init protocol step: confirmation
     * Client check & response
     * Server check and fsm advance
-- Login:
+
+* Login:
     * Create unified message type (prefix, diff for serv&client
         +content, unified separators)
-    - Make unified message checking (first check header, then parse content)
-        - Impl in client, check init msg
-        - Insert into sess
-    - Send login&passwd to server
-    - Parse and match with file server side
+    * Make unified message checking (first check header, then parse content)
+        * Impl in client, check init msg
+        * Insert into sess
+    * Send login&passwd to server
+    * Parse and match with file server side
+
+File query:
+    - Make client dialogue
+    - Make protocol request
+    - Recieve serverside
+    - Lookup file and check metafile access
+    - If not good, send reply (no file/no access)
+
+File transfer:
+    - Test single write
+    - Implement cutting up
+
+Admin user:
+
+Leave message for admin:
+
+Other:
+    - Problem : how to cut off file streaming? Maybe just by end of stream?
+    - Make title a bbs property & send with init msg
+    - Go over protocol todos
+    - Refactor bad and dumb decisions
