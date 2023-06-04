@@ -8,7 +8,7 @@
 enum { 
     MESSAGE_BASE_CAP = 64,
     HEADER_LEN = 6,
-    TYPES_AND_CUTOFF_LEN = 5
+    TYPES_AND_CUTOFF_LEN = 4
 };
 
 const char header[HEADER_LEN+1] = "BBS232";
@@ -67,8 +67,6 @@ char *p_construct_sendable_message(p_message *msg)
     write_p++;
     *write_p = msg->role;
     write_p++;
-    *write_p = DELIM;
-    write_p++;
     *write_p = msg->type;
     write_p++;
 
@@ -102,7 +100,10 @@ void p_clear_reader(p_message_reader *reader)
     reader->msg = NULL;
 }
 
-void p_reader_process_str(p_message_reader *reader, const char *str, size_t len)
+int p_reader_process_str(p_message_reader *reader, const char *str, size_t len)
 {
-    // @TODO: write state-dependant chunk processing
+    if (reader->state == rs_empty)
+        return 0;
+
+    // @TODO: match header->match types->read words
 }
