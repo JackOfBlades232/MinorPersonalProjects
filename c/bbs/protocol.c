@@ -2,17 +2,22 @@
 #include "protocol.h"
 #include <stdlib.h>
 #include <string.h>
+#include <stdint.h>
 
 #include <stdio.h>
 
 #define DELIM ':'
+#define ENDC ','
 
 enum { 
+    MAX_CONTENT_LEN = 65535,
+
     MESSAGE_BASE_CAP = 64,
     WORD_BASE_CAP = 16,
 
     HEADER_LEN = 6,
-    TYPES_AND_CUTOFF_LEN = 4,
+    BYTE_FIELDS_LEN = 2,
+    MAX_DIGITS = 32, // overkill
 
     NUM_ROLES = 2,
     NUM_TYPES = 4
@@ -30,6 +35,7 @@ p_message *p_create_message(p_role role, p_type type)
     p_message *msg = malloc(sizeof(p_message));
     msg->role = role;
     msg->type = type;
+    msg->w_total_len = 0;
     msg->cnt = 0;
     msg->cap = MESSAGE_BASE_CAP;
     msg->words = malloc(msg->cap * sizeof(char *));
@@ -38,14 +44,12 @@ p_message *p_create_message(p_role role, p_type type)
 
 void p_free_message(p_message *msg)
 {
-    // @TODO: Null check?
     free(msg->words);
     free(msg);
 }
 
-void p_add_word_to_message(p_message *msg, const char *word)
+static size_t add_word_to_words(p_message *msg, const char *word)
 {
-    // @TODO: Null check/max words?
     if (msg->cnt >= msg->cap) {
         while (msg->cnt >= msg->cap)
             msg->cap += MESSAGE_BASE_CAP;
@@ -58,30 +62,44 @@ void p_add_word_to_message(p_message *msg, const char *word)
     msg->words[msg->cnt][wlen] = '\0';
 
     msg->cnt++;
+    return wlen;
+}
+
+void p_add_word_to_message(p_message *msg, const char *word)
+{
+    msg->w_total_len += add_word_to_words(msg, word) + 1;
 }
 
 char *p_construct_sendable_message(p_message *msg)
 {
     char *full_msg, *write_p;
     size_t full_len;
+    char len_num_str[MAX_DIGITS+2]; // include delim and \0
+    size_t num_strlen;
 
-    full_len = HEADER_LEN + TYPES_AND_CUTOFF_LEN; // 2 delim & bytes for role/type + '\n' cutoff
-    for (size_t i = 0; i < msg->cnt; i++)
-        full_len += strlen(msg->words[i]) + 1;
+    full_len  = HEADER_LEN + 1 + BYTE_FIELDS_LEN + 1; // header + delim + role&type bytes + ... + end char
 
+    snprintf(len_num_str, MAX_DIGITS+1, "%c%ld", DELIM, msg->w_total_len);
+    num_strlen = strlen(len_num_str);
+
+    full_len += num_strlen + msg->w_total_len;
     full_msg = malloc((full_len+1) * sizeof(char));
-    memcpy(full_msg, header, HEADER_LEN);
 
+    // header
+    memcpy(full_msg, header, HEADER_LEN);
     write_p = full_msg + HEADER_LEN;
 
     // Role & type
     *write_p = DELIM;
-    write_p++;
-    *write_p = msg->role;
-    write_p++;
-    *write_p = msg->type;
-    write_p++;
+    write_p[1] = msg->role;
+    write_p[2] = msg->type;
+    write_p += 1 + BYTE_FIELDS_LEN;
 
+    // Content len
+    memcpy(write_p, len_num_str, num_strlen);
+    write_p += num_strlen;
+
+    // Content
     for (size_t i = 0; i < msg->cnt; i++) {
         char *word = msg->words[i];
         size_t wlen = strlen(word);
@@ -93,8 +111,9 @@ char *p_construct_sendable_message(p_message *msg)
         write_p += wlen;
     }
         
-    full_msg[full_len-1] = '\n';
-    full_msg[full_len] = '\0';
+    // End char and string delimiter
+    *write_p = ENDC;
+    write_p[1] = '\0';
 
     return full_msg;
 }
@@ -103,6 +122,7 @@ void p_init_reader(p_message_reader *reader)
 {
     reader->state = rs_header;
     reader->header_match_idx = 0;
+    reader->current_content_len = 0;
     reader->msg = p_create_message(r_unknown, t_unknown);
     reader->cur_word = NULL;
     reader->wlen = 0;
@@ -113,6 +133,7 @@ void p_clear_reader(p_message_reader *reader)
 {
     reader->state = rs_empty;
     reader->header_match_idx = 0;
+    reader->current_content_len = 0;
     if (reader->msg) {
         p_free_message(reader->msg);
         reader->msg = NULL;
@@ -127,7 +148,7 @@ void p_clear_reader(p_message_reader *reader)
 
 int p_reader_is_live(p_message_reader *reader)
 {
-    return reader->msg != NULL;
+    return reader->state != rs_empty && reader->msg != NULL;
 }
 
 size_t match_header(p_message_reader *reader, const char *str, size_t len)
@@ -150,63 +171,90 @@ size_t match_header(p_message_reader *reader, const char *str, size_t len)
     return chars_read;
 }
 
-int try_get_role_from_byte(char r, p_role *out)
-{
-    for (size_t i = 0; i < NUM_ROLES; i++) {
-        if (r == valid_roles[i]) {
-            *out = valid_roles[i];
-            return 1;
-        }
+#define MAKE_TRY_GET_BYTE_FIELD(TYPE, NUM_ITEMS) \
+    int try_get_ ## TYPE ## _from_byte(char r, p_ ## TYPE *out) \
+    { \
+        for (size_t i = 0; i < NUM_ITEMS; i++) { \
+            if (r == valid_ ## TYPE ##s[i]) { \
+                *out = valid_ ## TYPE ##s[i]; \
+                return 1; \
+            } \
+        } \
+        return 0; \
     }
 
-    return 0;
-}
-
-int try_get_type_from_byte(char r, p_type *out)
-{
-    for (size_t i = 0; i < NUM_TYPES; i++) {
-        if (r == valid_types[i]) {
-            *out = valid_types[i];
-            return 1;
-        }
+#define MAKE_TRY_PARSE_BYTE_FIELD(TYPE, NEXT_STATE) \
+    size_t parse_ ## TYPE(p_message_reader *reader, const char *str, size_t len) \
+    { \
+        if (len >= 1) { \
+            reader->state = try_get_ ## TYPE ## _from_byte(*str, &reader->msg->TYPE) ? \
+                            NEXT_STATE : rs_error; \
+            return 1; \
+        } \
+        return 0; \
     }
 
-    return 0;
-}
+MAKE_TRY_GET_BYTE_FIELD(role, NUM_ROLES)
+MAKE_TRY_PARSE_BYTE_FIELD(role, rs_type)
 
-size_t parse_role(p_message_reader *reader, const char *str, size_t len)
+MAKE_TRY_GET_BYTE_FIELD(type, NUM_TYPES)
+MAKE_TRY_PARSE_BYTE_FIELD(type, rs_clen)
+    
+size_t parse_clen(p_message_reader *reader, const char *str, size_t len)
 {
-    if (len >= 1) {
-        reader->state = try_get_role_from_byte(*str, &reader->msg->role) ?
-                        rs_type :
-                        rs_error;
+    size_t chars_read;
+    if (len == 0)
+        return 0;
 
+    if (*str != DELIM) {
+        reader->state = rs_error;
         return 1;
     }
 
-    return 0;
-}
+    int processed_digit = 0;
+    uint64_t clen_acctumulator = reader->msg->w_total_len;
+    char c;
+    for (chars_read = 1; chars_read < len; chars_read++) {
+        c = str[chars_read];
+        if (c == DELIM || c == ENDC)
+            break;
+        else if (c < '0' || c > '9') {
+            reader->state = rs_error;
+            goto defer;
+        }
 
-size_t parse_type(p_message_reader *reader, const char *str, size_t len)
-{
-    if (len >= 1) {
-        reader->state = try_get_type_from_byte(*str, &reader->msg->type) ?
-                        rs_content :
-                        rs_error;
-
-        return 1;
+        if (!processed_digit) processed_digit = 1;
+        clen_acctumulator *= 10;
+        clen_acctumulator += c - '0';
     }
 
-    return 0;
+    if (!processed_digit || clen_acctumulator > MAX_CONTENT_LEN) {
+        reader->state = rs_error;
+        goto defer;
+    }
+
+    reader->msg->w_total_len = (size_t) clen_acctumulator;
+    if (c == ENDC)
+        reader->state = reader->msg->w_total_len == 0 ? rs_finished : rs_error;
+    else if (c == DELIM) 
+        reader->state = reader->msg->w_total_len > 0 ? rs_content : rs_error;
+
+defer:
+    return chars_read;
+}
+
+void store_reader_cur_word(p_message_reader *reader)
+{
+    reader->current_content_len += reader->wlen + 1;
+    reader->cur_word[reader->wlen] = '\0';
+    add_word_to_words(reader->msg, reader->cur_word);
+    free(reader->cur_word);
 }
 
 void store_and_recreate_reader_cur_word(p_message_reader *reader)
 {
-    if (reader->cur_word) {
-        reader->cur_word[reader->wlen] = '\0';
-        p_add_word_to_message(reader->msg, reader->cur_word);
-        free(reader->cur_word);
-    }
+    if (reader->cur_word)
+        store_reader_cur_word(reader);
 
     reader->wcap = WORD_BASE_CAP;
     reader->wlen = 0;
@@ -230,35 +278,32 @@ size_t parse_content(p_message_reader *reader, const char *str, size_t len)
     if (len == 0)
         return 0;
 
-    if (reader->cur_word == NULL) {
-        if (*str == '\n') {
-            reader->state = rs_finished;
-            return 1;
-        } else if (*str != DELIM) {
-            reader->state = rs_error;
-            return 1;
-        }
-    }
-
     for (; chars_read < len; chars_read++) {
         char c = str[chars_read];
-        if (c == '\n') {
-            reader->cur_word[reader->wlen] = '\0';
-            p_add_word_to_message(reader->msg, reader->cur_word);
-            free(reader->cur_word);
+        size_t tot_len = reader->current_content_len + reader->wlen + 1;
+
+        if (tot_len > reader->msg->w_total_len) {
+            reader->state = rs_error;
+            break;
+        } else if (tot_len == reader->msg->w_total_len) {
+            if (c != ENDC) {
+                reader->state = rs_error;
+                break;
+            }
+
+            store_reader_cur_word(reader);
             reader->cur_word = NULL;
 
             reader->state = rs_finished;
-            return chars_read;
-        } else if (c == DELIM) {
+            break;
+        } else if (c == DELIM)
             store_and_recreate_reader_cur_word(reader);
-            continue;
+        else {
+            reader->cur_word[reader->wlen] = c;
+            reader->wlen++;
+
+            try_resize_reader_cur_word(reader);
         }
-
-        reader->cur_word[reader->wlen] = c;
-        reader->wlen++;
-
-        try_resize_reader_cur_word(reader);
     }
 
     return chars_read;
@@ -282,6 +327,9 @@ int p_reader_process_str(p_message_reader *reader, const char *str, size_t len)
                 break;
             case rs_type:
                 chars_read = parse_type(reader, str, len);
+                break;
+            case rs_clen:
+                chars_read = parse_clen(reader, str, len);
                 break;
             case rs_content:
                 chars_read = parse_content(reader, str, len);

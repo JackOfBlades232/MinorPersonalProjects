@@ -152,7 +152,6 @@ int session_read(session *sess)
     }
     sess->buf_used += rc;
     
-    // @TEST
     int parse_res = p_reader_process_str(&sess->in_reader, sess->buf, sess->buf_used);
     sess->buf_used = 0;
 

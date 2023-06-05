@@ -1,8 +1,8 @@
-* init protocol step: confirmation
+*init protocol step: confirmation
     * Client check & response
     * Server check and fsm advance
 
-* Login:
+*Login:
     * Create unified message type (prefix, diff for serv&client
         +content, unified separators)
     * Make unified message checking (first check header, then parse content)
@@ -10,6 +10,13 @@
         * Insert into sess
     * Send login&passwd to server
     * Parse and match with file server side
+
+Protocol remake:
+    * Impl a netstring full msg
+    - Fix problem: currently delimiter : still can not be inside a word
+        - Possible solution: make all words networds
+            (without storing lenghts in struct), and remove total len from format
+    - Idea: make string lengths ints (not decimal strings), since there is max
 
 File query:
     - Make client dialogue
@@ -19,7 +26,7 @@ File query:
     - If not good, send reply (no file/no access)
 
 File transfer:
-    - Test single write
+    - Test single write (need to pre-send total file size)
     - Implement cutting up
 
 Admin user:
@@ -27,7 +34,5 @@ Admin user:
 Leave message for admin:
 
 Other:
-    - Problem : how to cut off file streaming? Maybe just by end of stream?
     - Make title a bbs property & send with init msg
-    - Go over protocol todos
     - Refactor bad and dumb decisions

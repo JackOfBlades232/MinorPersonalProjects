@@ -4,6 +4,11 @@
 
 #include <stddef.h>
 
+/*
+ * Message: 
+ * header:role_byte type_byte:content_len(digits):word:word:...:word,
+*/ 
+
 typedef enum p_role_tag { 
     r_unknown = 0,
     r_server = 1, 
@@ -21,6 +26,7 @@ typedef enum p_type_tag {
 typedef struct p_message_tag {
     p_role role;
     p_type type;
+    size_t w_total_len;
     char **words;
     size_t cnt, cap;
 } p_message;
@@ -31,6 +37,7 @@ typedef enum p_read_state_tag {
     rs_header,
     rs_role,
     rs_type,
+    rs_clen,
     rs_content,
     rs_finished
 } p_read_state;
@@ -38,6 +45,7 @@ typedef enum p_read_state_tag {
 typedef struct p_message_reader_tag {
     p_read_state state;
     size_t header_match_idx;
+    size_t current_content_len;
     char *cur_word;
     size_t wlen, wcap;
     p_message *msg;
