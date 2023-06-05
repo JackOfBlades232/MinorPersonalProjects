@@ -4,10 +4,6 @@
 
 *.bin
 
-*.txt
-!solutions.txt
-!input_*.txt
-
 *.o
 *.a
 *.so
