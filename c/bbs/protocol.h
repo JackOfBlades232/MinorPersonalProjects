@@ -5,7 +5,7 @@
 #include <stddef.h>
 
 /*
- * Message: 
+ * Message format: 
  * header:role_byte type_byte:word_cnt(byte):word:word:...:word,
  * where word is: len(2 bytes since <= 65535) content 
 */ 
@@ -31,6 +31,11 @@ typedef struct p_message_tag {
     size_t cnt, cap;
 } p_message;
 
+typedef struct p_sendable_message_tag {
+    char *str;
+    size_t len;
+} p_sendable_message;
+
 typedef enum p_read_state_tag { 
     rs_empty,
     rs_error,
@@ -45,7 +50,7 @@ typedef enum p_read_state_tag {
 typedef struct p_message_reader_tag {
     p_read_state state;
     size_t header_match_idx;
-    int wlen_bytes_read; // -1 : not read delim yet
+    int int_bytes_read; // for cnt/word len, -1 : not read delim yet
     char *cur_word;
     size_t wlen, wcap;
     p_message *msg;
@@ -53,8 +58,9 @@ typedef struct p_message_reader_tag {
 
 p_message *p_create_message(p_role role, p_type type);
 void p_free_message(p_message *msg);
-void p_add_word_to_message(p_message *msg, const char *word);
-char *p_construct_sendable_message(p_message *msg);
+int p_add_word_to_message(p_message *msg, const char *word);
+p_sendable_message p_construct_sendable_message(p_message *msg);
+void p_deinit_sendable_message(p_sendable_message *msg);
 
 void p_init_reader(p_message_reader *reader);
 void p_clear_reader(p_message_reader *reader);

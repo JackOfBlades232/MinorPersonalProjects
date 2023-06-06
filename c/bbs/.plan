@@ -14,8 +14,8 @@
 Protocol remake:
     * Impl a netstring full msg
     - Fix problem: currently delimiter : still can not be inside a word
-        - Possible solution: make all words networds
-            (without storing lenghts in struct), and remove total len from format
+        * Remake message packing
+        - Remake message parsing
     - Idea: make string lengths ints (not decimal strings), since there is max
 
 File query:
