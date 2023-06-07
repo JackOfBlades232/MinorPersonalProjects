@@ -48,9 +48,9 @@ static FILE *passwd_f = NULL;
 void session_send_msg(session *sess, p_message *msg)
 {
     // @TODO: will there be long messages so as to add writes to select?
-    char *msg_str = p_construct_sendable_message(msg);
-    write(sess->fd, msg_str, strlen(msg_str));
-    free(msg_str);
+    p_sendable_message smsg = p_construct_sendable_message(msg);
+    write(sess->fd, smsg.str, smsg.len);
+    p_deinit_sendable_message(&smsg);
 }
 
 session *make_session(int fd,
@@ -135,7 +135,7 @@ void session_handle_login(session *sess)
     session_send_msg(sess, msg);
     p_free_message(msg);
         
-    p_clear_reader(&sess->in_reader);
+    p_deinit_reader(&sess->in_reader);
     sess->state = sstate_finish; // @TODO: Idle/finished
 
     rewind(passwd_f);

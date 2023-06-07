@@ -6,6 +6,6 @@
 
 gcc -Wall -c protocol.c
 
-#gcc -Wall -g client.c protocol.o -o client 
-#gcc -Wall -g server.c protocol.o -o server 
+gcc -Wall -g client.c protocol.o -o client 
+gcc -Wall -g server.c protocol.o -o server 
 gcc -Wall -g test.c protocol.o -o test 

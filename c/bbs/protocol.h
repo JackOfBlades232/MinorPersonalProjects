@@ -63,7 +63,7 @@ p_sendable_message p_construct_sendable_message(p_message *msg);
 void p_deinit_sendable_message(p_sendable_message *msg);
 
 void p_init_reader(p_message_reader *reader);
-void p_clear_reader(p_message_reader *reader);
+void p_deinit_reader(p_message_reader *reader);
 int p_reader_is_live(p_message_reader *reader);
 int p_reader_process_str(p_message_reader *reader, const char *str, size_t len);
 

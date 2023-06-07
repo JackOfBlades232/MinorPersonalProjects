@@ -30,9 +30,13 @@ static p_message_reader reader = {0};
 
 void send_message(p_message *msg)
 {
-    char *str = p_construct_sendable_message(msg);
-    write(sock, str, strlen(str));
-    free(str);
+    p_sendable_message smsg = p_construct_sendable_message(msg);
+    for (size_t i = 0; i < smsg.len; i++)
+        printf("%c %d\n", smsg.str[i], smsg.str[i]);
+        //putchar(smsg.str[i]);
+    putchar('\n');
+    write(sock, smsg.str, smsg.len);
+    p_deinit_sendable_message(&smsg);
 }
 
 void disable_echo(struct termios *bkp_ts)
@@ -84,7 +88,7 @@ int connect_to_server(struct sockaddr_in serv_addr)
     }
 
 defer:
-    p_clear_reader(&reader);
+    p_deinit_reader(&reader);
     return result;
 }
 
@@ -100,35 +104,46 @@ int check_spc(const char *str)
     return *str;
 }
 
+int ask_for_credential_item(p_message *msg, const char *dialogue)
+{
+    char cred[LOGIN_BUFSIZE];
+
+    fputs(dialogue, stdout);
+    fgets(cred, sizeof(cred), stdin);
+    strip_nl(cred);    
+    if (check_spc(cred))
+        return 0;
+
+    return p_add_word_to_message(msg, cred);
+}
+
 int send_login_credentials() 
 {
+    int result = 1;
+
     p_message *msg;
-    char usernm[LOGIN_BUFSIZE], passwd[LOGIN_BUFSIZE];
     struct termios ts;
 
     msg = p_create_message(r_client, tc_login);
 
-    printf("Username: ");
-    fgets(usernm, sizeof(usernm), stdin);
-    strip_nl(usernm);    
-    if (check_spc(usernm))
-        return 0;
-    p_add_word_to_message(msg, usernm);
+    if (!ask_for_credential_item(msg, "Username: "))
+        return_defer(0);
 
     disable_echo(&ts);
-    printf("Password: ");
-    fgets(passwd, sizeof(passwd), stdin);
-    strip_nl(passwd);    
-    if (check_spc(passwd))
-        return 0;
-    p_add_word_to_message(msg, passwd);
-
+    int passwd_res = ask_for_credential_item(msg, "Password: ");
     putchar('\n');
     tcsetattr(STDIN_FILENO, TCSANOW, &ts);
 
+    if (!passwd_res)
+        return_defer(0);
+
+    printf("?");
+
     send_message(msg);
+
+defer:
     p_free_message(msg);
-    return 1;
+    return result;
 }
 
 int main(int argc, char **argv)
@@ -190,10 +205,10 @@ int main(int argc, char **argv)
         fprintf(stderr, "Some bullshit this is\n");
         return_defer(-1);
     }
-    p_clear_reader(&reader);
+    p_deinit_reader(&reader);
 
 defer:
-    if (p_reader_is_live(&reader)) p_clear_reader(&reader);
+    if (p_reader_is_live(&reader)) p_deinit_reader(&reader);
     if (sock != -1) close(sock);
     return result;
 }

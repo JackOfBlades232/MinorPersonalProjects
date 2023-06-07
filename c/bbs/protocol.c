@@ -153,6 +153,7 @@ void p_init_reader(p_message_reader *reader)
 
     reader->msg = p_create_message(r_unknown, t_unknown);
     free(reader->msg->words); // prep for fixed cap
+    reader->msg->words = NULL;
     reader->msg->cap = 0; 
 
     reader->cur_word = NULL;
@@ -160,7 +161,7 @@ void p_init_reader(p_message_reader *reader)
     reader->wcap = 0;
 }
 
-void p_clear_reader(p_message_reader *reader)
+void p_deinit_reader(p_message_reader *reader)
 {
     reader->state = rs_empty;
     reader->header_match_idx = 0;
@@ -168,7 +169,10 @@ void p_clear_reader(p_message_reader *reader)
     reader->wlen = 0;
     reader->wcap = 0;
     if (reader->msg) {
-        p_free_message(reader->msg);
+        if (reader->msg->words)
+            p_free_message(reader->msg);
+        else
+            free(reader->msg);
         reader->msg = NULL;
     }
     if (reader->cur_word) {
@@ -321,6 +325,7 @@ size_t parse_content(p_message_reader *reader, const char *str, size_t len)
 
     for (chars_read = 0; chars_read < len; chars_read++) {
         char c = str[chars_read];
+        printf("%c %d\n", c, c);
         if (reader->int_bytes_read == -1) {
             if (c == ENDC || c == DELIM)
                 process_delim_or_endc(reader, c);
@@ -368,6 +373,7 @@ int p_reader_process_str(p_message_reader *reader, const char *str, size_t len)
 
     while (len > 0) {
         size_t chars_read;
+        printf("%d\n", reader->state);
         switch (reader->state) {
             case rs_header:
                 chars_read = match_header(reader, str, len);
