@@ -14,13 +14,38 @@ int main()
     p_add_word_to_message(msg, "lkasfnlkafnk");
     p_add_word_to_message(msg, "lkasfnlkafnk");
 
+    printf("asd\014asd\n");
+
     p_sendable_message smsg = p_construct_sendable_message(msg);
     for (size_t i = 0; i < smsg.len; i++) {
-        if (smsg.str[i] >= '!' && smsg.str[i] <= '~')
-            putchar(smsg.str[i]);
+        putchar(smsg.str[i]);
+    }
+    putchar('\n');
+
+    p_message_reader reader;
+    p_init_reader(&reader);
+
+    int pr_res = p_reader_process_str(&reader, smsg.str, 10);
+    if (pr_res != 0) {
+        printf("1");
+        return 1;
+    }
+    pr_res = p_reader_process_str(&reader, smsg.str + 10, 15);
+    if (pr_res != 0) {
+        printf("2");
+        return 1;
+    }
+    pr_res = p_reader_process_str(&reader, smsg.str + 25, smsg.len - 25);
+
+    putchar('\n');
+    printf("%d %d\n", pr_res, reader.state);
+    if (pr_res == 1) {
+        printf("%d %d | %d %d\n", reader.msg->role, reader.msg->type,
+                                  reader.msg->cnt, reader.msg->cap);
+        for (size_t i = 0; i < reader.msg->cnt; i++)
+            puts(reader.msg->words[i]);
     }
 
-    p_deinit_sendable_message(&smsg);
-    p_free_message(msg);
+    // No frees cuz lazy
     return 0;
 }

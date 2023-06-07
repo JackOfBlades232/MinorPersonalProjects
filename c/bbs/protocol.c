@@ -84,9 +84,6 @@ p_sendable_message p_construct_sendable_message(p_message *msg)
     smsg.str = NULL;
     smsg.len = 0;
 
-    for (size_t i = 0; i < msg->cnt; i++)
-        puts(msg->words[i]);
-
     // header + delim + role&type bytes + delim + word cnt + ... + end char
     smsg.len = HEADER_LEN + 1 + BYTE_FIELDS_LEN + 1 + WORD_CNT_BYTES + 1;
 
@@ -189,12 +186,13 @@ size_t match_header(p_message_reader *reader, const char *str, size_t len)
 {
     size_t chars_read;
     for (chars_read = 0; chars_read < len; chars_read++) {
+        char c = str[chars_read];
         char hc = header[reader->header_match_idx];
         if (hc == '\0') {
-            reader->state = str[chars_read] == DELIM ? rs_role : rs_error;
+            reader->state = c == DELIM ? rs_role : rs_error;
             chars_read++;
             break;
-        } else if (hc != str[chars_read]) {
+        } else if (hc != c) {
             reader->state = rs_error;
             break;
         }
@@ -270,7 +268,10 @@ size_t parse_cnt(p_message_reader *reader, const char *str, size_t len)
 
             if (reader->int_bytes_read == WORD_CNT_BYTES) {
                 reader->msg->cap = ntoh_nbytes(reader->msg->cap, WORD_CNT_BYTES);
+                reader->int_bytes_read = -1;
+
                 reader->state = rs_content;
+                chars_read++;
                 break;
             }
         }
@@ -299,7 +300,7 @@ void store_reader_cur_word(p_message_reader *reader)
 
 void process_delim_or_endc(p_message_reader *reader, char c)
 {
-    if (reader->cur_word && reader->wlen != reader->wcap) {
+    if (reader->int_bytes_read != -1) {
         reader->state = rs_error;
         return;
     }
@@ -326,7 +327,8 @@ size_t parse_content(p_message_reader *reader, const char *str, size_t len)
             else
                 reader->state = rs_error;
 
-            break;
+            if (reader->state != rs_content)
+                break;
         } else if (reader->int_bytes_read < WORD_LEN_BYTES) {
             reader->wcap *= BYTE_POT;
             reader->wcap += (int) c;
@@ -349,7 +351,7 @@ size_t parse_content(p_message_reader *reader, const char *str, size_t len)
             reader->cur_word[reader->wlen] = c;
             reader->wlen++;
 
-            if (reader->wlen == reader->wcap)
+            if (reader->wlen >= reader->wcap - 1)
                 reader->int_bytes_read = -1;
         }
     }
