@@ -49,7 +49,6 @@ int await_server_message()
     size_t read_res;
     int parse_res = 0;
 
-    // @TODO: sort out trailing data read (do we really have to?)
     while ((read_res = read(sock, serv_read_buf, sizeof(serv_read_buf))) > 0) {
         parse_res = p_reader_process_str(&reader, serv_read_buf, read_res);
         if (parse_res != 0)
@@ -140,6 +139,31 @@ defer:
     return result;
 }
 
+int log_in()
+{
+    int result;
+
+    p_init_reader(&reader);
+    if (!send_login_credentials() || !await_server_message())
+        return_defer(-1);
+
+    if (
+            reader.msg->role == r_server && 
+            reader.msg->cnt == 0 &&
+            (
+             reader.msg->type == ts_login_success ||
+             reader.msg->type == ts_login_failed
+            )
+       ) {
+        result = reader.msg->type == ts_login_success ? 1 : 0;
+    } else
+        result = -1;
+
+defer:
+    p_deinit_reader(&reader);
+    return result;
+}
+
 int main(int argc, char **argv)
 {
     int result = 0;
@@ -176,33 +200,19 @@ int main(int argc, char **argv)
     }
 
     printf("%s\n", title);
-    if (!send_login_credentials())
-        return_defer(-1);
 
-    // @TEST
-    p_init_reader(&reader);
-    int res = await_server_message();
-    if (!res)
-        return_defer(-1);
-
-    if (
-            reader.msg->role == r_server && 
-            reader.msg->cnt == 0 &&
-            (
-                reader.msg->type == ts_login_success ||
-                reader.msg->type == ts_login_failed
-            )
-       ) {
-        printf(reader.msg->type == ts_login_success ? "Logged in\n" : "Invalid login/passwd\n");
-    } else {
-        // @PLACEHOLDER
-        fprintf(stderr, "Some bullshit this is\n");
+    int login_res;
+    while ((login_res = log_in()) == 0)
+        printf("\nInvalid username/password, please try again.\n\n");
+    if (login_res == -1) {
+        fprintf(stderr, "Login failed\n");
         return_defer(-1);
     }
-    p_deinit_reader(&reader);
+
+    printf("Logged in, do some shit:\n");
 
 defer:
-    if (p_reader_is_live(&reader)) p_deinit_reader(&reader);
     if (sock != -1) close(sock);
     return result;
 }
+

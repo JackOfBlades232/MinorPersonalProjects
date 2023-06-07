@@ -134,10 +134,13 @@ void session_handle_login(session *sess)
     msg = p_create_message(r_server, matched ? ts_login_success : ts_login_failed);
     session_send_msg(sess, msg);
     p_free_message(msg);
-        
-    p_deinit_reader(&sess->in_reader);
-    sess->state = sstate_finish; // @TODO: Idle/finished
 
+    if (matched) {
+        p_deinit_reader(&sess->in_reader);
+        sess->state = sstate_finish; // @TODO: Idle/finished
+    } else
+        p_reset_reader(&sess->in_reader);
+        
     rewind(passwd_f);
     return;
 }

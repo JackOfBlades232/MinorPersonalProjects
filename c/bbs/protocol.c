@@ -188,6 +188,13 @@ void p_deinit_reader(p_message_reader *reader)
     }
 }
 
+void p_reset_reader(p_message_reader *reader)
+{
+    // @TODO: optimize
+    p_deinit_reader(reader);
+    p_init_reader(reader);
+}
+
 int p_reader_is_live(p_message_reader *reader)
 {
     return reader->state != rs_empty && reader->msg != NULL;
