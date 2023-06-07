@@ -11,12 +11,12 @@
     * Send login&passwd to server
     * Parse and match with file server side
 
-Protocol remake:
+*Protocol remake:
     * Impl a netstring full msg
-    - Fix problem: currently delimiter : still can not be inside a word
+    * Fix problem: currently delimiter : still can not be inside a word
         * Remake message packing
-        - Remake message parsing
-    - Idea: make string lengths ints (not decimal strings), since there is max
+        * Remake message parsing
+    * Idea: make string lengths ints (not decimal strings), since there is max
 
 File query:
     - Make client dialogue
