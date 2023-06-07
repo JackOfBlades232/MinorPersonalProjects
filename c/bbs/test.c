@@ -19,20 +19,18 @@ int main()
     p_init_reader(&reader);
 
     int pr_res = p_reader_process_str(&reader, smsg.str, smsg.len);
-    /*
 
     putchar('\n');
     printf("%d %d\n", pr_res, reader.state);
     if (pr_res == 1) {
-        printf("%d %d | %d %d\n", reader.msg->role, reader.msg->type,
+        printf("%d %d | %ld %ld\n", reader.msg->role, reader.msg->type,
                                   reader.msg->cnt, reader.msg->cap);
         for (size_t i = 0; i < reader.msg->cnt; i++)
             puts(reader.msg->words[i]);
     }
-    */
 
-    //p_deinit_sendable_message(&smsg);
-    //p_deinit_reader(&reader);
-    //p_free_message(msg);
+    p_deinit_sendable_message(&smsg);
+    p_deinit_reader(&reader);
+    p_free_message(msg);
     return 0;
 }

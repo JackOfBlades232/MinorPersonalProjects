@@ -31,10 +31,6 @@ static p_message_reader reader = {0};
 void send_message(p_message *msg)
 {
     p_sendable_message smsg = p_construct_sendable_message(msg);
-    for (size_t i = 0; i < smsg.len; i++)
-        printf("%c %d\n", smsg.str[i], smsg.str[i]);
-        //putchar(smsg.str[i]);
-    putchar('\n');
     write(sock, smsg.str, smsg.len);
     p_deinit_sendable_message(&smsg);
 }
@@ -136,8 +132,6 @@ int send_login_credentials()
 
     if (!passwd_res)
         return_defer(0);
-
-    printf("?");
 
     send_message(msg);
 

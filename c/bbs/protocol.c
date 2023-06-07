@@ -34,12 +34,22 @@ const p_type valid_types[NUM_TYPES] = {
     ts_init, tc_login, ts_login_success, ts_login_failed
 };
 
-p_message *p_create_message(p_role role, p_type type)
+static p_message *create_empty_message()
 {
     p_message *msg = malloc(sizeof(p_message));
+    msg->role = r_unknown;
+    msg->type = t_unknown;
+    msg->cnt = 0;
+    msg->cap = 0;
+    msg->words = NULL;
+    return msg;
+}
+
+p_message *p_create_message(p_role role, p_type type)
+{
+    p_message *msg = create_empty_message();
     msg->role = role;
     msg->type = type;
-    msg->cnt = 0;
     msg->cap = MESSAGE_BASE_CAP;
     msg->words = malloc(msg->cap * sizeof(char *));
     return msg;
@@ -151,10 +161,7 @@ void p_init_reader(p_message_reader *reader)
     reader->header_match_idx = 0;
     reader->int_bytes_read = -1;
 
-    reader->msg = p_create_message(r_unknown, t_unknown);
-    free(reader->msg->words); // prep for fixed cap
-    reader->msg->words = NULL;
-    reader->msg->cap = 0; 
+    reader->msg = create_empty_message();
 
     reader->cur_word = NULL;
     reader->wlen = 0;
@@ -272,8 +279,9 @@ size_t parse_cnt(p_message_reader *reader, const char *str, size_t len)
 
             if (reader->int_bytes_read == WORD_CNT_BYTES) {
                 reader->msg->cap = ntoh_nbytes(reader->msg->cap, WORD_CNT_BYTES);
+                reader->msg->words = malloc(reader->msg->cap * sizeof(char *));
+                
                 reader->int_bytes_read = -1;
-
                 reader->state = rs_content;
                 chars_read++;
                 break;
@@ -325,7 +333,6 @@ size_t parse_content(p_message_reader *reader, const char *str, size_t len)
 
     for (chars_read = 0; chars_read < len; chars_read++) {
         char c = str[chars_read];
-        printf("%c %d\n", c, c);
         if (reader->int_bytes_read == -1) {
             if (c == ENDC || c == DELIM)
                 process_delim_or_endc(reader, c);
@@ -373,7 +380,6 @@ int p_reader_process_str(p_message_reader *reader, const char *str, size_t len)
 
     while (len > 0) {
         size_t chars_read;
-        printf("%d\n", reader->state);
         switch (reader->state) {
             case rs_header:
                 chars_read = match_header(reader, str, len);
