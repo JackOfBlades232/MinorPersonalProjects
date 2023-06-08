@@ -24,14 +24,15 @@ enum {
     MAX_DIGITS = 32, // overkill
 
     NUM_ROLES = 2,
-    NUM_TYPES = 4
+    NUM_TYPES = 7
 };
 
 const char header[HEADER_LEN+1] = "BBS232";
 
 const p_role valid_roles[NUM_ROLES] = { r_server, r_client };
 const p_type valid_types[NUM_TYPES] = {
-    ts_init, tc_login, ts_login_success, ts_login_failed
+    ts_init, tc_login, ts_login_success, ts_login_failed,
+    tc_list_files, tc_file_query, tc_leave_message
 };
 
 static p_message *create_empty_message()

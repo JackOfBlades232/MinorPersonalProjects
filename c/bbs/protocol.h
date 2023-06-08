@@ -21,7 +21,10 @@ typedef enum p_type_tag {
     ts_init = 1,
     tc_login = 2,
     ts_login_success = 3,
-    ts_login_failed = 4
+    ts_login_failed = 4,
+    tc_list_files = 5,
+    tc_file_query = 6,
+    tc_leave_message = 7
 } p_type;
 
 typedef struct p_message_tag {

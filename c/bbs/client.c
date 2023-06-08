@@ -15,7 +15,9 @@
 
 enum {
     SERV_READ_BUFSIZE = 128,
-    LOGIN_BUFSIZE = 64
+    LOGIN_BUFSIZE = 64,
+    ACTION_BUFSIZE = 32,
+    NUM_ACTIONS = 3
 };
 
 typedef enum client_action_tag { // @TODO: add log in action
@@ -23,6 +25,14 @@ typedef enum client_action_tag { // @TODO: add log in action
     query_file,
     leave_message
 } client_action;
+
+static const client_action all_actions[NUM_ACTIONS] = {
+    list_files, query_file, leave_message
+};
+
+static const char *action_names[NUM_ACTIONS] = {
+    "list", "query", "message"
+};
 
 // @TODO: add privileged client actions
 
@@ -50,6 +60,27 @@ void disable_echo(struct termios *bkp_ts)
     memcpy(bkp_ts, &ts, sizeof(ts));
     ts.c_lflag &= ~ECHO;
     tcsetattr(STDIN_FILENO, TCSANOW, &ts);
+}
+
+void discard_stdin()
+{
+    while (getchar() != '\n') {};
+}
+
+int try_get_client_action_by_name(const char *name, client_action *out)
+{
+    int result = 0;
+    int i;
+    for (i = 0; i < NUM_ACTIONS; i++) {
+        if (strcmp(action_names[i], name) == 0) {
+            result = 1;
+            break;
+        }
+    }
+
+    if (result)
+        *out = all_actions[i];
+    return result;
 }
 
 int await_server_message()
@@ -95,10 +126,13 @@ defer:
     return result;
 }
 
-void strip_nl(char *str)
+int strip_nl(char *str)
 {
+    int result;
     for (; *str && *str != '\n' && *str != '\r'; str++) {}
-    *str = '\0';
+    result = *str != '\0';
+    if (result) *str = '\0';
+    return result;
 }
 
 int check_spc(const char *str)
@@ -113,8 +147,7 @@ int ask_for_credential_item(p_message *msg, const char *dialogue)
 
     fputs(dialogue, stdout);
     fgets(cred, sizeof(cred), stdin);
-    strip_nl(cred);    
-    if (check_spc(cred))
+    if (!strip_nl(cred) || check_spc(cred))
         return 0;
 
     return p_add_word_to_message(msg, cred);
@@ -172,9 +205,58 @@ defer:
     return result;
 }
 
+int perform_action(client_action action)
+{
+    return 0;
+}
+
+int parse_action_response(client_action action)
+{
+    return 0;
+}
+
 int ask_for_action()
 {
+    int result = 1;
 
+    char action_buf[ACTION_BUFSIZE];    
+    client_action action;
+
+    printf("\nAvailable actions: ");
+    for (int i = 0; i < NUM_ACTIONS; i++) {
+        if (i == 0)
+            printf("%s", action_names[i]);
+        else
+            printf(", %s", action_names[i]);
+    }
+    putchar('\n');
+    printf("Input action: ");
+
+    fgets(action_buf, sizeof(action_buf)-1, stdin);
+    if (!strip_nl(action_buf)) {
+        discard_stdin();
+        return 0;
+    }
+    if (!try_get_client_action_by_name(action_buf, &action))
+        return 0;
+
+    /*
+    p_init_reader(&reader);
+    if (
+            !perform_action(action) ||
+            !await_server_message() ||
+            !parse_action_response(action)
+       ) {
+        result = 0;
+    }
+    p_deinit_reader(&reader);
+    */
+
+    if (result)
+        printf("%s %d\n", action_buf, action);
+
+    fflush(stdin);
+    return result;
 }
 
 int main(int argc, char **argv)
@@ -222,7 +304,11 @@ int main(int argc, char **argv)
         return_defer(-1);
     }
 
-    printf("\nLogged in, do some shit:\n");
+    printf("\nLogged in\n");
+
+    // @TEST
+    for (;;)
+        ask_for_action();
 
 defer:
     if (sock != -1) close(sock);
