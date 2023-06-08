@@ -254,6 +254,7 @@ int parse_action_response(client_action action)
             printf("Response:");
             for (size_t i = 0; i < reader.msg->cnt; i++)
                 printf(" %s", reader.msg->words[i]);
+            putchar('\n');
 
             return 1;
         default:

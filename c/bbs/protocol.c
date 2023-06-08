@@ -1,5 +1,6 @@
 /* bbs/protocol.c */
 #include "protocol.h"
+#include "utils.h"
 #include <stdlib.h>
 #include <string.h>
 #include <stdint.h>
@@ -68,25 +69,9 @@ void p_free_message(p_message *msg)
 
 int p_add_word_to_message(p_message *msg, const char *word)
 {
-    if (msg->cnt >= MAX_WORD_CNT)
-        return 0;
-
-    if (msg->cnt >= msg->cap) {
-        while (msg->cnt >= msg->cap)
-            msg->cap += MESSAGE_BASE_CAP;
-        if (msg->cap > MAX_WORD_CNT)
-            msg->cap = MAX_WORD_CNT;
-
-        msg->words = realloc(msg->words, msg->cap * sizeof(char *));
-    }
-
-    size_t wlen = strlen(word);
-    msg->words[msg->cnt] = malloc((wlen+1) * sizeof(char));
-    memcpy(msg->words[msg->cnt], word, wlen);
-    msg->words[msg->cnt][wlen] = '\0';
-
-    msg->cnt++;
-    return 1;
+    return add_string_to_string_array(&msg->words, word, 
+                                      &msg->cnt, &msg->cap, 
+                                      MESSAGE_BASE_CAP, MAX_WORD_LEN);
 }
 
 p_sendable_message p_construct_sendable_message(p_message *msg)

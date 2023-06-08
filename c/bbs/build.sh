@@ -5,7 +5,8 @@
 #gcc -Wall -g server.c server_src/*.o -o server 
 
 gcc -Wall -c protocol.c
+gcc -Wall -c utils.c
 
-gcc -Wall -g client.c protocol.o -o client 
-gcc -Wall -g server.c protocol.o -o server 
+gcc -Wall -g client.c protocol.o utils.o -o client 
+gcc -Wall -g server.c protocol.o utils.o -o server 
 #gcc -Wall -g test.c protocol.o -o test 

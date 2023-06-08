@@ -22,7 +22,9 @@ File list:
     * Make client dialogue with options (as of now -- simple)
     * Make client action & protocol request
     * Make server response
-    - Parse out database (maybe, load all the metadata into memory) and add names to the response
+    * Parse out database and add names to the response
+    - On parsing dirent check files (& load meta into memory?)
+    - Pack filenames & descritions, and send them out
 
 File query:
     - Make protocol request

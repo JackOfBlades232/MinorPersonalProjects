@@ -6,17 +6,17 @@
 #include <string.h>
 #include <unistd.h>
 #include <errno.h>
+#include <sys/types.h>
 #include <sys/select.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
+#include <dirent.h>
 
 enum { 
     LISTEN_QLEN = 16,
     INIT_SESS_ARR_SIZE = 32,
     INBUFSIZE = 128
 };
-
-static const char passwd_rel_path[] = "/passwd.txt";
 
 typedef enum session_state_tag { 
     sstate_init, 
@@ -43,8 +43,12 @@ typedef struct server_tag {
 
 typedef struct database_tag {
     FILE *passwd_f;
+    DIR *data_dir;
     char **file_names; // @TEST
 } database;
+
+static const char passwd_rel_path[] = "/passwd.txt";
+static const char data_rel_path[] = "/data/";
 
 // Global server vars
 static server serv = {0};
@@ -161,9 +165,15 @@ void session_parse_regular_message(session *sess)
 
     switch (msg->type) {
         case tc_list_files:
-            // @TEST
             p_message *msg = p_create_message(r_server, ts_file_list_response);
-            p_add_word_to_message(msg, "Hullo, I dunno bout no files yet\n");
+
+            // @TEST
+            for (size_t i = 0; i < 32; i++) {
+                if (!db.file_names[i])
+                    break;
+                p_add_word_to_message(msg, db.file_names[i]);
+            }
+
             session_send_msg(sess, msg);
             p_free_message(msg);
             break;
@@ -290,33 +300,67 @@ void server_deinit()
     }
 }
 
-int db_init(const char *path)
+char *get_full_path(const char *rel_path, const char *db_path, size_t db_path_len)
 {
+    size_t rel_path_len = strlen(rel_path);
+    size_t full_path_len = db_path_len+rel_path_len;
+    char *path = malloc((full_path_len+1) * sizeof(char));
+
+    memcpy(path, db_path, db_path_len);
+    memcpy(path+db_path_len, rel_path, rel_path_len);
+    path[full_path_len] = '\0';
+    return path;
+}
+
+int db_init(const char *path)
+{ 
+    int result = 1;
+
+    char *passwd_path = NULL,
+         *data_path = NULL;
     size_t path_len = strlen(path);
+
     if (path[path_len-1] == '/')
         path_len--;
 
-    size_t passwd_rel_path_len = strlen(passwd_rel_path);
-    size_t full_path_len = path_len+passwd_rel_path_len;
-    char *passwd_path = malloc((full_path_len+1) * sizeof(char));
-
-    memcpy(passwd_path, path, path_len);
-    memcpy(passwd_path+path_len, passwd_rel_path, passwd_rel_path_len);
-    passwd_path[full_path_len] = '\0';
+    passwd_path = get_full_path(passwd_rel_path, path, path_len);
+    data_path = get_full_path(data_rel_path, path, path_len);
 
     db.passwd_f = fopen(passwd_path, "r");
     if (!db.passwd_f)
-        return 0;
+        return_defer(0);
+
+    db.data_dir = opendir(data_path);
+    if (!db.data_dir) 
+        return_defer(0);
 
     // @TEST
-    // @TODO: parse out database folder and collect all info
+    struct dirent *dent;
+    size_t cnt = 0, cap = 32, cap_step = 1, max_cnt = 30;
+    db.file_names = malloc(cap * sizeof(char *));
+    while ((dent = readdir(db.data_dir)) != NULL) {
+        if (dent->d_type == DT_REG || dent->d_type == DT_UNKNOWN) { 
+            add_string_to_string_array(&db.file_names, dent->d_name,
+                                       &cnt, &cap, cap_step, max_cnt);
+        }
+    }
+    db.file_names[cnt] = NULL;
+    rewinddir(db.data_dir);
 
-    return 1;
+defer:
+    if (passwd_path) free(passwd_path);
+    if (data_path) free(data_path);
+    if (!result) {
+        if (db.passwd_f) fclose(db.passwd_f);
+        if (db.data_dir) closedir(db.data_dir);
+    }
+    return result;
 }
 
 void db_deinit()
 {
     if (db.passwd_f) fclose(db.passwd_f);
+    if (db.data_dir) closedir(db.data_dir);
 }
 
 int main(int argc, char **argv)
