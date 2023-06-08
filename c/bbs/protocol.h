@@ -23,8 +23,15 @@ typedef enum p_type_tag {
     ts_login_success = 3,
     ts_login_failed = 4,
     tc_list_files = 5,
+    ts_file_list_response = 5,
     tc_file_query = 6,
-    tc_leave_message = 7
+    ts_file_not_found = 7,
+    ts_file_restricted = 8,
+    ts_start_file_transfer = 9,
+    ts_file_packet = 10,
+    /* ts_last_file_packet // should this exist? */
+    tc_leave_message = 11,
+    ts_message_done = 12
 } p_type;
 
 typedef struct p_message_tag {

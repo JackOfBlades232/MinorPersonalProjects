@@ -20,7 +20,7 @@ static const char passwd_rel_path[] = "/passwd.txt";
 
 typedef enum session_state_tag { 
     sstate_init, 
-    sstate_idle, 
+    sstate_await, 
     sstate_finish, 
     sstate_error 
 } session_state;
@@ -41,9 +41,14 @@ typedef struct server_tag {
     int sessions_size;
 } server;
 
+typedef struct database_tag {
+    FILE *passwd_f;
+    char **file_names; // @TEST
+} database;
+
 // Global server vars
 static server serv = {0};
-static FILE *passwd_f = NULL;
+static database db = {0};
 
 void session_send_msg(session *sess, p_message *msg)
 {
@@ -51,6 +56,13 @@ void session_send_msg(session *sess, p_message *msg)
     p_sendable_message smsg = p_construct_sendable_message(msg);
     write(sess->fd, smsg.str, smsg.len);
     p_deinit_sendable_message(&smsg);
+}
+
+void session_send_empty_message(session *sess, p_type type) 
+{
+    p_message *msg = p_create_message(r_server, type);
+    session_send_msg(sess, msg);
+    p_free_message(msg);
 }
 
 session *make_session(int fd,
@@ -64,9 +76,7 @@ session *make_session(int fd,
     sess->state = sstate_init;
 
     // Protocol step one: state that it is a bbs server
-    p_message *msg = p_create_message(r_server, ts_init);
-    session_send_msg(sess, msg);
-    p_free_message(msg);
+    session_send_empty_message(sess, ts_init);
 
     p_init_reader(&sess->in_reader); // For login recieving
 
@@ -84,7 +94,7 @@ int try_match_passwd_line(const char *usernm, const char *passwd, int *last_c)
     size_t usernm_idx = 0,
            passwd_idx = 0;
 
-    while ((c = fgetc(passwd_f)) != EOF) {
+    while ((c = fgetc(db.passwd_f)) != EOF) {
         if (c == '\n')
             break;
         if (failed)
@@ -131,18 +141,38 @@ void session_handle_login(session *sess)
             break;
     }
 
-    msg = p_create_message(r_server, matched ? ts_login_success : ts_login_failed);
-    session_send_msg(sess, msg);
-    p_free_message(msg);
+    session_send_empty_message(sess, matched ? ts_login_success : ts_login_failed);
 
-    if (matched) {
-        p_deinit_reader(&sess->in_reader);
-        sess->state = sstate_finish; // @TODO: Idle/finished
-    } else
-        p_reset_reader(&sess->in_reader);
+    p_reset_reader(&sess->in_reader);
+    if (matched)
+        sess->state = sstate_await; 
         
-    rewind(passwd_f);
+    rewind(db.passwd_f);
     return;
+}
+
+void session_parse_regular_message(session *sess)
+{
+    p_message *msg = sess->in_reader.msg;
+    if (msg->role != r_client) {
+        sess->state = sstate_error;
+        return;
+    }
+
+    switch (msg->type) {
+        case tc_list_files:
+            // @TEST
+            p_message *msg = p_create_message(r_server, ts_file_list_response);
+            p_add_word_to_message(msg, "Hullo, I dunno bout no files yet\n");
+            session_send_msg(sess, msg);
+            p_free_message(msg);
+            break;
+
+        default:
+            sess->state = sstate_error;
+    }
+
+    p_reset_reader(&sess->in_reader);
 }
 
 int session_read(session *sess)
@@ -168,7 +198,8 @@ int session_read(session *sess)
             session_handle_login(sess);
             break;
 
-        case sstate_idle:
+        case sstate_await:
+            session_parse_regular_message(sess);
             break;
 
         default:
@@ -273,18 +304,19 @@ int db_init(const char *path)
     memcpy(passwd_path+path_len, passwd_rel_path, passwd_rel_path_len);
     passwd_path[full_path_len] = '\0';
 
-    passwd_f = fopen(passwd_path, "r");
-    if (!passwd_f)
+    db.passwd_f = fopen(passwd_path, "r");
+    if (!db.passwd_f)
         return 0;
 
-    // @TODO: database format check
+    // @TEST
+    // @TODO: parse out database folder and collect all info
 
     return 1;
 }
 
 void db_deinit()
 {
-    if (passwd_f) fclose(passwd_f);
+    if (db.passwd_f) fclose(db.passwd_f);
 }
 
 int main(int argc, char **argv)
@@ -315,8 +347,6 @@ int main(int argc, char **argv)
     }
 
     // @TODO: should I daemonize the server?
-    // @TODO: init database from folder
-    // @TODO: data structure for all sessions
 
     for (;;) {
         fd_set readfds, writefds;

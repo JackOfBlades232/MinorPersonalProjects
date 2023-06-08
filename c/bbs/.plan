@@ -19,10 +19,10 @@
     * Idea: make string lengths ints (not decimal strings), since there is max
 
 File list:
-    - Make client dialogue with options (as of now -- simple)
-    - Make client action & protocol request
-    - Cache all file names on server in db_init
-    - Make server response
+    * Make client dialogue with options (as of now -- simple)
+    * Make client action & protocol request
+    * Make server response
+    - Parse out database (maybe, load all the metadata into memory) and add names to the response
 
 File query:
     - Make protocol request
@@ -47,6 +47,10 @@ Leave message for admin:
 
 Other:
     - Make title a bbs property & send with init msg
-    - Refactor bad and dumb impls
+    - Random refac
     - Add file status to metafile (valid, writing, corrupted), for disconnections when loading file
+    - Make client disconnection detection (client now sending requests into the blue)
+        - Idea: send session end message?
+        - Idea: check for EOF in read res
     - Make adequate client exiting
+    - Idea: make timeouts for pending requests?

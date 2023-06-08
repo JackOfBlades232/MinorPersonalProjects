@@ -53,6 +53,13 @@ void send_message(p_message *msg)
     p_deinit_sendable_message(&smsg);
 }
 
+void send_empty_message(p_type type) 
+{
+    p_message *msg = p_create_message(r_client, type);
+    send_message(msg);
+    p_free_message(msg);
+}
+
 void disable_echo(struct termios *bkp_ts)
 { 
     struct termios ts;
@@ -81,6 +88,20 @@ int try_get_client_action_by_name(const char *name, client_action *out)
     if (result)
         *out = all_actions[i];
     return result;
+}
+
+int action_to_p_type(client_action action)
+{
+    switch (action) {
+        case list_files:
+            return tc_list_files;
+        case query_file:
+            return tc_file_query;
+        case leave_message:
+            return tc_leave_message;
+        default:
+            return t_unknown;
+    }
 }
 
 int await_server_message()
@@ -207,11 +228,38 @@ defer:
 
 int perform_action(client_action action)
 {
+    p_type type = action_to_p_type(action);
+
+    switch (action) {
+        case list_files:
+            send_empty_message(type);
+            return 1;
+        default:
+            printf("Not implemented\n");
+    }
+
     return 0;
 }
 
 int parse_action_response(client_action action)
 {
+    p_type type = action_to_p_type(action);
+
+    if (reader.msg->role != r_server || reader.msg->type != type) 
+        return 0;
+
+    switch (action) {
+        case list_files:
+            // @TEST
+            printf("Response:");
+            for (size_t i = 0; i < reader.msg->cnt; i++)
+                printf(" %s", reader.msg->words[i]);
+
+            return 1;
+        default:
+            printf("Not implemented\n");
+    }
+
     return 0;
 }
 
@@ -240,7 +288,6 @@ int ask_for_action()
     if (!try_get_client_action_by_name(action_buf, &action))
         return 0;
 
-    /*
     p_init_reader(&reader);
     if (
             !perform_action(action) ||
@@ -250,10 +297,6 @@ int ask_for_action()
         result = 0;
     }
     p_deinit_reader(&reader);
-    */
-
-    if (result)
-        printf("%s %d\n", action_buf, action);
 
     fflush(stdin);
     return result;
