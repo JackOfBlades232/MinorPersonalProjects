@@ -18,8 +18,13 @@
         * Remake message parsing
     * Idea: make string lengths ints (not decimal strings), since there is max
 
+File list:
+    - Make client dialogue with options (as of now -- simple)
+    - Make client action & protocol request
+    - Cache all file names on server in db_init
+    - Make server response
+
 File query:
-    - Make client dialogue
     - Make protocol request
     - Recieve serverside
     - Lookup file and check metafile access
@@ -29,10 +34,19 @@ File transfer:
     - Test single write (need to pre-send total file size)
     - Implement cutting up
 
+Login remake:
+    - Make login one of the actions & optional
+    - Remake server as not to expect login and add privilege to session info
+    - Update file list as to only display avalilable files
+
+Leave message:
+
 Admin user:
 
 Leave message for admin:
 
 Other:
     - Make title a bbs property & send with init msg
-    - Refactor bad and dumb decisions
+    - Refactor bad and dumb impls
+    - Add file status to metafile (valid, writing, corrupted), for disconnections when loading file
+    - Make adequate client exiting

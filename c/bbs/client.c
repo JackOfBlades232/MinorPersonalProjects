@@ -18,10 +18,13 @@ enum {
     LOGIN_BUFSIZE = 64
 };
 
-typedef enum client_action_tag {
+typedef enum client_action_tag { // @TODO: add log in action
+    list_files,
     query_file,
     leave_message
 } client_action;
+
+// @TODO: add privileged client actions
 
 static const char title[] = 
     "/////////////////////////////////////////////////\n"
@@ -167,6 +170,11 @@ int log_in()
 defer:
     p_deinit_reader(&reader);
     return result;
+}
+
+int ask_for_action()
+{
+
 }
 
 int main(int argc, char **argv)
