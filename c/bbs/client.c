@@ -18,6 +18,11 @@ enum {
     LOGIN_BUFSIZE = 64
 };
 
+typedef enum client_action_tag {
+    query_file,
+    leave_message
+} client_action;
+
 static const char title[] = 
     "/////////////////////////////////////////////////\n"
     "///////////   WELCOME TO DUMMY-BBS!   ///////////\n"
@@ -209,7 +214,7 @@ int main(int argc, char **argv)
         return_defer(-1);
     }
 
-    printf("Logged in, do some shit:\n");
+    printf("\nLogged in, do some shit:\n");
 
 defer:
     if (sock != -1) close(sock);
