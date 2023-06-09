@@ -1,10 +1,13 @@
 /* bbs/test.c */
+#include "database.h"
 #include "protocol.h"
+#include "utils.h"
 #include <stdio.h>
 #include <stdlib.h>
 
-int main()
+int main(int argc, char **argv)
 {
+    /*
     p_message *msg = p_create_message(r_server, ts_init);
     p_add_word_to_message(msg, "hhf");
     p_add_word_to_message(msg, "232");
@@ -32,5 +35,24 @@ int main()
     p_deinit_sendable_message(&smsg);
     p_deinit_reader(&reader);
     p_free_message(msg);
+    */
+
+
+    FILE *f;
+    if (argc >= 2) 
+        f = fopen(argv[1], "r");
+    else
+        f = fopen("./database_ex/data/humpty.txt.meta", "r");
+    file_metadata *fmd = parse_meta_file(f, "./database_ex/data/");
+    if (!fmd) {
+        fprintf(stderr, "Parse failed\n");
+    } else {
+        puts(fmd->name);
+        puts(fmd->descr);
+        for (size_t i = 0; i < fmd->cnt; i++)
+            printf("%s, ", fmd->users[i]);
+        putchar('\n');
+    }
+
     return 0;
 }

@@ -1,5 +1,6 @@
 /* bbc/client.c */
 #include "protocol.h"
+#include "constants.h"
 #include "utils.h"
 #include <stdio.h>
 #include <stdlib.h>
@@ -15,7 +16,6 @@
 
 enum {
     SERV_READ_BUFSIZE = 128,
-    LOGIN_BUFSIZE = 64,
     ACTION_BUFSIZE = 32,
     NUM_ACTIONS = 3
 };
@@ -164,7 +164,7 @@ int check_spc(const char *str)
 
 int ask_for_credential_item(p_message *msg, const char *dialogue)
 {
-    char cred[LOGIN_BUFSIZE];
+    char cred[MAX_LOGIN_ITEM_LEN];
 
     fputs(dialogue, stdout);
     fgets(cred, sizeof(cred), stdin);

@@ -47,9 +47,19 @@ Admin user:
 
 Leave message for admin:
 
+Refac:
+    * Move database stuff to different file (maybe include instead of link?)
+    - Remake passwd to in-mem storage
+    - Use word length limit in add_word
+
+struct database_tag {
+    FILE *passwd_f;
+    DIR *data_dir;
+    char **file_names; // @TEST
+};
+
 Other:
     - Make title a bbs property & send with init msg
-    - Random refac
     - Add file status to metafile (valid, writing, corrupted), for disconnections when loading file
     - Make client disconnection detection (client now sending requests into the blue)
         - Idea: send session end message?

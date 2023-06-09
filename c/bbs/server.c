@@ -1,4 +1,5 @@
 /* bbs/server.c */
+#include "database.h"
 #include "protocol.h"
 #include "utils.h"
 #include <stdio.h>
@@ -6,11 +7,9 @@
 #include <string.h>
 #include <unistd.h>
 #include <errno.h>
-#include <sys/types.h>
 #include <sys/select.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
-#include <dirent.h>
 
 enum { 
     LISTEN_QLEN = 16,
@@ -40,15 +39,6 @@ typedef struct server_tag {
     session **sessions;
     int sessions_size;
 } server;
-
-typedef struct database_tag {
-    FILE *passwd_f;
-    DIR *data_dir;
-    char **file_names; // @TEST
-} database;
-
-static const char passwd_rel_path[] = "/passwd.txt";
-static const char data_rel_path[] = "/data/";
 
 // Global server vars
 static server serv = {0};
@@ -87,48 +77,6 @@ session *make_session(int fd,
     return sess;
 }
 
-int try_match_passwd_line(const char *usernm, const char *passwd, int *last_c)
-{
-    int c;
-    int failed = 0;
-    int matched_usernm = 0,
-        matched_passwd = 0;
-    size_t usernm_len = strlen(usernm),
-           passwd_len = strlen(passwd);
-    size_t usernm_idx = 0,
-           passwd_idx = 0;
-
-    while ((c = fgetc(db.passwd_f)) != EOF) {
-        if (c == '\n')
-            break;
-        if (failed)
-            continue;
-
-        if (!matched_usernm) {
-            if (usernm_idx >= usernm_len) {
-                if (c == ' ')
-                    matched_usernm = 1;
-                else
-                    failed = 1;
-            } else if (usernm[usernm_idx] == c)
-                usernm_idx++;
-            else
-                failed = 1;
-        } else if (!matched_passwd) {
-            if (passwd_idx < passwd_len && passwd[passwd_idx] == c)
-                passwd_idx++;
-            else
-                failed = 1;
-        }
-    }
-
-    if (!failed && matched_usernm && passwd_idx == passwd_len)
-        matched_passwd = 1;
-
-    *last_c = c;
-    return matched_usernm && matched_passwd;
-}
-
 void session_handle_login(session *sess)
 {
     p_message *msg = sess->in_reader.msg;
@@ -137,20 +85,13 @@ void session_handle_login(session *sess)
         return;
     }
 
-    int matched = 0;
-    int last_c = '\n';
-    while (last_c != EOF) {
-        matched = try_match_passwd_line(msg->words[0], msg->words[1], &last_c);
-        if (matched)
-            break;
-    }
-
+    int matched = try_match_credentials(&db, msg->words[0], msg->words[1]);
     session_send_empty_message(sess, matched ? ts_login_success : ts_login_failed);
 
-    p_reset_reader(&sess->in_reader);
     if (matched)
         sess->state = sstate_await; 
         
+    p_reset_reader(&sess->in_reader);
     rewind(db.passwd_f);
     return;
 }
@@ -158,6 +99,7 @@ void session_handle_login(session *sess)
 void session_parse_regular_message(session *sess)
 {
     p_message *msg = sess->in_reader.msg;
+    p_message *response;
     if (msg->role != r_client) {
         sess->state = sstate_error;
         return;
@@ -165,17 +107,17 @@ void session_parse_regular_message(session *sess)
 
     switch (msg->type) {
         case tc_list_files:
-            p_message *msg = p_create_message(r_server, ts_file_list_response);
+            response = p_create_message(r_server, ts_file_list_response);
 
             // @TEST
             for (size_t i = 0; i < 32; i++) {
                 if (!db.file_names[i])
                     break;
-                p_add_word_to_message(msg, db.file_names[i]);
+                p_add_word_to_message(response, db.file_names[i]);
             }
 
-            session_send_msg(sess, msg);
-            p_free_message(msg);
+            session_send_msg(sess, response);
+            p_free_message(response);
             break;
 
         default:
@@ -300,69 +242,6 @@ void server_deinit()
     }
 }
 
-char *get_full_path(const char *rel_path, const char *db_path, size_t db_path_len)
-{
-    size_t rel_path_len = strlen(rel_path);
-    size_t full_path_len = db_path_len+rel_path_len;
-    char *path = malloc((full_path_len+1) * sizeof(char));
-
-    memcpy(path, db_path, db_path_len);
-    memcpy(path+db_path_len, rel_path, rel_path_len);
-    path[full_path_len] = '\0';
-    return path;
-}
-
-int db_init(const char *path)
-{ 
-    int result = 1;
-
-    char *passwd_path = NULL,
-         *data_path = NULL;
-    size_t path_len = strlen(path);
-
-    if (path[path_len-1] == '/')
-        path_len--;
-
-    passwd_path = get_full_path(passwd_rel_path, path, path_len);
-    data_path = get_full_path(data_rel_path, path, path_len);
-
-    db.passwd_f = fopen(passwd_path, "r");
-    if (!db.passwd_f)
-        return_defer(0);
-
-    db.data_dir = opendir(data_path);
-    if (!db.data_dir) 
-        return_defer(0);
-
-    // @TEST
-    struct dirent *dent;
-    size_t cnt = 0, cap = 32, cap_step = 1, max_cnt = 30;
-    db.file_names = malloc(cap * sizeof(char *));
-    while ((dent = readdir(db.data_dir)) != NULL) {
-        if (dent->d_type == DT_REG || dent->d_type == DT_UNKNOWN) { 
-            add_string_to_string_array(&db.file_names, dent->d_name,
-                                       &cnt, &cap, cap_step, max_cnt);
-        }
-    }
-    db.file_names[cnt] = NULL;
-    rewinddir(db.data_dir);
-
-defer:
-    if (passwd_path) free(passwd_path);
-    if (data_path) free(data_path);
-    if (!result) {
-        if (db.passwd_f) fclose(db.passwd_f);
-        if (db.data_dir) closedir(db.data_dir);
-    }
-    return result;
-}
-
-void db_deinit()
-{
-    if (db.passwd_f) fclose(db.passwd_f);
-    if (db.data_dir) closedir(db.data_dir);
-}
-
 int main(int argc, char **argv)
 {
     int result = 0;
@@ -381,7 +260,7 @@ int main(int argc, char **argv)
         return 1;
     }
 
-    if (!db_init(argv[2])) {
+    if (!db_init(&db, argv[2])) {
         fprintf(stderr, "Invalid db folder\n");
         return 1;
     }
@@ -428,6 +307,6 @@ int main(int argc, char **argv)
 
 defer:
     server_deinit();
-    db_deinit();
+    db_deinit(&db);
     return result;
 }
