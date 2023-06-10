@@ -38,6 +38,7 @@ int main(int argc, char **argv)
     */
 
 
+    /*
     FILE *f;
     if (argc >= 2) 
         f = fopen(argv[1], "r");
@@ -53,6 +54,11 @@ int main(int argc, char **argv)
             printf("%s, ", fmd->users[i]);
         putchar('\n');
     }
+    */
+
+    database db;
+    int init_res = db_init(&db, "./database_ex/");
+    printf("%d\n", init_res);
 
     return 0;
 }

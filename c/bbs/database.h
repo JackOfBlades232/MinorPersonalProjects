@@ -26,9 +26,4 @@ void db_deinit(database* db);
 
 int try_match_credentials(database* db, const char *usernm, const char *passwd);
 
-// @TEST
-file_metadata *parse_meta_file(FILE *f, const char *dirpath);
-// file_metadata *parse_meta_file(FILE *f);
-int parse_data_dir(FILE *f, const char *data_dir_path);
-
 #endif

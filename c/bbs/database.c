@@ -8,7 +8,7 @@
 static const char passwd_rel_path[] = "/passwd.txt";
 static const char data_rel_path[] = "/data/";
 
-static const char metafile_extension[] = ".meta"
+static const char metafile_extension[] = ".meta";
 
 #define WORD_SEP ' '
 
@@ -55,110 +55,6 @@ static char *get_full_path(const char *rel_path, const char *db_path, size_t db_
     return path;
 }
 
-int db_init(database* db, const char *path)
-{ 
-    int result = 1;
-
-    char *passwd_path = NULL,
-         *data_path = NULL;
-    size_t path_len = strlen(path);
-
-    if (path[path_len-1] == '/')
-        path_len--;
-
-    passwd_path = get_full_path(passwd_rel_path, path, path_len);
-    data_path = get_full_path(data_rel_path, path, path_len);
-
-    db->passwd_f = fopen(passwd_path, "r");
-    if (!db->passwd_f)
-        return_defer(0);
-
-    db->data_dir = opendir(data_path);
-    if (!db->data_dir) 
-        return_defer(0);
-
-    // @TEST
-    struct dirent *dent;
-    size_t cnt = 0, cap = 32, cap_step = 1, max_cnt = 30;
-    db->file_names = malloc(cap * sizeof(char *));
-    while ((dent = readdir(db->data_dir)) != NULL) {
-        if (dent->d_type == DT_REG || dent->d_type == DT_UNKNOWN) { 
-            add_string_to_string_array(&db->file_names, dent->d_name,
-                                       &cnt, &cap, cap_step, max_cnt);
-        }
-    }
-    db->file_names[cnt] = NULL;
-    rewinddir(db->data_dir);
-
-defer:
-    if (passwd_path) free(passwd_path);
-    if (data_path) free(data_path);
-    if (!result) {
-        if (db->passwd_f) fclose(db->passwd_f);
-        if (db->data_dir) closedir(db->data_dir);
-    }
-    return result;
-}
-
-void db_deinit(database* db)
-{
-    if (db->passwd_f) fclose(db->passwd_f);
-    if (db->data_dir) closedir(db->data_dir);
-}
-
-static int try_match_passwd_line(database *db, const char *usernm, 
-                                 const char *passwd, int *last_c)
-{
-    int c;
-    int failed = 0;
-    int matched_usernm = 0,
-        matched_passwd = 0;
-    size_t usernm_len = strlen(usernm),
-           passwd_len = strlen(passwd);
-    size_t usernm_idx = 0,
-           passwd_idx = 0;
-
-    while ((c = fgetc(db->passwd_f)) != EOF) {
-        if (c == '\n')
-            break;
-        if (failed)
-            continue;
-
-        if (!matched_usernm) {
-            if (usernm_idx >= usernm_len) {
-                if (c == ' ')
-                    matched_usernm = 1;
-                else
-                    failed = 1;
-            } else if (usernm[usernm_idx] == c)
-                usernm_idx++;
-            else
-                failed = 1;
-        } else if (!matched_passwd) {
-            if (passwd_idx < passwd_len && passwd[passwd_idx] == c)
-                passwd_idx++;
-            else
-                failed = 1;
-        }
-    }
-
-    if (!failed && matched_usernm && passwd_idx == passwd_len)
-        matched_passwd = 1;
-
-    *last_c = c;
-    return matched_usernm && matched_passwd;
-}
-
-int try_match_credentials(database* db, const char *usernm, const char *passwd)
-{
-    int last_c = '\n';
-    while (last_c != EOF) {
-        if (try_match_passwd_line(db, usernm, passwd, &last_c))
-            return 1;
-    }
-    return 0;
-}
-
 static file_metadata *create_metadata()
 {
     file_metadata *fmd = malloc(sizeof(*fmd));
@@ -171,8 +67,7 @@ static file_metadata *create_metadata()
     return fmd;
 }
 
-//static void free_metadata(file_metadata *fmd)
-void free_metadata(file_metadata *fmd)
+static void free_metadata(file_metadata *fmd)
 {
     if (fmd->name) free(fmd->name);
     if (fmd->descr) free(fmd->descr);
@@ -258,8 +153,7 @@ static int filename_ends_with_meta(const char *filename, size_t len)
     return 1;
 }
 
-//static file_metadata *parse_meta_file(FILE *f)
-file_metadata *parse_meta_file(FILE *f, const char *dirpath)
+static file_metadata *parse_meta_file(FILE *f, const char *dirpath)
 {
     file_metadata *fmd;
 
@@ -366,7 +260,7 @@ defer:
     return fmd;
 }
 
-int parse_data_dir(DIR *data_dir, const char *data_dir_path)
+static int parse_data_dir(database *db, const char *data_dir_path)
 {
     int result = 0;
     struct dirent *dent;
@@ -377,15 +271,14 @@ int parse_data_dir(DIR *data_dir, const char *data_dir_path)
     db->file_metas = malloc(cap * sizeof(char *));
 
     while ((dent = readdir(db->data_dir)) != NULL) {
-        int file_res = 1;
         if (dent->d_type != DT_REG && dent->d_type != DT_UNKNOWN)
             continue;
 
-        size_t len = strlen(dent->dname);
-        if (filename_ends_with_meta(dent->dname, len))
+        size_t len = strlen(dent->d_name);
+        if (filename_ends_with_meta(dent->d_name, len))
             continue;
 
-        char *full_path = get_full_path(dent->dname, data_dir_path, data_dir_path_len);
+        char *full_path = get_full_path(dent->d_name, data_dir_path, data_dir_path_len);
         FILE *mf = fopen(full_path, "r");
         free(full_path);
         if (!mf)
@@ -426,4 +319,111 @@ defer:
         free(db->file_metas);
     }
     return result;
+}
+
+int db_init(database* db, const char *path)
+{ 
+    int result = 1;
+
+    char *passwd_path = NULL,
+         *data_path = NULL;
+    size_t path_len = strlen(path);
+
+    if (path[path_len-1] == '/')
+        path_len--;
+
+    passwd_path = get_full_path(passwd_rel_path, path, path_len);
+    data_path = get_full_path(data_rel_path, path, path_len);
+
+    db->passwd_f = fopen(passwd_path, "r");
+    if (!db->passwd_f)
+        return_defer(0);
+
+    db->data_dir = opendir(data_path);
+    if (!db->data_dir) 
+        return_defer(0);
+
+    // @TEST
+    struct dirent *dent;
+    size_t cnt = 0, cap = 32, cap_step = 1, max_cnt = 30;
+    db->file_names = malloc(cap * sizeof(char *));
+    while ((dent = readdir(db->data_dir)) != NULL) {
+        if (dent->d_type == DT_REG || dent->d_type == DT_UNKNOWN) { 
+            add_string_to_string_array(&db->file_names, dent->d_name,
+                                       &cnt, &cap, cap_step, max_cnt);
+        }
+    }
+    db->file_names[cnt] = NULL;
+    rewinddir(db->data_dir);
+
+    if (!parse_data_dir(db, data_path))
+        return_defer(0);
+
+defer:
+    if (passwd_path) free(passwd_path);
+    if (data_path) free(data_path);
+    if (!result) {
+        if (db->passwd_f) fclose(db->passwd_f);
+        if (db->data_dir) closedir(db->data_dir);
+    }
+    return result;
+}
+
+void db_deinit(database* db)
+{
+    if (db->passwd_f) fclose(db->passwd_f);
+    if (db->data_dir) closedir(db->data_dir);
+}
+
+static int try_match_passwd_line(database *db, const char *usernm, 
+                                 const char *passwd, int *last_c)
+{
+    int c;
+    int failed = 0;
+    int matched_usernm = 0,
+        matched_passwd = 0;
+    size_t usernm_len = strlen(usernm),
+           passwd_len = strlen(passwd);
+    size_t usernm_idx = 0,
+           passwd_idx = 0;
+
+    while ((c = fgetc(db->passwd_f)) != EOF) {
+        if (c == '\n')
+            break;
+        if (failed)
+            continue;
+
+        if (!matched_usernm) {
+            if (usernm_idx >= usernm_len) {
+                if (c == ' ')
+                    matched_usernm = 1;
+                else
+                    failed = 1;
+            } else if (usernm[usernm_idx] == c)
+                usernm_idx++;
+            else
+                failed = 1;
+        } else if (!matched_passwd) {
+            if (passwd_idx < passwd_len && passwd[passwd_idx] == c)
+                passwd_idx++;
+            else
+                failed = 1;
+        }
+    }
+
+    if (!failed && matched_usernm && passwd_idx == passwd_len)
+        matched_passwd = 1;
+
+    *last_c = c;
+    return matched_usernm && matched_passwd;
+}
+
+int try_match_credentials(database* db, const char *usernm, const char *passwd)
+{
+    int last_c = '\n';
+    while (last_c != EOF) {
+        if (try_match_passwd_line(db, usernm, passwd, &last_c))
+            return 1;
+    }
+    return 0;
 }
