@@ -26,6 +26,7 @@ File list:
     - On parsing dirent check files (& load meta into memory?)
         * Write metafile parsing
         - On dirent parsing parse all .meta files & fill meta array
+            - Test out all metas parsing (written, untested)
     - Pack filenames & descritions, send them out
     - Rewrite client frontend to display them
 

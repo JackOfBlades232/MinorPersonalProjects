@@ -8,6 +8,8 @@
 static const char passwd_rel_path[] = "/passwd.txt";
 static const char data_rel_path[] = "/data/";
 
+static const char metafile_extension[] = ".meta"
+
 #define WORD_SEP ' '
 
 enum {
@@ -21,7 +23,12 @@ enum {
     METADATA_MAX_USER_CNT = 4,
     METADATA_MAX_LOGIN_ITEM_LEN = MAX_LOGIN_ITEM_LEN,
 
-    WORD_BUFSIZE = 256
+    WORD_BUFSIZE = 256,
+
+    METAFILES_BASE_CAP = 32,
+    METAFILES_MAX_CNT = 2048,
+
+    METAFILE_EXT_LEN = sizeof(metafile_extension)-1
 };
 
 typedef enum metadata_parse_state_tag {
@@ -235,6 +242,22 @@ defer:
     return result;
 }
 
+static int filename_ends_with_meta(const char *filename, size_t len)
+{
+    if (len < METAFILE_EXT_LEN)
+        return 0;
+
+    const char *fnp = filename+(len-1);
+    for (int i = METAFILE_EXT_LEN-1; i >= 0; i--) {
+        if (*fnp != metafile_extension[i])
+            return 0;
+
+        fnp--;
+    }
+
+    return 1;
+}
+
 //static file_metadata *parse_meta_file(FILE *f)
 file_metadata *parse_meta_file(FILE *f, const char *dirpath)
 {
@@ -270,14 +293,16 @@ file_metadata *parse_meta_file(FILE *f, const char *dirpath)
                 goto defer;
         }
 
-        size_t len;
+        size_t len = strlen(w_buf);
         switch (state) {
             case mps_file:
                 if (break_c != '\n' && break_c != '\r')
                     goto defer;
 
-                if (file_exists_and_is_available(w_buf, dirpath)) {
-                    len = strlen(w_buf);
+                if (
+                        !filename_ends_with_meta(w_buf, len) && 
+                        file_exists_and_is_available(w_buf, dirpath)
+                   ) {
                     if (len > METADATA_MAX_NAME_LEN)
                         goto defer;
 
@@ -291,7 +316,6 @@ file_metadata *parse_meta_file(FILE *f, const char *dirpath)
                 break;
 
             case mps_descr:
-                len = strlen(w_buf);
                 if (len > METADATA_MAX_DESCR_LEN)
                     goto defer;
 
@@ -303,7 +327,7 @@ file_metadata *parse_meta_file(FILE *f, const char *dirpath)
                 break;
 
             case mps_users:
-                if (strlen(w_buf) > METADATA_MAX_LOGIN_ITEM_LEN)
+                if (len > METADATA_MAX_LOGIN_ITEM_LEN)
                     goto defer;
 
                 int add_res = add_string_to_string_array(&fmd->users, w_buf,
@@ -319,7 +343,7 @@ file_metadata *parse_meta_file(FILE *f, const char *dirpath)
                 break;
             
             case mps_finished:
-                if (strlen(w_buf) > 0) {
+                if (len > 0) {
                     state = mps_error;
                     goto defer;
                 }
@@ -340,4 +364,66 @@ defer:
         fmd = NULL;
     }
     return fmd;
+}
+
+int parse_data_dir(DIR *data_dir, const char *data_dir_path)
+{
+    int result = 0;
+    struct dirent *dent;
+    size_t data_dir_path_len = strlen(data_dir_path);
+
+    size_t cnt = 0,
+           cap = METAFILES_BASE_CAP;
+    db->file_metas = malloc(cap * sizeof(char *));
+
+    while ((dent = readdir(db->data_dir)) != NULL) {
+        int file_res = 1;
+        if (dent->d_type != DT_REG && dent->d_type != DT_UNKNOWN)
+            continue;
+
+        size_t len = strlen(dent->dname);
+        if (filename_ends_with_meta(dent->dname, len))
+            continue;
+
+        char *full_path = get_full_path(dent->dname, data_dir_path, data_dir_path_len);
+        FILE *mf = fopen(full_path, "r");
+        free(full_path);
+        if (!mf)
+            return_defer(0);
+
+        file_metadata *fmd = parse_meta_file(mf, data_dir_path);
+        fclose(mf);
+        
+        if (!fmd)
+            return_defer(0);
+
+        int resize = 0;
+        while (cnt >= cap-1) {
+            if (!resize)
+                resize = 1;
+            cap += METAFILES_BASE_CAP;
+        }
+    
+        if (cap-1 > METAFILES_MAX_CNT) {
+            free(fmd);
+            return_defer(0);
+        }
+
+        if (resize)
+            db->file_metas = realloc(db->file_metas, cap * sizeof(*(db->file_metas)));
+
+        db->file_metas[cnt] = fmd;
+        cnt++;
+    }
+
+    db->file_metas[cnt] = NULL;
+
+defer:
+    rewinddir(db->data_dir);
+    if (!result) {
+        for (size_t i = 0; i < cnt; i++)
+            free_metadata(db->file_metas[i]);
+        free(db->file_metas);
+    }
+    return result;
 }
