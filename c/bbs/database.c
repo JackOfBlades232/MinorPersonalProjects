@@ -5,6 +5,8 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include <stdio.h>
+
 static const char passwd_rel_path[] = "/passwd.txt";
 static const char data_rel_path[] = "/data/";
 
@@ -262,7 +264,7 @@ defer:
 
 static int parse_data_dir(database *db, const char *data_dir_path)
 {
-    int result = 0;
+    int result = 1;
     struct dirent *dent;
     size_t data_dir_path_len = strlen(data_dir_path);
 
@@ -275,7 +277,7 @@ static int parse_data_dir(database *db, const char *data_dir_path)
             continue;
 
         size_t len = strlen(dent->d_name);
-        if (filename_ends_with_meta(dent->d_name, len))
+        if (!filename_ends_with_meta(dent->d_name, len))
             continue;
 
         char *full_path = get_full_path(dent->d_name, data_dir_path, data_dir_path_len);

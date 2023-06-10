@@ -26,7 +26,8 @@ File list:
     - On parsing dirent check files (& load meta into memory?)
         * Write metafile parsing
         - On dirent parsing parse all .meta files & fill meta array
-            - Test out all metas parsing (written, untested)
+            * Test out all metas parsing (written, untested)
+            - Test on bad directories
     - Pack filenames & descritions, send them out
     - Rewrite client frontend to display them
 
@@ -55,13 +56,7 @@ Refac:
     * Move database stuff to different file (maybe include instead of link?)
     - Remake passwd to in-mem storage
     - Use word length limit in add_word
-    - Clean up metafile parsing
-
-struct database_tag {
-    FILE *passwd_f;
-    DIR *data_dir;
-    char **file_names; // @TEST
-};
+    - Refactor all db stuff
 
 Other:
     - Make title a bbs property & send with init msg

@@ -58,7 +58,18 @@ int main(int argc, char **argv)
 
     database db;
     int init_res = db_init(&db, "./database_ex/");
-    printf("%d\n", init_res);
+    if (!init_res) 
+        fprintf(stderr, "Parse failed\n");
+    else {
+        for (file_metadata **fmdp = db.file_metas; *fmdp; fmdp++) {
+            file_metadata *fmd = *fmdp;
+            puts(fmd->name);
+            puts(fmd->descr);
+            for (size_t i = 0; i < fmd->cnt; i++)
+                printf("%s ", fmd->users[i]);
+            printf("\n\n");
+        }
+    }
 
     return 0;
 }
