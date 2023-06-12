@@ -11,6 +11,8 @@
 #include <sys/socket.h>
 #include <netinet/in.h>
 
+#include "debug.h"
+
 enum { 
     LISTEN_QLEN = 16,
     INIT_SESS_ARR_SIZE = 32,
@@ -99,7 +101,7 @@ void session_handle_login(session *sess)
 void session_parse_regular_message(session *sess)
 {
     p_message *msg = sess->in_reader.msg;
-    p_message *response;
+    p_message *response = NULL;
     if (msg->role != r_client) {
         sess->state = sstate_error;
         return;
@@ -116,12 +118,33 @@ void session_parse_regular_message(session *sess)
                 free(name_and_descr);
             }
 
-            session_send_msg(sess, response);
-            p_free_message(response);
+            break;
+
+        case tc_file_query:
+            if (msg->cnt != 1) {
+                sess->state = sstate_error;
+                break;
+            }
+
+            char *filename = lookup_file(&db, msg->words[0]);
+            debug_cat_file(stderr, filename);
+
+            // @TODO: check user access
+            if (filename) {
+                response = p_create_message(r_server, ts_start_file_transfer);
+                free(filename);
+            } else
+                response = p_create_message(r_server, ts_file_not_found);
+
             break;
 
         default:
             sess->state = sstate_error;
+    }
+
+    if (response) {
+        session_send_msg(sess, response);
+        p_free_message(response);
     }
 
     p_reset_reader(&sess->in_reader);

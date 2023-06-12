@@ -14,6 +14,8 @@
 #include <fcntl.h>
 #include <termios.h>
 
+#include "debug.h"
+
 enum {
     SERV_READ_BUFSIZE = 128,
     ACTION_BUFSIZE = 32,
@@ -167,7 +169,7 @@ int ask_for_credential_item(p_message *msg, const char *dialogue)
     char cred[MAX_LOGIN_ITEM_LEN];
 
     fputs(dialogue, stdout);
-    fgets(cred, sizeof(cred), stdin);
+    fgets(cred, sizeof(cred)-1, stdin);
     if (!strip_nl(cred) || check_spc(cred))
         return 0;
 
@@ -226,6 +228,29 @@ defer:
     return result;
 }
 
+int query_file_dialogue()
+{
+    int result = 1;
+    
+    char filename[MAX_FILENAME_LEN+1];
+    printf("\nInput file name: ");
+    fgets(filename, sizeof(filename)-1, stdin);
+    if (!strip_nl(filename))
+        return 0;
+
+    fprintf(stderr, "%s\n", filename);
+
+    p_message *msg = p_create_message(r_client, tc_file_query);
+    if (!p_add_word_to_message(msg, filename))
+        return_defer(0);
+    
+    send_message(msg);
+
+defer:
+    if (msg) p_free_message(msg);
+    return result;
+}
+
 int perform_action(client_action action)
 {
     p_type type = action_to_p_type(action);
@@ -234,6 +259,10 @@ int perform_action(client_action action)
         case list_files:
             send_empty_message(type);
             return 1;
+
+        case query_file:
+            return query_file_dialogue();
+
         default:
             printf("Not implemented\n");
     }
@@ -243,19 +272,31 @@ int perform_action(client_action action)
 
 int parse_action_response(client_action action)
 {
-    p_type type = action_to_p_type(action);
-
-    if (reader.msg->role != r_server || reader.msg->type != type) 
+    if (reader.msg->role != r_server) 
         return 0;
 
     switch (action) {
         case list_files:
-            for (size_t i = 0; i < reader.msg->cnt; i++) {
-                printf("\n\n%s", reader.msg->words[i]);
+            if (reader.msg->type != ts_file_list_response) {
+                return 0;
             }
-            putchar('\n');
+
+            if (reader.msg->cnt > 0) {
+                printf("\n%s", reader.msg->words[0]);
+                for (size_t i = 1; i < reader.msg->cnt; i++) {
+                    printf("\n\n%s", reader.msg->words[i]);
+                }
+                putchar('\n');
+            } else
+                printf("\nNo available files\n");
 
             return 1;
+
+        case query_file:
+            // @TEST
+            debug_log_p_message(stderr, reader.msg);
+            return 1;
+
         default:
             printf("Not implemented\n");
     }

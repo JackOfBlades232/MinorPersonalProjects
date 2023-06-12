@@ -17,6 +17,7 @@ typedef struct file_metadata_tag {
 typedef struct database_tag {
     FILE *passwd_f;
     DIR *data_dir;
+    char *data_path;
     file_metadata **file_metas;
 } database;
 
@@ -24,5 +25,8 @@ int db_init(database* db, const char *path);
 void db_deinit(database* db);
 
 int try_match_credentials(database* db, const char *usernm, const char *passwd);
+
+char *lookup_file(database *db, const char *filename);
+// @TODO: char *lookup_file(database *db, const char *filename, const char *username);
 
 #endif

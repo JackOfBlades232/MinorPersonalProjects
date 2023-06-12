@@ -2,6 +2,7 @@
 #include "database.h"
 #include "protocol.h"
 #include "utils.h"
+#include "debug.h"
 #include <stdio.h>
 #include <stdlib.h>
 
@@ -56,6 +57,7 @@ int main(int argc, char **argv)
     }
     */
 
+    /*
     if (argc < 2)
         return 0;
     database db;
@@ -76,6 +78,9 @@ int main(int argc, char **argv)
             printf("\n\n");
         }
     }
+    */
+
+    debug_cat_file(stderr, "database_ex/data/humpty.txt");
 
     return 0;
 }

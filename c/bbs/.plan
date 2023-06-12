@@ -32,11 +32,11 @@
     * Rewrite client frontend to display them
     * Add special * access modifier parsing in meta
 
-File query:
-    - Make protocol request
-    - Recieve serverside
-    - Lookup file
-    - If not good, send reply (no file/no access) (currently only no file)
+*File query:
+    * Make protocol request
+    * Recieve serverside
+    * Lookup file
+    * If not good, send reply (no file/no access) (currently only no file)
 
 Login remake:
     - Remake passwd to in-mem storage
@@ -48,8 +48,19 @@ Login remake:
     - Remake server as not to expect login and add privilege to session info
 
 File transfer:
-    - Test single write (need to pre-send total file size)
+    - Send out file length or num packets in start-transfer message
+    - Implement buf for client & partial reading for both client and server
+    - Add session state & start streaming file immediately
+    - Create file & recieve->write client side
+    - Test single write
     - Implement cutting up
+        - Note: here we should deal with writefds
+
+    - Time to address problem of disconnections (since it is critical in the middle of writing a file)
+        - Idea: Add file status to metafile (valid, writing, corrupted), for disconnections when loading file
+        - Idea: implement timeouts for pending packages
+        - Idea: need to check eof if sock (=disconnected)
+        - Idea: implement (^C) interception as regular exit, and send disconnection message
 
 Leave message:
 
@@ -60,12 +71,9 @@ Leave message for admin:
 Refac:
     - Brush up client ui (new lines & prettiness)
     - Refactor all db stuff
+    - Replace my own suffering with strdup, use strcat if two args, remake manual places to concat
+    - Freestyle refac pass
 
 Other:
+    - Restore db content after clearing it with dumb fopens
     - Make title a bbs property & send with init msg
-    - Add file status to metafile (valid, writing, corrupted), for disconnections when loading file
-    - Make client disconnection detection (client now sending requests into the blue)
-        - Idea: send session end message?
-        - Idea: check for EOF in read res
-    - Make adequate client exiting
-    - Idea: make timeouts for pending requests?

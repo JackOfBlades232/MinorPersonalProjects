@@ -20,7 +20,7 @@ enum {
     METADATA_BASE_USER_CAP = 4,
     METADATA_BASE_LOGIN_ITEM_CAP = 16,
 
-    METADATA_MAX_NAME_LEN = 16,
+    METADATA_MAX_NAME_LEN = MAX_FILENAME_LEN,
     METADATA_MAX_DESCR_LEN = 128,
     METADATA_MAX_USER_CNT = 4,
     METADATA_MAX_LOGIN_ITEM_LEN = MAX_LOGIN_ITEM_LEN,
@@ -114,14 +114,10 @@ static int file_exists_and_is_available(const char *filename, const char *dirnam
     int result = 1;
     char *full_path = concat_strings(dirname, filename, NULL);
 
-    FILE *f = fopen(full_path, "r");
+    FILE *f = fopen(full_path, "rw");
     if (!f)
         return_defer(0);
     fclose(f);
-
-    f = fopen(full_path, "w");
-    if (!f)
-        return_defer(0);
 
 defer:
     if (f) fclose(f);
@@ -266,7 +262,7 @@ defer:
     return fmd;
 }
 
-static int parse_data_dir(database *db, const char *data_dir_path)
+static int parse_data_dir(database *db)
 {
     int result = 1;
     struct dirent *dent;
@@ -283,13 +279,13 @@ static int parse_data_dir(database *db, const char *data_dir_path)
         if (!filename_ends_with_meta(dent->d_name, len))
             continue;
 
-        char *full_path = concat_strings(data_dir_path, dent->d_name, NULL);
+        char *full_path = concat_strings(db->data_path, dent->d_name, NULL);
         FILE *mf = fopen(full_path, "r");
         free(full_path);
         if (!mf)
             return_defer(0);
 
-        file_metadata *fmd = parse_meta_file(mf, data_dir_path);
+        file_metadata *fmd = parse_meta_file(mf, db->data_path);
         fclose(mf);
         
         if (!fmd)
@@ -331,8 +327,7 @@ int db_init(database* db, const char *path)
     int result = 1;
 
     char *path_copy = NULL,
-         *passwd_path = NULL,
-         *data_path = NULL;
+         *passwd_path = NULL;
     size_t path_len = strlen(path);
 
     db->passwd_f = NULL;
@@ -344,26 +339,23 @@ int db_init(database* db, const char *path)
     path_copy = strndup(path, path_len);
 
     passwd_path = concat_strings(path_copy, passwd_rel_path, NULL);
-    data_path = concat_strings(path_copy, data_rel_path, NULL);
+    db->data_path = concat_strings(path_copy, data_rel_path, NULL);
 
     db->passwd_f = fopen(passwd_path, "r");
     if (!db->passwd_f)
         return_defer(0);
 
-    db->data_dir = opendir(data_path);
+    db->data_dir = opendir(db->data_path);
     if (!db->data_dir) 
         return_defer(0);
 
-    if (!parse_data_dir(db, data_path))
+    if (!parse_data_dir(db))
         return_defer(0);
 
 defer:
-    if (!result) {
-        if (db->data_dir) closedir(db->data_dir);
-        if (db->passwd_f) fclose(db->passwd_f);
-    }
+    if (!result)
+        db_deinit(db);
     if (passwd_path) free(passwd_path);
-    if (data_path) free(data_path);
     if (path_copy) free(path_copy);
     return result;
 }
@@ -372,6 +364,12 @@ void db_deinit(database* db)
 {
     if (db->passwd_f) fclose(db->passwd_f);
     if (db->data_dir) closedir(db->data_dir);
+    if (db->data_path) free(db->data_path);
+    if (db->file_metas) {
+        for (file_metadata **fmdp = db->file_metas; *fmdp; fmdp++)
+            free(*fmdp);
+        free(db->file_metas);
+    }
 }
 
 static int try_match_passwd_line(database *db, const char *usernm, 
@@ -425,4 +423,16 @@ int try_match_credentials(database* db, const char *usernm, const char *passwd)
             return 1;
     }
     return 0;
+}
+
+// @TODO: char *lookup_file(database *db, const char *filename, const char *username);
+//      restrict access to user
+char *lookup_file(database *db, const char *filename)
+{
+    for (file_metadata **fmdp = db->file_metas; *fmdp; fmdp++) {
+        if (strcmp((*fmdp)->name, filename) == 0)
+            return concat_strings(db->data_path, (*fmdp)->name, NULL);
+    }
+
+    return NULL;
 }
