@@ -250,10 +250,9 @@ int parse_action_response(client_action action)
 
     switch (action) {
         case list_files:
-            // @TEST
-            printf("Response:");
-            for (size_t i = 0; i < reader.msg->cnt; i++)
-                printf(" %s", reader.msg->words[i]);
+            for (size_t i = 0; i < reader.msg->cnt; i++) {
+                printf("\n\n%s", reader.msg->words[i]);
+            }
             putchar('\n');
 
             return 1;

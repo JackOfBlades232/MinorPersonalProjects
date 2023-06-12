@@ -110,10 +110,10 @@ void session_parse_regular_message(session *sess)
             response = p_create_message(r_server, ts_file_list_response);
 
             // @TEST
-            for (size_t i = 0; i < 32; i++) {
-                if (!db.file_names[i])
-                    break;
-                p_add_word_to_message(response, db.file_names[i]);
+            for (file_metadata **fmd = db.file_metas; *fmd; fmd++) {
+                char *name_and_descr = concat_strings((*fmd)->name, "\n", (*fmd)->descr, NULL);
+                p_add_word_to_message(response, name_and_descr);
+                free(name_and_descr);
             }
 
             session_send_msg(sess, response);
@@ -261,7 +261,7 @@ int main(int argc, char **argv)
     }
 
     if (!db_init(&db, argv[2])) {
-        fprintf(stderr, "Invalid db folder\n");
+        fprintf(stderr, "Could not parse database in folder\n");
         return 1;
     }
     if (!server_init(port)) {

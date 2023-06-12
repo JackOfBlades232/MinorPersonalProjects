@@ -17,8 +17,7 @@ typedef struct file_metadata_tag {
 typedef struct database_tag {
     FILE *passwd_f;
     DIR *data_dir;
-    char **file_names; // @TEST
-    file_metadata **file_metas; // @TEST
+    file_metadata **file_metas;
 } database;
 
 int db_init(database* db, const char *path);

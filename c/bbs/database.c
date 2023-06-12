@@ -45,17 +45,7 @@ static const char metadata_file_alias[] = "file:";
 static const char metadata_descr_alias[] = "description:";
 static const char metadata_users_alias[] = "access:";
 
-static char *get_full_path(const char *rel_path, const char *db_path, size_t db_path_len)
-{
-    size_t rel_path_len = strlen(rel_path);
-    size_t full_path_len = db_path_len+rel_path_len;
-    char *path = malloc((full_path_len+1) * sizeof(char));
-
-    memcpy(path, db_path, db_path_len);
-    memcpy(path+db_path_len, rel_path, rel_path_len);
-    path[full_path_len] = '\0';
-    return path;
-}
+static const char all_users_symbol[] = "*";
 
 static file_metadata *create_metadata()
 {
@@ -122,7 +112,7 @@ static int match_alias(char *word, metadata_parse_state cur_state)
 static int file_exists_and_is_available(const char *filename, const char *dirname)
 {
     int result = 1;
-    char *full_path = get_full_path(filename, dirname, strlen(dirname));
+    char *full_path = concat_strings(dirname, filename, NULL);
 
     FILE *f = fopen(full_path, "r");
     if (!f)
@@ -226,12 +216,26 @@ static file_metadata *parse_meta_file(FILE *f, const char *dirpath)
                 if (len > METADATA_MAX_LOGIN_ITEM_LEN)
                     goto defer;
 
-                int add_res = add_string_to_string_array(&fmd->users, w_buf,
-                                                         &fmd->cnt, &fmd->cap,
-                                                         METADATA_BASE_USER_CAP,
-                                                         METADATA_MAX_USER_CNT);
-                if (!add_res)
+                if (fmd->is_for_all_users) {
+                    state = mps_error;
                     goto defer;
+                }
+
+                if (strcmp(w_buf, all_users_symbol) == 0) {
+                    if (fmd->cnt != 0) {
+                        state = mps_error;
+                        goto defer;
+                    }
+
+                    fmd->is_for_all_users = 1;
+                } else {
+                    int add_res = add_string_to_string_array(&fmd->users, w_buf,
+                                                             &fmd->cnt, &fmd->cap,
+                                                             METADATA_BASE_USER_CAP,
+                                                             METADATA_MAX_USER_CNT);
+                    if (!add_res)
+                        goto defer;
+                }
 
                 if (break_c == '\n' || break_c == '\r')
                     state = mps_finished;
@@ -266,7 +270,6 @@ static int parse_data_dir(database *db, const char *data_dir_path)
 {
     int result = 1;
     struct dirent *dent;
-    size_t data_dir_path_len = strlen(data_dir_path);
 
     size_t cnt = 0,
            cap = METAFILES_BASE_CAP;
@@ -280,7 +283,7 @@ static int parse_data_dir(database *db, const char *data_dir_path)
         if (!filename_ends_with_meta(dent->d_name, len))
             continue;
 
-        char *full_path = get_full_path(dent->d_name, data_dir_path, data_dir_path_len);
+        char *full_path = concat_strings(data_dir_path, dent->d_name, NULL);
         FILE *mf = fopen(full_path, "r");
         free(full_path);
         if (!mf)
@@ -327,15 +330,21 @@ int db_init(database* db, const char *path)
 { 
     int result = 1;
 
-    char *passwd_path = NULL,
+    char *path_copy = NULL,
+         *passwd_path = NULL,
          *data_path = NULL;
     size_t path_len = strlen(path);
 
+    db->passwd_f = NULL;
+    db->data_dir = NULL;
+    db->file_metas = NULL;
+
     if (path[path_len-1] == '/')
         path_len--;
+    path_copy = strndup(path, path_len);
 
-    passwd_path = get_full_path(passwd_rel_path, path, path_len);
-    data_path = get_full_path(data_rel_path, path, path_len);
+    passwd_path = concat_strings(path_copy, passwd_rel_path, NULL);
+    data_path = concat_strings(path_copy, data_rel_path, NULL);
 
     db->passwd_f = fopen(passwd_path, "r");
     if (!db->passwd_f)
@@ -345,29 +354,17 @@ int db_init(database* db, const char *path)
     if (!db->data_dir) 
         return_defer(0);
 
-    // @TEST
-    struct dirent *dent;
-    size_t cnt = 0, cap = 32, cap_step = 1, max_cnt = 30;
-    db->file_names = malloc(cap * sizeof(char *));
-    while ((dent = readdir(db->data_dir)) != NULL) {
-        if (dent->d_type == DT_REG || dent->d_type == DT_UNKNOWN) { 
-            add_string_to_string_array(&db->file_names, dent->d_name,
-                                       &cnt, &cap, cap_step, max_cnt);
-        }
-    }
-    db->file_names[cnt] = NULL;
-    rewinddir(db->data_dir);
-
     if (!parse_data_dir(db, data_path))
         return_defer(0);
 
 defer:
+    if (!result) {
+        if (db->data_dir) closedir(db->data_dir);
+        if (db->passwd_f) fclose(db->passwd_f);
+    }
     if (passwd_path) free(passwd_path);
     if (data_path) free(data_path);
-    if (!result) {
-        if (db->passwd_f) fclose(db->passwd_f);
-        if (db->data_dir) closedir(db->data_dir);
-    }
+    if (path_copy) free(path_copy);
     return result;
 }
 

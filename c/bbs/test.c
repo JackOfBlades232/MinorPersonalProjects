@@ -56,8 +56,10 @@ int main(int argc, char **argv)
     }
     */
 
+    if (argc < 2)
+        return 0;
     database db;
-    int init_res = db_init(&db, "./database_ex/");
+    int init_res = db_init(&db, argv[1]);
     if (!init_res) 
         fprintf(stderr, "Parse failed\n");
     else {
@@ -65,8 +67,12 @@ int main(int argc, char **argv)
             file_metadata *fmd = *fmdp;
             puts(fmd->name);
             puts(fmd->descr);
-            for (size_t i = 0; i < fmd->cnt; i++)
-                printf("%s ", fmd->users[i]);
+            if (fmd->is_for_all_users) 
+                printf("Free for all");
+            else {
+                for (size_t i = 0; i < fmd->cnt; i++)
+                    printf("%s ", fmd->users[i]);
+            }
             printf("\n\n");
         }
     }

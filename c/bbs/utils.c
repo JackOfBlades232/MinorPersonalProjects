@@ -3,6 +3,8 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include <stdio.h>
+
 int add_string_to_string_array(char ***arr, const char *str, 
                                size_t *cnt, size_t *cap,
                                size_t cap_step, size_t max_cnt)
@@ -26,4 +28,31 @@ int add_string_to_string_array(char ***arr, const char *str,
 
     (*cnt)++;
     return 1;
+}
+
+char *concat_strings(const char *str, ...)
+{
+    va_list vl;
+    size_t full_len;
+    char *full_str, *write_p;
+
+    full_len = 0;
+    va_start(vl, str);
+    for (const char *p = str; p; p = va_arg(vl, const char *))
+        full_len += strlen(p);
+    va_end(vl);
+
+    full_str = malloc((full_len+1) * sizeof(*full_str));
+
+    write_p = full_str;
+    va_start(vl, str);
+    for (const char *p = str; p; p = va_arg(vl, const char *)) {
+        size_t len = strlen(p);
+        memcpy(write_p, p, len);
+        write_p += len;
+    }
+    va_end(vl);
+
+    *write_p = '\0';
+    return full_str;
 }

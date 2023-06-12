@@ -18,18 +18,19 @@
         * Remake message parsing
     * Idea: make string lengths ints (not decimal strings), since there is max
 
-File list:
+*File list:
     * Make client dialogue with options (as of now -- simple)
     * Make client action & protocol request
     * Make server response
     * Parse out database and add names to the response
-    - On parsing dirent check files (& load meta into memory?)
+    * On parsing dirent check files (& load meta into memory?)
         * Write metafile parsing
-        - On dirent parsing parse all .meta files & fill meta array
-            * Test out all metas parsing (written, untested)
-            - Test on bad directories
-    - Pack filenames & descritions, send them out
-    - Rewrite client frontend to display them
+        * On dirent parsing parse all .meta files & fill meta array
+            * Test out all metas parsing
+            * Test on bad directories
+    * Pack filenames & descritions, send them out
+    * Rewrite client frontend to display them
+    * Add special * access modifier parsing in meta
 
 File query:
     - Make protocol request
@@ -37,14 +38,18 @@ File query:
     - Lookup file and check metafile access
     - If not good, send reply (no file/no access)
 
+Login remake:
+    - Remake passwd to in-mem storage
+        - Check passwd f for correctness
+    - Add username field to session (NULL = not logged in)
+    - Update file list as to only display avalilable files
+    - Update file query as to check privileges
+    - Make login one of the actions & optional
+    - Remake server as not to expect login and add privilege to session info
+
 File transfer:
     - Test single write (need to pre-send total file size)
     - Implement cutting up
-
-Login remake:
-    - Make login one of the actions & optional
-    - Remake server as not to expect login and add privilege to session info
-    - Update file list as to only display avalilable files
 
 Leave message:
 
@@ -53,9 +58,7 @@ Admin user:
 Leave message for admin:
 
 Refac:
-    * Move database stuff to different file (maybe include instead of link?)
-    - Remake passwd to in-mem storage
-    - Use word length limit in add_word
+    - Brush up client ui (new lines & prettiness)
     - Refactor all db stuff
 
 Other:
