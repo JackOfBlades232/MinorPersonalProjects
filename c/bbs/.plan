@@ -35,8 +35,8 @@
 File query:
     - Make protocol request
     - Recieve serverside
-    - Lookup file and check metafile access
-    - If not good, send reply (no file/no access)
+    - Lookup file
+    - If not good, send reply (no file/no access) (currently only no file)
 
 Login remake:
     - Remake passwd to in-mem storage
