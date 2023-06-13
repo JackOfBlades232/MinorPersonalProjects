@@ -57,7 +57,6 @@ int main(int argc, char **argv)
     }
     */
 
-    /*
     if (argc < 2)
         return 0;
     database db;
@@ -77,10 +76,13 @@ int main(int argc, char **argv)
             }
             printf("\n\n");
         }
-    }
-    */
 
+        db_deinit(&db);
+    }
+
+    /*
     debug_cat_file(stderr, "database_ex/data/humpty.txt");
+    */
 
     return 0;
 }

@@ -117,7 +117,6 @@ static int file_exists_and_is_available(const char *filename, const char *dirnam
     FILE *f = fopen(full_path, "rw");
     if (!f)
         return_defer(0);
-    fclose(f);
 
 defer:
     if (f) fclose(f);
@@ -188,8 +187,7 @@ static file_metadata *parse_meta_file(FILE *f, const char *dirpath)
                     if (len > METADATA_MAX_NAME_LEN)
                         goto defer;
 
-                    fmd->name = malloc((len+1) * sizeof(*fmd->name));
-                    strncpy(fmd->name, w_buf, len);
+                    fmd->name = strndup(w_buf, len);
 
                     state = mps_descr;
                     parsed_alias = 0;
@@ -201,8 +199,7 @@ static file_metadata *parse_meta_file(FILE *f, const char *dirpath)
                 if (len > METADATA_MAX_DESCR_LEN)
                     goto defer;
 
-                fmd->descr = malloc((len+1) * sizeof(*fmd->descr));
-                strncpy(fmd->descr, w_buf, len);
+                fmd->descr = strndup(w_buf, len);
 
                 state = mps_users;
                 parsed_alias = 0;
@@ -269,7 +266,7 @@ static int parse_data_dir(database *db)
 
     size_t cnt = 0,
            cap = METAFILES_BASE_CAP;
-    db->file_metas = malloc(cap * sizeof(char *));
+    db->file_metas = malloc(cap * sizeof(*db->file_metas));
 
     while ((dent = readdir(db->data_dir)) != NULL) {
         if (dent->d_type != DT_REG && dent->d_type != DT_UNKNOWN)
@@ -299,7 +296,7 @@ static int parse_data_dir(database *db)
         }
     
         if (cap-1 > METAFILES_MAX_CNT) {
-            free(fmd);
+            if (fmd) free(fmd);
             return_defer(0);
         }
 
@@ -332,6 +329,7 @@ int db_init(database* db, const char *path)
 
     db->passwd_f = NULL;
     db->data_dir = NULL;
+    db->data_path = NULL;
     db->file_metas = NULL;
 
     if (path[path_len-1] == '/')

@@ -1,6 +1,10 @@
 /* bbs/debug.c */
 #include "debug.h"
 
+enum {
+    MAX_FILE_LEN_FOR_DISPLAY = 65535
+};
+
 void debug_log_p_role(FILE* f, p_role role)
 {
     switch (role) {
@@ -103,9 +107,18 @@ void debug_cat_file(FILE* f, const char *filename)
     if (!file) 
         fprintf(f, "DEBUG: can't open file\n");
     else {
-        int c;
-        while ((c = fgetc(file)) != EOF)
-            fputc(c, f);
-        fprintf(f, "DEBUG: eof\n");
+        fseek(file, 0, SEEK_END);
+        long len = ftell(file);
+        rewind(file);
+        fprintf(f, "DEBUG: byte length: %ld\n", len);
+
+        if (len > MAX_FILE_LEN_FOR_DISPLAY)
+            fprintf(f, "DEBUG: too long to display\n");
+        else {
+            int c;
+            while ((c = fgetc(file)) != EOF)
+                fputc(c, f);
+            fprintf(f, "DEBUG: eof\n");
+        }
     }
 }
