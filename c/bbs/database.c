@@ -71,6 +71,21 @@ static void free_metadata(file_metadata *fmd)
     free(fmd);
 }
 
+static user_data *create_user_data()
+{
+    user_data *ud = malloc(sizeof(*ud));
+    ud->usernm = NULL;
+    ud->passwd = NULL;
+    return ud;
+}
+
+static void free_user_data(user_data *ud)
+{
+    if (ud->usernm) free(ud->usernm);
+    if (ud->passwd) free(ud->passwd);
+    free(ud);
+}
+
 static int read_word_to_buf(FILE *f, char *buf, size_t bufsize, int stop_at_sep)
 {
     size_t i = 0;
@@ -262,13 +277,19 @@ defer:
 static int parse_data_dir(database *db)
 {
     int result = 1;
+    DIR *data_dir = NULL;
     struct dirent *dent;
 
     size_t cnt = 0,
            cap = METAFILES_BASE_CAP;
+
+    data_dir = opendir(db->data_path);
+    if (!data_dir)
+        return_defer(0);
+
     db->file_metas = malloc(cap * sizeof(*db->file_metas));
 
-    while ((dent = readdir(db->data_dir)) != NULL) {
+    while ((dent = readdir(data_dir)) != NULL) {
         if (dent->d_type != DT_REG && dent->d_type != DT_UNKNOWN)
             continue;
 
@@ -310,13 +331,18 @@ static int parse_data_dir(database *db)
     db->file_metas[cnt] = NULL;
 
 defer:
-    rewinddir(db->data_dir);
-    if (!result) {
+    if (!result && db->file_metas) {
         for (size_t i = 0; i < cnt; i++)
             free_metadata(db->file_metas[i]);
         free(db->file_metas);
     }
+    if (data_dir) closedir(data_dir);
     return result;
+}
+
+static int parse_passwd_file(database *db, const char *path)
+{
+    return 1;
 }
 
 int db_init(database* db, const char *path)
@@ -328,9 +354,9 @@ int db_init(database* db, const char *path)
     size_t path_len = strlen(path);
 
     db->passwd_f = NULL;
-    db->data_dir = NULL;
     db->data_path = NULL;
     db->file_metas = NULL;
+    db->user_datas = NULL;
 
     if (path[path_len-1] == '/')
         path_len--;
@@ -339,15 +365,14 @@ int db_init(database* db, const char *path)
     passwd_path = concat_strings(path_copy, passwd_rel_path, NULL);
     db->data_path = concat_strings(path_copy, data_rel_path, NULL);
 
+    // @TEST
     db->passwd_f = fopen(passwd_path, "r");
     if (!db->passwd_f)
         return_defer(0);
 
-    db->data_dir = opendir(db->data_path);
-    if (!db->data_dir) 
-        return_defer(0);
-
     if (!parse_data_dir(db))
+        return_defer(0);
+    if (!parse_passwd_file(db, passwd_path))
         return_defer(0);
 
 defer:
@@ -361,12 +386,16 @@ defer:
 void db_deinit(database* db)
 {
     if (db->passwd_f) fclose(db->passwd_f);
-    if (db->data_dir) closedir(db->data_dir);
     if (db->data_path) free(db->data_path);
     if (db->file_metas) {
         for (file_metadata **fmdp = db->file_metas; *fmdp; fmdp++)
-            free(*fmdp);
+            free_metadata(*fmdp);
         free(db->file_metas);
+    }
+    if (db->user_datas) {
+        for (user_data **udp = db->user_datas; *udp; udp++)
+            free_user_data(*udp);
+        free(db->user_datas);
     }
 }
 

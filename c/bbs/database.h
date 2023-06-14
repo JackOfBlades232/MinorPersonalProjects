@@ -14,11 +14,17 @@ typedef struct file_metadata_tag {
     size_t cnt, cap;
 } file_metadata;
 
+typedef struct user_data_tag {
+    char *usernm;
+    char *passwd;
+} user_data;
+
 typedef struct database_tag {
+    // @TODO: clean up redundant data
     FILE *passwd_f;
-    DIR *data_dir;
     char *data_path;
     file_metadata **file_metas;
+    user_data **user_datas;
 } database;
 
 int db_init(database* db, const char *path);
