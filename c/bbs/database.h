@@ -21,7 +21,6 @@ typedef struct user_data_tag {
 
 typedef struct database_tag {
     // @TODO: clean up redundant data
-    FILE *passwd_f;
     char *data_path;
     file_metadata **file_metas;
     user_data **user_datas;

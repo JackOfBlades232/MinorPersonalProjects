@@ -81,7 +81,7 @@ int try_get_client_action_by_name(const char *name, client_action *out)
     int result = 0;
     int i;
     for (i = 0; i < NUM_ACTIONS; i++) {
-        if (strcmp(action_names[i], name) == 0) {
+        if (strings_are_equal(action_names[i], name)) {
             result = 1;
             break;
         }
@@ -147,21 +147,6 @@ int connect_to_server(struct sockaddr_in serv_addr)
 defer:
     p_deinit_reader(&reader);
     return result;
-}
-
-int strip_nl(char *str)
-{
-    int result;
-    for (; *str && *str != '\n' && *str != '\r'; str++) {}
-    result = *str != '\0';
-    if (result) *str = '\0';
-    return result;
-}
-
-int check_spc(const char *str)
-{
-    for (; *str && *str != ' ' && *str != '\t'; str++) {}
-    return *str;
 }
 
 int ask_for_credential_item(p_message *msg, const char *dialogue)

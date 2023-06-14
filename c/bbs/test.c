@@ -76,6 +76,12 @@ int main(int argc, char **argv)
             }
             printf("\n\n");
         }
+        for (user_data **udp = db.user_datas; *udp; udp++) {
+            user_data *ud = *udp;
+            printf("\n");
+            puts(ud->usernm);
+            puts(ud->passwd);
+        }
 
         db_deinit(&db);
     }

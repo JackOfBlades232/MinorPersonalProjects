@@ -30,6 +30,11 @@ int add_string_to_string_array(char ***arr, const char *str,
     return 1;
 }
 
+int strings_are_equal(const char *str1, const char *str2)
+{
+    return strcmp(str1, str2) == 0;
+}
+
 char *concat_strings(const char *str, ...)
 {
     va_list vl;
@@ -55,4 +60,24 @@ char *concat_strings(const char *str, ...)
 
     *write_p = '\0';
     return full_str;
+}
+
+int is_nl(int c)
+{
+    return c == '\n' || c == '\r';
+}
+
+int strip_nl(char *str)
+{
+    int result;
+    for (; *str && !is_nl(*str); str++) {}
+    result = *str != '\0';
+    if (result) *str = '\0';
+    return result;
+}
+
+int check_spc(const char *str)
+{
+    for (; *str && *str != ' ' && *str != '\t'; str++) {}
+    return *str;
 }

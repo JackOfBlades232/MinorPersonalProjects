@@ -94,7 +94,6 @@ void session_handle_login(session *sess)
         sess->state = sstate_await; 
         
     p_reset_reader(&sess->in_reader);
-    rewind(db.passwd_f);
     return;
 }
 

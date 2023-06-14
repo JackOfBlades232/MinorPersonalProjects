@@ -39,8 +39,8 @@
     * If not good, send reply (no file/no access) (currently only no file)
 
 Login remake:
-    - Remake passwd to in-mem storage
-        - Check passwd f for correctness
+    * Remake passwd to in-mem storage
+        * Check passwd f for correctness
     - Add username field to session (NULL = not logged in)
     - Update file list as to only display avalilable files
     - Update file query as to check privileges
