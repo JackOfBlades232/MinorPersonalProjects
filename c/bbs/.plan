@@ -38,14 +38,13 @@
     * Lookup file
     * If not good, send reply (no file/no access) (currently only no file)
 
-Login remake:
+*Login remake:
     * Remake passwd to in-mem storage
         * Check passwd f for correctness
     * Add username field to session (NULL = not logged in)
     * Update file query as to check privileges
     * Update file list as to only display avalilable files
-    - Make login one of the actions & optional
-    - Remake server as not to expect login and add privilege to session info
+    * Make login one of the actions & optional
 
 File transfer:
     - Send out file length or num packets in start-transfer message

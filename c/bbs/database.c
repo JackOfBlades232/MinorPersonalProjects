@@ -519,6 +519,8 @@ int file_is_available_to_user(file_metadata *fmd, const char *username)
 {
     if (fmd->is_for_all_users)
         return 1;
+    else if (!username)
+        return 0;
 
     for (size_t i = 0; i < fmd->cnt; i++) {
         if (strings_are_equal(fmd->users[i], username))

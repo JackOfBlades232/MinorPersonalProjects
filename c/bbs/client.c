@@ -19,21 +19,22 @@
 enum {
     SERV_READ_BUFSIZE = 128,
     ACTION_BUFSIZE = 32,
-    NUM_ACTIONS = 3
+    NUM_ACTIONS = 4
 };
 
 typedef enum client_action_tag { // @TODO: add log in action
+    log_in,
     list_files,
     query_file,
     leave_message
 } client_action;
 
 static const client_action all_actions[NUM_ACTIONS] = {
-    list_files, query_file, leave_message
+    log_in, list_files, query_file, leave_message
 };
 
 static const char *action_names[NUM_ACTIONS] = {
-    "list", "query", "message"
+    "login", "list", "query", "message"
 };
 
 // @TODO: add privileged client actions
@@ -44,9 +45,10 @@ static const char title[] =
     "/////////////////////////////////////////////////\n";
 
 // Global client state
-int sock = -1;
+static int sock = -1;
 static char serv_read_buf[SERV_READ_BUFSIZE];
 static p_message_reader reader = {0};
+static int logged_in = 0;
 
 void send_message(p_message *msg)
 {
@@ -95,6 +97,8 @@ int try_get_client_action_by_name(const char *name, client_action *out)
 int action_to_p_type(client_action action)
 {
     switch (action) {
+        case log_in:
+            return tc_login;
         case list_files:
             return tc_list_files;
         case query_file:
@@ -170,7 +174,7 @@ int send_login_credentials()
 
     msg = p_create_message(r_client, tc_login);
 
-    if (!ask_for_credential_item(msg, "Username: "))
+    if (!ask_for_credential_item(msg, "\nUsername: "))
         return_defer(0);
 
     disable_echo(&ts);
@@ -185,31 +189,6 @@ int send_login_credentials()
 
 defer:
     p_free_message(msg);
-    return result;
-}
-
-int log_in()
-{
-    int result;
-
-    p_init_reader(&reader);
-    if (!send_login_credentials() || !await_server_message())
-        return_defer(-1);
-
-    if (
-            reader.msg->role == r_server && 
-            reader.msg->cnt == 0 &&
-            (
-             reader.msg->type == ts_login_success ||
-             reader.msg->type == ts_login_failed
-            )
-       ) {
-        result = reader.msg->type == ts_login_success ? 1 : 0;
-    } else
-        result = -1;
-
-defer:
-    p_deinit_reader(&reader);
     return result;
 }
 
@@ -241,6 +220,13 @@ int perform_action(client_action action)
     p_type type = action_to_p_type(action);
 
     switch (action) {
+        case log_in:
+            if (logged_in) {
+                printf("\nYou are already logged in\n");
+                return 0;
+            } else
+                return send_login_credentials();
+
         case list_files:
             send_empty_message(type);
             return 1;
@@ -261,6 +247,24 @@ int parse_action_response(client_action action)
         return 0;
 
     switch (action) {
+        case log_in:
+            if (
+                    reader.msg->cnt != 0 || 
+                    (
+                     reader.msg->type != ts_login_success &&
+                     reader.msg->type != ts_login_failed
+                    )
+               ) {
+                return 0;
+            }
+            
+            if (reader.msg->type == ts_login_success) {
+                logged_in = 1;
+                printf("\nLogged in\n");
+            } else
+                printf("Invalid username/password, please try again.\n\n");
+            break;
+
         case list_files:
             if (reader.msg->type != ts_file_list_response) {
                 return 0;
@@ -338,42 +342,32 @@ int main(int argc, char **argv)
 
     if (!isatty(STDIN_FILENO)) {
         fprintf(stderr, "Launch this from a tty\n");
-        return 1;
+        return_defer(1);
     }
 
     if (argc != 3) {
         fprintf(stderr, "Usage: <ip> <port>\n");
-        return 1;
+        return_defer(1);
     }
 
     serv_addr.sin_family = AF_INET;
     port = strtol(argv[2], &endptr, 10);
     if (!*argv[2] || *endptr) {
         fprintf(stderr, "Invalid port number\n");
-        return 1;
+        return_defer(1);
     }
     serv_addr.sin_port = htons(port);
     if (!inet_aton(argv[1], &serv_addr.sin_addr)) {
         fprintf(stderr, "Provide valid server ip-address\n");
-        return 1;
+        return_defer(1);
     }
 
     if (!connect_to_server(serv_addr)) {
         fprintf(stderr, "Failed to connect to server\n");
-        return 2;
+        return_defer(2);
     }
 
     printf("%s\n", title);
-
-    int login_res;
-    while ((login_res = log_in()) == 0)
-        printf("\nInvalid username/password, please try again.\n\n");
-    if (login_res == -1) {
-        fprintf(stderr, "Login failed\n");
-        return_defer(-1);
-    }
-
-    printf("\nLogged in\n");
 
     // @TEST
     for (;;)

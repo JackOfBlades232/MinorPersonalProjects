@@ -20,7 +20,6 @@ enum {
 };
 
 typedef enum session_state_tag { 
-    sstate_init, 
     sstate_await, 
     sstate_finish, 
     sstate_error 
@@ -70,7 +69,7 @@ session *make_session(int fd,
     sess->from_ip = ntohl(from_ip);
     sess->from_port = ntohs(from_port);
     sess->buf_used = 0;
-    sess->state = sstate_init;
+    sess->state = sstate_await;
     sess->usernm = NULL; // Not logged in
 
     // Protocol step one: state that it is a bbs server
@@ -95,70 +94,82 @@ void session_handle_login(session *sess)
     int matched = try_match_credentials(&db, usernm, passwd);
     session_send_empty_message(sess, matched ? ts_login_success : ts_login_failed);
 
-    if (matched) {
+    if (matched)
         sess->usernm = strdup(usernm);
-        sess->state = sstate_await; 
-    }
         
     p_reset_reader(&sess->in_reader);
     return;
 }
 
+void session_send_file_list(session *sess)
+{
+    p_message *response = p_create_message(r_server, ts_file_list_response);
+
+    for (file_metadata **fmd = db.file_metas; *fmd; fmd++) {
+        if (file_is_available_to_user(*fmd, sess->usernm)) {
+            char *name_and_descr = concat_strings((*fmd)->name, "\n", (*fmd)->descr, NULL);
+            p_add_word_to_message(response, name_and_descr);
+            free(name_and_descr);
+        }
+    }
+
+    session_send_msg(sess, response);
+    p_free_message(response);
+}
+
+void session_process_file_query(session *sess)
+{
+    p_message *msg = sess->in_reader.msg;
+    p_message *response;
+
+    if (msg->cnt != 1) {
+        sess->state = sstate_error;
+        return;
+    }
+
+    char *filename = NULL;
+    file_lookup_result lookup_res = lookup_file(&db, msg->words[0], 
+                                                sess->usernm, &filename);
+    
+    // @TEST
+    debug_cat_file(stderr, filename);
+
+    if (lookup_res == found) {
+        response = p_create_message(r_server, ts_start_file_transfer);
+        free(filename);
+    } else {
+        response = p_create_message(r_server, 
+                                    lookup_res == no_access ? 
+                                    ts_file_restricted : 
+                                    ts_file_not_found);
+    }
+
+    // @TODO: start file transfer
+
+    session_send_msg(sess, response);
+    p_free_message(response);
+}
+
 void session_parse_regular_message(session *sess)
 {
     p_message *msg = sess->in_reader.msg;
-    p_message *response = NULL;
     if (msg->role != r_client) {
         sess->state = sstate_error;
         return;
     }
 
     switch (msg->type) {
+        case tc_login:
+            session_handle_login(sess);
+            break;
         case tc_list_files:
-            response = p_create_message(r_server, ts_file_list_response);
-
-            // @TEST
-            for (file_metadata **fmd = db.file_metas; *fmd; fmd++) {
-                if (file_is_available_to_user(*fmd, sess->usernm)) {
-                    char *name_and_descr = concat_strings((*fmd)->name, "\n", (*fmd)->descr, NULL);
-                    p_add_word_to_message(response, name_and_descr);
-                    free(name_and_descr);
-                }
-            }
-
+            session_send_file_list(sess);
             break;
-
         case tc_file_query:
-            if (msg->cnt != 1) {
-                sess->state = sstate_error;
-                break;
-            }
-
-            char *filename = NULL;
-            file_lookup_result lookup_res = lookup_file(&db, msg->words[0], 
-                                                        sess->usernm, &filename);
-            debug_cat_file(stderr, filename);
-
-            // @TODO: check user access
-            if (lookup_res == found) {
-                response = p_create_message(r_server, ts_start_file_transfer);
-                free(filename);
-            } else {
-                response = p_create_message(r_server, 
-                                            lookup_res == no_access ? 
-                                            ts_file_restricted : 
-                                            ts_file_not_found);
-            }
-
+            session_process_file_query(sess);
             break;
-
         default:
             sess->state = sstate_error;
-    }
-
-    if (response) {
-        session_send_msg(sess, response);
-        p_free_message(response);
     }
 
     p_reset_reader(&sess->in_reader);
@@ -183,10 +194,6 @@ int session_read(session *sess)
         goto defer;
 
     switch (sess->state) {
-        case sstate_init:
-            session_handle_login(sess);
-            break;
-
         case sstate_await:
             session_parse_regular_message(sess);
             break;
@@ -292,18 +299,18 @@ int main(int argc, char **argv)
 
     if (argc != 3) {
         fprintf(stderr, "Usage: <port> <database directory>\n");
-        return 1;
+        return_defer(1);
     }
 
     port = strtol(argv[1], &endptr, 10);
     if (!*argv[1] || *endptr) {
         fprintf(stderr, "Invalid port number\n");
-        return 1;
+        return_defer(1);
     }
 
     if (!db_init(&db, argv[2])) {
         fprintf(stderr, "Could not parse database in folder\n");
-        return 1;
+        return_defer(1);
     }
     if (!server_init(port)) {
         fprintf(stderr, "Server init failed\n");
