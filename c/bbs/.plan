@@ -70,9 +70,7 @@ Leave message for admin:
 Refac:
     - Brush up client ui (new lines & prettiness)
     - Refactor all db stuff
-    - Replace my own suffering with strdup, use strcat if two args, remake manual places to concat
     - Freestyle refac pass
 
 Other:
-    - Restore db content after clearing it with dumb fopens
-    - Make title a bbs property & send with init msg
+    * Make title a bbs property & send with init msg

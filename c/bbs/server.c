@@ -42,6 +42,11 @@ typedef struct server_tag {
     int sessions_size;
 } server;
 
+static const char title[] = 
+    "/////////////////////////////////////////////////\n"
+    "///////////   WELCOME TO DUMMY-BBS!   ///////////\n"
+    "/////////////////////////////////////////////////\n";
+
 // Global server vars
 static server serv = {0};
 static database db = {0};
@@ -61,6 +66,14 @@ void session_send_empty_message(session *sess, p_type type)
     p_free_message(msg);
 }
 
+void session_send_init_message(session *sess)
+{
+    p_message *msg = p_create_message(r_server, ts_init);
+    p_add_word_to_message(msg, title);
+    session_send_msg(sess, msg);
+    p_free_message(msg);
+}
+
 session *make_session(int fd,
         unsigned int from_ip, unsigned short from_port)
 {
@@ -73,7 +86,7 @@ session *make_session(int fd,
     sess->usernm = NULL; // Not logged in
 
     // Protocol step one: state that it is a bbs server
-    session_send_empty_message(sess, ts_init);
+    session_send_init_message(sess);
 
     p_init_reader(&sess->in_reader); // For login recieving
 

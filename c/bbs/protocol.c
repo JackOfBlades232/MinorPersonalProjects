@@ -337,8 +337,12 @@ size_t parse_content(p_message_reader *reader, const char *str, size_t len)
             if (reader->state != rs_content)
                 break;
         } else if (reader->int_bytes_read < WORD_LEN_BYTES) {
+            // @HACK
+            int ic = (int) c;
+            if (ic < 0) ic += BYTE_POT;
+
             reader->wcap *= BYTE_POT;
-            reader->wcap += (int) c;
+            reader->wcap += (size_t) ic;
             reader->int_bytes_read++;
 
             if (reader->wcap > MAX_WORD_LEN) {

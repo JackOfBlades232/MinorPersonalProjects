@@ -1,6 +1,8 @@
 /* bbs/debug.c */
 #include "debug.h"
 
+#include <string.h>
+
 enum {
     MAX_FILE_LEN_FOR_DISPLAY = 65535
 };
@@ -87,10 +89,10 @@ void debug_log_p_message(FILE* f, p_message *msg)
     debug_log_p_type(f, msg->type);
     fputc('\n', f);
 
-    fprintf(f, "DEBUG: words(%ld): ", msg->cnt);
+    fprintf(f, "DEBUG: words[%ld]: ", msg->cnt);
     for (size_t i = 0; i < msg->cnt; i++)
-        fprintf(f, " %s", msg->words[i]);
-    fprintf(f, "\n\n");
+        fprintf(f, "[%ld] %s", strlen(msg->words[i]), msg->words[i]);
+    fputc('\n', f);
 }
 
 void debug_cat_file(FILE* f, const char *filename)
@@ -121,4 +123,10 @@ void debug_cat_file(FILE* f, const char *filename)
             fprintf(f, "DEBUG: eof\n");
         }
     }
+}
+
+void debug_print_buf(FILE *f, const char *buf, size_t len)
+{
+    for (size_t i = 0; i < len; i++)
+        fputc(buf[i], f);
 }

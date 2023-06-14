@@ -9,5 +9,6 @@ void debug_log_p_role(FILE* f, p_role role);
 void debug_log_p_type(FILE* f, p_type type);
 void debug_log_p_message(FILE* f, p_message *msg);
 void debug_cat_file(FILE* f, const char *filename);
+void debug_print_buf(FILE *f, const char *buf, size_t len);
 
 #endif

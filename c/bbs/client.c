@@ -39,11 +39,6 @@ static const char *action_names[NUM_ACTIONS] = {
 
 // @TODO: add privileged client actions
 
-static const char title[] = 
-    "/////////////////////////////////////////////////\n"
-    "///////////   WELCOME TO DUMMY-BBS!   ///////////\n"
-    "/////////////////////////////////////////////////\n";
-
 // Global client state
 static int sock = -1;
 static char serv_read_buf[SERV_READ_BUFSIZE];
@@ -117,7 +112,8 @@ int await_server_message()
 
     while ((read_res = read(sock, serv_read_buf, sizeof(serv_read_buf))) > 0) {
         parse_res = p_reader_process_str(&reader, serv_read_buf, read_res);
-        if (parse_res != 0)
+        //if (parse_res != 0)
+        if (parse_res == 1)
             break;
     }
 
@@ -143,8 +139,9 @@ int connect_to_server(struct sockaddr_in serv_addr)
     if (
             reader.msg->role == r_server && 
             reader.msg->type == ts_init && 
-            reader.msg->cnt == 0
+            reader.msg->cnt == 1
        ) {
+        printf("%s\n", reader.msg->words[0]); // title
         return_defer(1);
     }
 
@@ -262,7 +259,7 @@ int parse_action_response(client_action action)
                 logged_in = 1;
                 printf("\nLogged in\n");
             } else
-                printf("Invalid username/password, please try again.\n\n");
+                printf("Invalid username/password, please try again.\n");
             break;
 
         case list_files:
@@ -366,8 +363,6 @@ int main(int argc, char **argv)
         fprintf(stderr, "Failed to connect to server\n");
         return_defer(2);
     }
-
-    printf("%s\n", title);
 
     // @TEST
     for (;;)
