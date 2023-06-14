@@ -515,14 +515,33 @@ int try_match_credentials(database* db, const char *usernm, const char *passwd)
     return 0;
 }
 
-// @TODO: char *lookup_file(database *db, const char *filename, const char *username);
-//      restrict access to user
-char *lookup_file(database *db, const char *filename)
+int file_is_available_to_user(file_metadata *fmd, const char *username)
 {
-    for (file_metadata **fmdp = db->file_metas; *fmdp; fmdp++) {
-        if (strings_are_equal((*fmdp)->name, filename))
-            return concat_strings(db->data_path, (*fmdp)->name, NULL);
+    if (fmd->is_for_all_users)
+        return 1;
+
+    for (size_t i = 0; i < fmd->cnt; i++) {
+        if (strings_are_equal(fmd->users[i], username))
+            return 1;
     }
 
-    return NULL;
+    return 0;
+}
+
+file_lookup_result lookup_file(database *db, const char *filename, const char *username, char **out)
+{
+    file_lookup_result res = not_found;
+
+    for (file_metadata **fmdp = db->file_metas; *fmdp; fmdp++) {
+        if (strings_are_equal((*fmdp)->name, filename)) {
+            res = no_access;
+
+            if (file_is_available_to_user(*fmdp, username)) {
+                *out = concat_strings(db->data_path, (*fmdp)->name, NULL);
+                return found;
+            }
+        }
+    }
+
+    return res;
 }

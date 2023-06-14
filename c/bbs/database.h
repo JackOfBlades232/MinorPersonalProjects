@@ -26,12 +26,15 @@ typedef struct database_tag {
     user_data **user_datas;
 } database;
 
+typedef enum file_lookup_result_tag {
+    found, not_found, no_access 
+}file_lookup_result;
+
 int db_init(database* db, const char *path);
 void db_deinit(database* db);
 
 int try_match_credentials(database* db, const char *usernm, const char *passwd);
-
-char *lookup_file(database *db, const char *filename);
-// @TODO: char *lookup_file(database *db, const char *filename, const char *username);
+int file_is_available_to_user(file_metadata *fmd, const char *username);
+file_lookup_result lookup_file(database *db, const char *filename, const char *username, char **out);
 
 #endif

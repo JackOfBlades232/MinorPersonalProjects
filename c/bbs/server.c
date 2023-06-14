@@ -32,8 +32,9 @@ typedef struct session_tag {
     unsigned short from_port;
     char buf[INBUFSIZE];
     int buf_used;
-    p_message_reader in_reader;
     session_state state;
+    p_message_reader in_reader;
+    char *usernm;
 } session;
 
 typedef struct server_tag {
@@ -70,6 +71,7 @@ session *make_session(int fd,
     sess->from_port = ntohs(from_port);
     sess->buf_used = 0;
     sess->state = sstate_init;
+    sess->usernm = NULL; // Not logged in
 
     // Protocol step one: state that it is a bbs server
     session_send_empty_message(sess, ts_init);
@@ -87,11 +89,16 @@ void session_handle_login(session *sess)
         return;
     }
 
-    int matched = try_match_credentials(&db, msg->words[0], msg->words[1]);
+    char *usernm = msg->words[0],
+         *passwd = msg->words[1];
+
+    int matched = try_match_credentials(&db, usernm, passwd);
     session_send_empty_message(sess, matched ? ts_login_success : ts_login_failed);
 
-    if (matched)
+    if (matched) {
+        sess->usernm = strdup(usernm);
         sess->state = sstate_await; 
+    }
         
     p_reset_reader(&sess->in_reader);
     return;
@@ -112,9 +119,11 @@ void session_parse_regular_message(session *sess)
 
             // @TEST
             for (file_metadata **fmd = db.file_metas; *fmd; fmd++) {
-                char *name_and_descr = concat_strings((*fmd)->name, "\n", (*fmd)->descr, NULL);
-                p_add_word_to_message(response, name_and_descr);
-                free(name_and_descr);
+                if (file_is_available_to_user(*fmd, sess->usernm)) {
+                    char *name_and_descr = concat_strings((*fmd)->name, "\n", (*fmd)->descr, NULL);
+                    p_add_word_to_message(response, name_and_descr);
+                    free(name_and_descr);
+                }
             }
 
             break;
@@ -125,15 +134,21 @@ void session_parse_regular_message(session *sess)
                 break;
             }
 
-            char *filename = lookup_file(&db, msg->words[0]);
+            char *filename = NULL;
+            file_lookup_result lookup_res = lookup_file(&db, msg->words[0], 
+                                                        sess->usernm, &filename);
             debug_cat_file(stderr, filename);
 
             // @TODO: check user access
-            if (filename) {
+            if (lookup_res == found) {
                 response = p_create_message(r_server, ts_start_file_transfer);
                 free(filename);
-            } else
-                response = p_create_message(r_server, ts_file_not_found);
+            } else {
+                response = p_create_message(r_server, 
+                                            lookup_res == no_access ? 
+                                            ts_file_restricted : 
+                                            ts_file_not_found);
+            }
 
             break;
 
@@ -247,7 +262,11 @@ void server_accept_client()
 void server_close_session(int sd)
 {
     close(sd);
-    free(serv.sessions[sd]);
+
+    session *sess = serv.sessions[sd];
+    p_deinit_reader(&sess->in_reader);
+    if (sess->usernm) free(sess->usernm);
+    free(sess);
     serv.sessions[sd] = NULL;
 }
 
