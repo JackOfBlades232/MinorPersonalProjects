@@ -11,6 +11,8 @@
 #define DELIM ':'
 #define ENDC ','
 
+// @TODO: I should cap max total message len, 4 megs sounds unreasonable
+
 enum { 
     BYTE_POT = 256,
     WORD_LEN_BYTES = 2,

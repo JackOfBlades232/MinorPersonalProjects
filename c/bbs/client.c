@@ -46,6 +46,8 @@ static size_t serv_buf_used = 0;
 static p_message_reader reader = {0};
 static int logged_in = 0;
 
+static char *last_queried_filename = NULL;
+
 void send_message(p_message *msg)
 {
     p_sendable_message smsg = p_construct_sendable_message(msg);
@@ -209,6 +211,9 @@ int query_file_dialogue()
     if (!p_add_word_to_message(msg, filename))
         return_defer(0);
 
+    if (last_queried_filename) free(last_queried_filename);
+    last_queried_filename = strdup(filename);
+
     send_message(msg);
 
 defer:
@@ -238,6 +243,7 @@ int perform_action(client_action action)
     return 0;
 }
 
+// @TODO: factor this apart
 int parse_action_response(client_action action)
 {
     if (reader.msg->role != r_server) 
@@ -259,7 +265,7 @@ int parse_action_response(client_action action)
                 logged_in = 1;
                 printf("\nLogged in\n");
             } else
-                printf("Invalid username/password, please try again.\n");
+                printf("Invalid username/password, please try again\n");
 
             return 1;
 
@@ -280,8 +286,49 @@ int parse_action_response(client_action action)
             return 1;
 
         case query_file:
-            // @TEST
             debug_log_p_message(stderr, reader.msg);
+
+            if (reader.msg->type == ts_file_not_found)
+                printf("File not found\n");
+            else if (reader.msg->type == ts_file_restricted)
+                printf("File is restricted for this account\n");
+            else if (
+                    reader.msg->type == ts_start_file_transfer &&
+                    reader.msg->cnt == 1
+                    ) {
+                char *e;
+                long packets_left = strtol(reader.msg->words[0], &e, 10);
+                if (*e != '\0' || packets_left <= 0) {
+                    printf("Strtol fail\n");
+                    return 0;
+                }
+
+                FILE *f = fopen(last_queried_filename, "w"); // @TODO: check for null? again, should not happen
+                if (!f) {
+                    printf("File fail\n");
+                    return 0;
+                }
+                while (packets_left > 0 && await_server_message()) {
+                    if (
+                            reader.msg->type != ts_file_packet ||
+                            reader.msg->cnt != 1
+                       ) {
+                        printf("Bad packet\n");
+                        break;
+                    }
+                        
+                    fputs(reader.msg->words[0], f);
+                    packets_left--;
+                }
+
+
+                fclose(f);
+                return packets_left == 0;
+            } else {
+                printf("Bad format\n");
+                return 0;
+            }
+
             return 1;
 
         default:

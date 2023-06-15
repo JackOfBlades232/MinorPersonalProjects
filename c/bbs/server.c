@@ -20,7 +20,8 @@
 enum { 
     LISTEN_QLEN = 16,
     INIT_SESS_ARR_SIZE = 32,
-    INBUFSIZE = 128
+    INBUFSIZE = 128,
+    LONG_MAX_DIGITS = 20 //overkill
 };
 
 typedef enum session_state_tag { 
@@ -47,7 +48,7 @@ typedef struct session_tag {
     p_message_reader in_reader;
 
     FILE *cur_f;
-    int packets_left;
+    long packets_left;
 } session;
 
 typedef struct server_tag {
@@ -90,6 +91,14 @@ void session_send_init_message(session *sess)
     p_add_word_to_message(msg, title);
     session_send_msg(sess, msg);
     p_free_message(msg);
+}
+
+void session_free_out_buf(session *sess)
+{
+    free(sess->out_buf);
+    sess->out_buf = NULL;
+    sess->out_buf_sent = 0;
+    sess->out_buf_len = 0;
 }
 
 session *make_session(int fd,
@@ -170,6 +179,7 @@ void session_process_file_query(session *sess)
     debug_cat_file(stderr, filename);
 
     if (lookup_res == found) {
+        // @TODO: factor out num-packet sending ?
         sess->cur_f = fopen(filename, "r");
         if (!sess->cur_f) {
             sess->state = sstate_error;
@@ -181,12 +191,12 @@ void session_process_file_query(session *sess)
         rewind(sess->cur_f);
         sess->packets_left = ((len-1) / MAX_WORD_LEN) + 1;
 
-        char word[sizeof(len)+1];
-        *((long *) word) = len;
-        word[sizeof(len)] = '\0';
+        char packets_left_digits[LONG_MAX_DIGITS+1];
+        snprintf(packets_left_digits, sizeof(packets_left_digits)-1, "%ld", sess->packets_left);
+        packets_left_digits[sizeof(packets_left_digits)] = '\0';
 
         response = p_create_message(r_server, ts_start_file_transfer);
-        p_add_word_to_message(response, word);
+        p_add_word_to_message(response, packets_left_digits);
 
         sess->state = sstate_file_transfer;
     } else {
@@ -251,11 +261,6 @@ int session_read(session *sess)
                 session_parse_regular_message(sess);
                 break;
 
-            case sstate_file_transfer:
-                // @TEST
-                session_parse_regular_message(sess);
-                break;
-
             default:
                 break;
         }
@@ -265,6 +270,21 @@ int session_read(session *sess)
 
     return sess->state != sstate_finish &&
            sess->state != sstate_error;
+}
+
+void prepare_next_file_chunk_for_output(session *sess)
+{
+    int c;
+    sess->out_buf = malloc((MAX_WORD_LEN+1) * sizeof(*sess->out_buf));
+    while (
+            sess->out_buf_len < MAX_WORD_LEN && 
+            (c = fgetc(sess->cur_f)) != EOF
+          ) {
+        sess->out_buf[sess->out_buf_len] = c;
+        sess->out_buf_len++;
+    }
+
+    sess->out_buf[sess->out_buf_len] = '\0';
 }
 
 int session_write(session *sess)
@@ -280,10 +300,22 @@ int session_write(session *sess)
     sess->out_buf_sent += wc;
     
     if (sess->out_buf_sent >= sess->out_buf_len) {
-        free(sess->out_buf);
-        sess->out_buf = NULL;
-        sess->out_buf_sent = 0;
-        sess->out_buf_len = 0;
+        session_free_out_buf(sess);
+
+        switch (sess->state) {
+            case sstate_file_transfer:
+                prepare_next_file_chunk_for_output(sess);
+                sess->packets_left--;
+                if (sess->packets_left <= 0) {
+                    fclose(sess->cur_f);
+                    sess->cur_f = NULL;
+                    sess->state = sstate_await;
+                }
+                break;
+
+            default:
+                break;
+        }
     }
 
     return sess->state != sstate_finish &&
@@ -355,6 +387,8 @@ void server_accept_client()
 void server_close_session(int sd)
 {
     close(sd);
+
+    printf("Close\n");
 
     session *sess = serv.sessions[sd];
     p_deinit_reader(&sess->in_reader);
