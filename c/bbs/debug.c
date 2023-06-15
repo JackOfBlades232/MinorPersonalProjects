@@ -81,7 +81,7 @@ void debug_log_p_message(FILE* f, p_message *msg)
         return;
     }
 
-    fprintf(f, "\nDEBUG: message\n");
+    fprintf(f, "DEBUG: message\n");
 
     fprintf(f, "DEBUG: role: ");
     debug_log_p_role(f, msg->role);

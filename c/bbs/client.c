@@ -111,12 +111,13 @@ int await_server_message()
     int parse_res = 0;
 
     while ((read_res = read(sock, serv_read_buf, sizeof(serv_read_buf))) > 0) {
-        parse_res = p_reader_process_str(&reader, serv_read_buf, read_res);
-        //if (parse_res != 0)
-        if (parse_res == 1)
+        parse_res = p_reader_process_str(&reader, serv_read_buf, &read_res);
+        if (parse_res != 0)
             break;
     }
 
+    debug_log_p_message(stderr, reader.msg);
+    printf("%d\n", parse_res);
     return parse_res == 1;
 }
 
@@ -162,12 +163,17 @@ int ask_for_credential_item(p_message *msg, const char *dialogue)
     return p_add_word_to_message(msg, cred);
 }
 
-int send_login_credentials() 
+int login_dialogue() 
 {
     int result = 1;
 
     p_message *msg;
     struct termios ts;
+
+    if (logged_in) {
+        printf("\nYou are already logged in\n");
+        return 0;
+    }
 
     msg = p_create_message(r_client, tc_login);
 
@@ -218,11 +224,7 @@ int perform_action(client_action action)
 
     switch (action) {
         case log_in:
-            if (logged_in) {
-                printf("\nYou are already logged in\n");
-                return 0;
-            } else
-                return send_login_credentials();
+            return login_dialogue();
 
         case list_files:
             send_empty_message(type);

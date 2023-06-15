@@ -30,7 +30,7 @@ typedef struct session_tag {
     unsigned int from_ip;
     unsigned short from_port;
     char buf[INBUFSIZE];
-    int buf_used;
+    size_t buf_used;
     session_state state;
     p_message_reader in_reader;
     char *usernm;
@@ -39,7 +39,7 @@ typedef struct session_tag {
 typedef struct server_tag {
     int ls;
     session **sessions;
-    int sessions_size;
+    size_t sessions_size;
 } server;
 
 static const char title[] = 
@@ -198,8 +198,8 @@ int session_read(session *sess)
     }
     sess->buf_used += rc;
     
-    int parse_res = p_reader_process_str(&sess->in_reader, sess->buf, sess->buf_used);
-    sess->buf_used = 0;
+    int parse_res = p_reader_process_str(&sess->in_reader, sess->buf, &sess->buf_used);
+    printf("%d\n", sess->buf_used);
 
     if (parse_res == -1)
         sess->state = sstate_error;
