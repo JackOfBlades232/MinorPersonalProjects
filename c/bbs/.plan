@@ -47,8 +47,8 @@
     * Make login one of the actions & optional
 
 File transfer:
-    - Send out file length or num packets in start-transfer message
-    - Implement buf for client & partial reading for both client and server
+    * Implement buf for client & partial reading for both client and server
+    * Send out file length or num packets in start-transfer message
     - Add session state & start streaming file immediately
     - Create file & recieve->write client side
     - Test single write
@@ -68,8 +68,9 @@ Admin user:
 Leave message for admin:
 
 Refac:
-    - Brush up client ui (new lines & prettiness)
+    - Go through in-code todos
     - Refactor all db stuff
+    - Brush up client ui (new lines & prettiness)
     - Freestyle refac pass
 
 Other:

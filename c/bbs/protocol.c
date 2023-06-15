@@ -1,5 +1,6 @@
 /* bbs/protocol.c */
 #include "protocol.h"
+#include "constants.h"
 #include "utils.h"
 #include <stdlib.h>
 #include <string.h>
@@ -13,7 +14,7 @@
 enum { 
     BYTE_POT = 256,
     WORD_LEN_BYTES = 2,
-    MAX_WORD_LEN = 4096, // < 256**WORD_LEN_BYTES
+    MAX_MSG_WORD_LEN = MAX_WORD_LEN, // < 256**WORD_LEN_BYTES
     WORD_CNT_BYTES = 1,
     MAX_WORD_CNT = 255, // 256**WORD_CNT_BYTES - 1
 
@@ -71,7 +72,7 @@ int p_add_word_to_message(p_message *msg, const char *word)
 {
     return add_string_to_string_array(&msg->words, word, 
                                       &msg->cnt, &msg->cap, 
-                                      MESSAGE_BASE_CAP, MAX_WORD_LEN);
+                                      MESSAGE_BASE_CAP, MAX_MSG_WORD_LEN);
 }
 
 p_sendable_message p_construct_sendable_message(p_message *msg)
@@ -87,7 +88,7 @@ p_sendable_message p_construct_sendable_message(p_message *msg)
 
     for (size_t i = 0; i < msg->cnt; i++) {
         size_t wlen = strlen(msg->words[i]);
-        if (wlen > MAX_WORD_LEN)
+        if (wlen > MAX_MSG_WORD_LEN)
             return smsg;
 
         smsg.len += 1 + WORD_LEN_BYTES + wlen; // delim + 2 len bytes + content
@@ -119,11 +120,12 @@ p_sendable_message p_construct_sendable_message(p_message *msg)
         write_p++;
 
         size_t wlen_tmp = wlen;
-        for (int j = 0; j < WORD_LEN_BYTES; j++) { // length in fixed bytes
-            *write_p = wlen_tmp % BYTE_POT;
+        for (int j = WORD_LEN_BYTES-1; j >= 0; j--) { // little endian
+            write_p[j] = wlen_tmp % BYTE_POT;
             wlen_tmp /= BYTE_POT;
-            write_p++;
         }
+
+        write_p += WORD_LEN_BYTES;
 
         memcpy(write_p, word, wlen); // contents
         write_p += wlen;
@@ -238,16 +240,12 @@ MAKE_TRY_PARSE_BYTE_FIELD(role, rs_type)
 MAKE_TRY_GET_BYTE_FIELD(type, NUM_TYPES)
 MAKE_TRY_PARSE_BYTE_FIELD(type, rs_cnt)
 
-size_t ntoh_nbytes(size_t n, int nbytes)
+// @HACK
+int char_to_uint_byte_val(char c)
 {
-    char *np = (char *) &n;
-    for (size_t i = 0; i < nbytes / 2; i++) {
-        char tmp = np[i];
-        np[i] = np[nbytes-i-1];
-        np[nbytes-i-1] = tmp;
-    }
-
-    return n;
+    int ic = (int) c;
+    if (ic < 0) ic += BYTE_POT;
+    return ic;
 }
 
 size_t parse_cnt(p_message_reader *reader, const char *str, size_t len)
@@ -263,8 +261,9 @@ size_t parse_cnt(p_message_reader *reader, const char *str, size_t len)
                 break;
             }
         } else if (reader->int_bytes_read < WORD_CNT_BYTES) {
+            int ic = char_to_uint_byte_val(c);
             reader->msg->cap *= BYTE_POT;
-            reader->msg->cap += (int) c;
+            reader->msg->cap += (size_t) ic;
             reader->int_bytes_read++;
 
             if (reader->msg->cap > MAX_WORD_CNT) {
@@ -273,7 +272,6 @@ size_t parse_cnt(p_message_reader *reader, const char *str, size_t len)
             }
 
             if (reader->int_bytes_read == WORD_CNT_BYTES) {
-                reader->msg->cap = ntoh_nbytes(reader->msg->cap, WORD_CNT_BYTES);
                 reader->msg->words = malloc(reader->msg->cap * sizeof(char *));
                 
                 reader->int_bytes_read = -1;
@@ -328,24 +326,24 @@ size_t parse_content(p_message_reader *reader, const char *str, size_t len)
 
     for (chars_read = 0; chars_read < len; chars_read++) {
         char c = str[chars_read];
+
         if (reader->int_bytes_read == -1) {
             if (c == ENDC || c == DELIM)
                 process_delim_or_endc(reader, c);
             else
                 reader->state = rs_error;
 
-            if (reader->state != rs_content)
+            if (reader->state != rs_content) {
+                chars_read++;
                 break;
+            }
         } else if (reader->int_bytes_read < WORD_LEN_BYTES) {
-            // @HACK
-            int ic = (int) c;
-            if (ic < 0) ic += BYTE_POT;
-
+            int ic = char_to_uint_byte_val(c);
             reader->wcap *= BYTE_POT;
             reader->wcap += (size_t) ic;
             reader->int_bytes_read++;
 
-            if (reader->wcap > MAX_WORD_LEN) {
+            if (reader->wcap > MAX_MSG_WORD_LEN) {
                 reader->state = rs_error;
                 break;
             }
@@ -354,7 +352,6 @@ size_t parse_content(p_message_reader *reader, const char *str, size_t len)
                 reader->state = rs_error;
                 break;
             } else if (!reader->cur_word) {
-                reader->wcap = ntoh_nbytes(reader->wcap, WORD_LEN_BYTES);
                 reader->wcap++; // for '\0'
                 reader->cur_word = malloc(reader->wcap * sizeof(char));
             }
@@ -402,6 +399,9 @@ int p_reader_process_str(p_message_reader *reader, const char *str, size_t *len)
                 break;
         }
 
+        str += chars_read;
+        *len -= chars_read;
+
         if (reader->state == rs_finished) {
             result = 1;
             break;
@@ -411,9 +411,6 @@ int p_reader_process_str(p_message_reader *reader, const char *str, size_t *len)
             result = -1;
             break;
         }
-
-        str += chars_read;
-        *len -= chars_read;
     }
 
     return result;

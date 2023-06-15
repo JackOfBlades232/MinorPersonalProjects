@@ -42,6 +42,7 @@ static const char *action_names[NUM_ACTIONS] = {
 // Global client state
 static int sock = -1;
 static char serv_read_buf[SERV_READ_BUFSIZE];
+static size_t serv_buf_used = 0;
 static p_message_reader reader = {0};
 static int logged_in = 0;
 
@@ -111,13 +112,12 @@ int await_server_message()
     int parse_res = 0;
 
     while ((read_res = read(sock, serv_read_buf, sizeof(serv_read_buf))) > 0) {
-        parse_res = p_reader_process_str(&reader, serv_read_buf, &read_res);
+        serv_buf_used += read_res;
+        parse_res = p_reader_process_str(&reader, serv_read_buf, &serv_buf_used);
         if (parse_res != 0)
             break;
     }
 
-    debug_log_p_message(stderr, reader.msg);
-    printf("%d\n", parse_res);
     return parse_res == 1;
 }
 
@@ -205,12 +205,10 @@ int query_file_dialogue()
     if (!strip_nl(filename))
         return 0;
 
-    fprintf(stderr, "%s\n", filename);
-
     p_message *msg = p_create_message(r_client, tc_file_query);
     if (!p_add_word_to_message(msg, filename))
         return_defer(0);
-    
+
     send_message(msg);
 
 defer:
@@ -262,7 +260,8 @@ int parse_action_response(client_action action)
                 printf("\nLogged in\n");
             } else
                 printf("Invalid username/password, please try again.\n");
-            break;
+
+            return 1;
 
         case list_files:
             if (reader.msg->type != ts_file_list_response) {
@@ -287,6 +286,7 @@ int parse_action_response(client_action action)
 
         default:
             printf("Not implemented\n");
+            return 1;
     }
 
     return 0;
@@ -367,8 +367,12 @@ int main(int argc, char **argv)
     }
 
     // @TEST
-    for (;;)
+    /*
+    for (;;) 
         ask_for_action();
+        */
+    int action_res;
+    while ((action_res = ask_for_action())) {}
 
 defer:
     if (sock != -1) close(sock);

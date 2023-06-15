@@ -129,4 +129,5 @@ void debug_print_buf(FILE *f, const char *buf, size_t len)
 {
     for (size_t i = 0; i < len; i++)
         fputc(buf[i], f);
+    fputc('\n', f);
 }

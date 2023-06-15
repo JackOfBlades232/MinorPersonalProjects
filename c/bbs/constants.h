@@ -4,7 +4,9 @@
 
 enum {
     MAX_LOGIN_ITEM_LEN = 64,
-    MAX_FILENAME_LEN = 64
+    MAX_FILENAME_LEN = 64,
+
+    MAX_WORD_LEN = 4096
 };
 
 #endif

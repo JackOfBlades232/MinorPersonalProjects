@@ -1,12 +1,16 @@
 /* bbs/server.c */
 #include "database.h"
 #include "protocol.h"
+#include "constants.h"
 #include "utils.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
 #include <errno.h>
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <fcntl.h>
 #include <sys/select.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
@@ -21,6 +25,7 @@ enum {
 
 typedef enum session_state_tag { 
     sstate_await, 
+    sstate_file_transfer, 
     sstate_finish, 
     sstate_error 
 } session_state;
@@ -29,11 +34,20 @@ typedef struct session_tag {
     int fd;
     unsigned int from_ip;
     unsigned short from_port;
-    char buf[INBUFSIZE];
-    size_t buf_used;
+
+    char in_buf[INBUFSIZE];
+    size_t in_buf_used;
+
+    char *out_buf;
+    size_t out_buf_sent, out_buf_len;
+
     session_state state;
-    p_message_reader in_reader;
     char *usernm;
+
+    p_message_reader in_reader;
+
+    FILE *cur_f;
+    int packets_left;
 } session;
 
 typedef struct server_tag {
@@ -53,10 +67,14 @@ static database db = {0};
 
 void session_send_msg(session *sess, p_message *msg)
 {
-    // @TODO: will there be long messages so as to add writes to select?
     p_sendable_message smsg = p_construct_sendable_message(msg);
-    write(sess->fd, smsg.str, smsg.len);
-    p_deinit_sendable_message(&smsg);
+    //write(sess->fd, smsg.str, smsg.len);
+    //p_deinit_sendable_message(&smsg);
+    
+    // @TODO: what if last out_buf was not sent fully? (though it is my responsibility not to let this happen)
+    sess->out_buf = smsg.str;
+    sess->out_buf_len = smsg.len;
+    sess->out_buf_sent = 0;
 }
 
 void session_send_empty_message(session *sess, p_type type) 
@@ -81,13 +99,17 @@ session *make_session(int fd,
     sess->fd = fd;
     sess->from_ip = ntohl(from_ip);
     sess->from_port = ntohs(from_port);
-    sess->buf_used = 0;
+    sess->in_buf_used = 0;
+    sess->out_buf = NULL;
+    sess->out_buf_sent = 0;
+    sess->out_buf_len = 0;
     sess->state = sstate_await;
     sess->usernm = NULL; // Not logged in
+    sess->cur_f = NULL;
+    sess->packets_left = 0; // Not logged in
 
     // Protocol step one: state that it is a bbs server
     session_send_init_message(sess);
-
     p_init_reader(&sess->in_reader); // For login recieving
 
     return sess;
@@ -148,8 +170,25 @@ void session_process_file_query(session *sess)
     debug_cat_file(stderr, filename);
 
     if (lookup_res == found) {
+        sess->cur_f = fopen(filename, "r");
+        if (!sess->cur_f) {
+            sess->state = sstate_error;
+            goto defer;
+        }
+
+        fseek(sess->cur_f, 0, SEEK_END);
+        long len = ftell(sess->cur_f);
+        rewind(sess->cur_f);
+        sess->packets_left = ((len-1) / MAX_WORD_LEN) + 1;
+
+        char word[sizeof(len)+1];
+        *((long *) word) = len;
+        word[sizeof(len)] = '\0';
+
         response = p_create_message(r_server, ts_start_file_transfer);
-        free(filename);
+        p_add_word_to_message(response, word);
+
+        sess->state = sstate_file_transfer;
     } else {
         response = p_create_message(r_server, 
                                     lookup_res == no_access ? 
@@ -157,10 +196,11 @@ void session_process_file_query(session *sess)
                                     ts_file_not_found);
     }
 
-    // @TODO: start file transfer
-
     session_send_msg(sess, response);
     p_free_message(response);
+
+defer:
+    if (filename) free(filename);
 }
 
 void session_parse_regular_message(session *sess)
@@ -184,38 +224,68 @@ void session_parse_regular_message(session *sess)
         default:
             sess->state = sstate_error;
     }
-
-    p_reset_reader(&sess->in_reader);
 }
 
 int session_read(session *sess)
 {
-    int rc, bufp = sess->buf_used;
-    rc = read(sess->fd, sess->buf + bufp, INBUFSIZE-bufp);
+    int rc, bufp = sess->in_buf_used;
+    rc = read(sess->fd, sess->in_buf + bufp, INBUFSIZE-bufp);
     if (rc <= 0) {
         sess->state = sstate_error;
         return 0;
     }
-    sess->buf_used += rc;
+    sess->in_buf_used += rc;
     
-    int parse_res = p_reader_process_str(&sess->in_reader, sess->buf, &sess->buf_used);
-    printf("%d\n", sess->buf_used);
+    while (sess->in_buf_used > 0) {
+        int parse_res = p_reader_process_str(&sess->in_reader, 
+                                             sess->in_buf, &sess->in_buf_used);
 
-    if (parse_res == -1)
-        sess->state = sstate_error;
-    else if (parse_res == 0)
-        goto defer;
-
-    switch (sess->state) {
-        case sstate_await:
-            session_parse_regular_message(sess);
+        if (parse_res == -1) {
+            sess->state = sstate_error;
             break;
+        } else if (parse_res == 0)
+            continue;
 
-        default:
-            break;
+        switch (sess->state) {
+            case sstate_await:
+                session_parse_regular_message(sess);
+                break;
+
+            case sstate_file_transfer:
+                // @TEST
+                session_parse_regular_message(sess);
+                break;
+
+            default:
+                break;
+        }
+
+        p_reset_reader(&sess->in_reader);
     }
 
-defer:
+    return sess->state != sstate_finish &&
+           sess->state != sstate_error;
+}
+
+int session_write(session *sess)
+{
+    int wc;
+    wc = write(sess->fd, 
+               sess->out_buf + sess->out_buf_sent, 
+               sess->out_buf_len - sess->out_buf_sent);
+    if (wc <= 0) {
+        sess->state = sstate_error;
+        return 0;
+    }
+    sess->out_buf_sent += wc;
+    
+    if (sess->out_buf_sent >= sess->out_buf_len) {
+        free(sess->out_buf);
+        sess->out_buf = NULL;
+        sess->out_buf_sent = 0;
+        sess->out_buf_len = 0;
+    }
+
     return sess->state != sstate_finish &&
            sess->state != sstate_error;
 }
@@ -265,6 +335,9 @@ void server_accept_client()
         return;
     }
 
+    int flags = fcntl(sd, F_GETFL);
+    fcntl(sd, F_SETFL, flags | O_NONBLOCK); // for writing big data
+
     if (sd >= serv.sessions_size) { // resize if needed
         int newsize = serv.sessions_size;
         while (newsize <= sd)
@@ -285,7 +358,9 @@ void server_close_session(int sd)
 
     session *sess = serv.sessions[sd];
     p_deinit_reader(&sess->in_reader);
+    if (sess->out_buf) free(sess->out_buf);
     if (sess->usernm) free(sess->usernm);
+    if (sess->cur_f) fclose(sess->cur_f);
     free(sess);
     serv.sessions[sd] = NULL;
 }
@@ -341,15 +416,19 @@ int main(int argc, char **argv)
 
         int maxfd = serv.ls;
         for (int i = 0; i < serv.sessions_size; i++) {
-            if (serv.sessions[i]) {
+            session *sess = serv.sessions[i];
+            if (sess) {
                 FD_SET(i, &readfds);
+                if (sess->out_buf)
+                    FD_SET(i, &writefds);
+
                 if (i > maxfd)
                     maxfd = i;
             }
         }
 
         // @TODO: impl writefds, since we may be sending large files
-        int sr = select(maxfd+1, &readfds, NULL, NULL, NULL);
+        int sr = select(maxfd+1, &readfds, &writefds, NULL, NULL);
         if (sr == -1) {
             perror("select");
             return_defer(-1);
@@ -358,10 +437,20 @@ int main(int argc, char **argv)
         if (FD_ISSET(serv.ls, &readfds))
             server_accept_client();
         for (int i = 0; i < serv.sessions_size; i++) {
-            if (serv.sessions[i] && FD_ISSET(i, &readfds)) {
-                int ssr = session_read(serv.sessions[i]);
-                if (!ssr)
+            session *sess = serv.sessions[i];
+            if (sess) {
+                if (
+                        (
+                         FD_ISSET(i, &readfds) && 
+                         !session_read(sess)
+                        ) || 
+                        (
+                         FD_ISSET(i, &writefds) && 
+                         !session_write(sess)
+                        )
+                   ) {
                     server_close_session(i);
+                }
             }
         }
     }
