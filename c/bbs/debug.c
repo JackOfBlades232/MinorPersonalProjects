@@ -89,9 +89,9 @@ void debug_log_p_message(p_message *msg)
     debug_log_p_type(msg->type);
     fputc('\n', stderr);
 
-    fprintf(stderr, "DEBUG: words[%ld]: ", msg->cnt);
+    fprintf(stderr, "DEBUG: words[%ld]:", msg->cnt);
     for (size_t i = 0; i < msg->cnt; i++)
-        fprintf(stderr, "[%ld] %s", strlen(msg->words[i]), msg->words[i]);
+        fprintf(stderr, " [%ld] %s", msg->words[i].len, msg->words[i].str);
     fputc('\n', stderr);
 }
 

@@ -88,7 +88,7 @@ void session_post_empty_message(session *sess, p_type type)
 void session_post_init_message(session *sess)
 {
     p_message *msg = p_create_message(r_server, ts_init);
-    p_add_word_to_message(msg, title);
+    p_add_string_to_message(msg, title);
     session_post_msg(sess, msg);
     p_free_message(msg);
 }
@@ -132,8 +132,8 @@ void session_handle_login(session *sess)
         return;
     }
 
-    char *usernm = msg->words[0],
-         *passwd = msg->words[1];
+    char *usernm = msg->words[0].str,
+         *passwd = msg->words[1].str;
 
     int matched = try_match_credentials(&db, usernm, passwd);
     session_post_empty_message(sess, matched ? ts_login_success : ts_login_failed);
@@ -152,7 +152,7 @@ void session_post_file_list(session *sess)
     for (file_metadata **fmd = db.file_metas; *fmd; fmd++) {
         if (file_is_available_to_user(*fmd, sess->usernm)) {
             char *name_and_descr = concat_strings((*fmd)->name, "\n", (*fmd)->descr, NULL);
-            p_add_word_to_message(response, name_and_descr);
+            p_add_string_to_message(response, name_and_descr);
             free(name_and_descr);
         }
     }
@@ -172,7 +172,7 @@ void session_process_file_query(session *sess)
     }
 
     char *filename = NULL;
-    file_lookup_result lookup_res = lookup_file(&db, msg->words[0], 
+    file_lookup_result lookup_res = lookup_file(&db, msg->words[0].str, 
                                                 sess->usernm, &filename);
 
     if (lookup_res == found) {
@@ -193,7 +193,7 @@ void session_process_file_query(session *sess)
         packets_left_digits[sizeof(packets_left_digits)] = '\0';
 
         response = p_create_message(r_server, ts_start_file_transfer);
-        p_add_word_to_message(response, packets_left_digits);
+        p_add_string_to_message(response, packets_left_digits);
 
         sess->state = sstate_file_transfer;
     } else {
@@ -244,7 +244,7 @@ int session_read(session *sess)
     sess->in_buf_used += rc;
     
     while (sess->in_buf_used > 0) {
-        size_t chars_processed;
+        size_t chars_processed = 0;
         int parse_res = p_reader_process_str(&sess->in_reader, 
                                              sess->in_buf, sess->in_buf_used,
                                              &chars_processed);
@@ -284,19 +284,15 @@ void prepare_next_file_chunk_for_output(session *sess)
 
     p_message *out_msg = p_create_message(r_server, ts_file_packet);
     out_msg->cnt = 1;
-    out_msg->words[0] = malloc((MAX_WORD_LEN+1) * sizeof(*sess->out_buf));
 
-    char *word = out_msg->words[0];
-    size_t len = 0;
+    byte_arr *content = out_msg->words;
+    content->str = malloc(MAX_WORD_LEN * sizeof(*sess->out_buf));
+    content->len = 0;
 
-    while (len < MAX_WORD_LEN && (c = fgetc(sess->cur_f)) != EOF) {
-        word[len] = c;
-        len++;
+    while (content->len < MAX_WORD_LEN && (c = fgetc(sess->cur_f)) != EOF) {
+        content->str[content->len] = c;
+        content->len++;
     }
-
-    if (len < MAX_WORD_LEN)
-        printf("EOF??\n");
-    word[len] = '\0';
 
     session_post_msg(sess, out_msg);
     p_free_message(out_msg);

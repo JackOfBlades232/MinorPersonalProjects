@@ -119,12 +119,10 @@ int await_server_message()
           ) {
         size_t chars_processed;
         serv_buf_used += read_res;
-        //debug_print_buf(serv_read_buf, serv_buf_used);
         parse_res = p_reader_process_str(&reader, 
                                          serv_read_buf, serv_buf_used, 
                                          &chars_processed);
         if (chars_processed < serv_buf_used) {
-            //printf("Go go segfault?\n");
             memmove(serv_read_buf, 
                     serv_read_buf + chars_processed, 
                     serv_buf_used - chars_processed);
@@ -137,7 +135,6 @@ int await_server_message()
             break;
     }
 
-    printf("await parse res: %d\n", parse_res);
     return parse_res == 1;
 }
 
@@ -153,8 +150,7 @@ int connect_to_server(struct sockaddr_in serv_addr)
         return 0;
 
     p_init_reader(&reader);
-    int res = await_server_message();
-    if (!res)
+    if (!await_server_message())
         return_defer(0);
 
     if (
@@ -162,7 +158,7 @@ int connect_to_server(struct sockaddr_in serv_addr)
             reader.msg->type == ts_init && 
             reader.msg->cnt == 1
        ) {
-        printf("%s\n", reader.msg->words[0]); // title
+        printf("%s\n", reader.msg->words[0].str); // title
         return_defer(1);
     }
 
@@ -180,7 +176,7 @@ int ask_for_credential_item(p_message *msg, const char *dialogue)
     if (!strip_nl(cred) || check_spc(cred))
         return 0;
 
-    return p_add_word_to_message(msg, cred);
+    return p_add_string_to_message(msg, cred);
 }
 
 int login_dialogue() 
@@ -226,7 +222,7 @@ int query_file_dialogue()
         return 0;
 
     p_message *msg = p_create_message(r_client, tc_file_query);
-    if (!p_add_word_to_message(msg, filename))
+    if (!p_add_string_to_message(msg, filename))
         return_defer(0);
 
     if (last_queried_filename) free(last_queried_filename);
@@ -293,9 +289,9 @@ int parse_action_response(client_action action)
             }
 
             if (reader.msg->cnt > 0) {
-                printf("\n%s", reader.msg->words[0]);
+                printf("\n%s", reader.msg->words[0].str);
                 for (size_t i = 1; i < reader.msg->cnt; i++) {
-                    printf("\n\n%s", reader.msg->words[i]);
+                    printf("\n\n%s", reader.msg->words[i].str);
                 }
                 putchar('\n');
             } else
@@ -313,12 +309,11 @@ int parse_action_response(client_action action)
                     reader.msg->cnt == 1
                     ) {
                 char *e;
-                long packets_left = strtol(reader.msg->words[0], &e, 10);
+                long packets_left = strtol(reader.msg->words[0].str, &e, 10);
                 if (*e != '\0' || packets_left <= 0)
                     return 0;
 
                 p_reset_reader(&reader);
-                printf("packets: %d\n", packets_left);
 
                 FILE *f = fopen(last_queried_filename, "w"); // @TODO: check for null? again, should not happen
                 if (!f) 
@@ -328,13 +323,11 @@ int parse_action_response(client_action action)
                             reader.msg->type != ts_file_packet ||
                             reader.msg->cnt != 1
                        ) {
-                        printf("Bad packet\n");
                         break;
                     }
-
-                    debug_log_p_message(reader.msg);
                         
-                    fputs(reader.msg->words[0], f);
+                    byte_arr content = reader.msg->words[0];
+                    fwrite(content.str, sizeof(char), content.len, f);
                     packets_left--;
 
                     p_reset_reader(&reader);
@@ -431,10 +424,6 @@ int main(int argc, char **argv)
     }
 
     // @TEST
-    /*
-    for (;;) 
-        ask_for_action();
-        */
     int action_res;
     while ((action_res = ask_for_action())) {}
 

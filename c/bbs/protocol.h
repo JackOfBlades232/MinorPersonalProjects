@@ -38,7 +38,7 @@ typedef enum p_type_tag {
 typedef struct p_message_tag {
     p_role role;
     p_type type;
-    char **words;
+    byte_arr *words;
     size_t cnt, cap;
 } p_message;
 
@@ -66,7 +66,8 @@ typedef struct p_message_reader_tag {
 
 p_message *p_create_message(p_role role, p_type type);
 void p_free_message(p_message *msg);
-int p_add_word_to_message(p_message *msg, const char *word);
+int p_add_word_to_message(p_message *msg, const char *word, size_t len);
+int p_add_string_to_message(p_message *msg, const char *str);
 p_sendable_message p_construct_sendable_message(p_message *msg);
 void p_deinit_sendable_message(p_sendable_message *msg);
 

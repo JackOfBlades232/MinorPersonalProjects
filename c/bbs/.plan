@@ -50,10 +50,10 @@ File transfer:
     * Implement buf for client & partial reading for both client and server
     * Send out file length or num packets in start-transfer message
     * Add session state & start streaming file immediately
-    - Create file & recieve->write client side
-        - DEBUG: stage: bad packet
-    - Test cutting up
-    - Add file download progress UI
+    * Create file & recieve->write client side
+        * DEBUG: stage: bad packet
+    * Test cutting up
+    - Fix the free bug in protocol::store_word
 
     - Time to address problem of disconnections (since it is critical in the middle of writing a file)
         - Idea: Add file status to metafile (valid, writing, corrupted), for disconnections when loading file
@@ -70,9 +70,11 @@ Leave message for admin:
 Refac:
     - Go through in-code todos
     - Refactor all db stuff
+    - Refactor byte_arr usage accross protocol, client and server
     - Brush up client ui (new lines & prettiness)
     - Freestyle refac pass
 
 Other:
     * Make title a bbs property & send with init msg
+    - Remake file i/o on transfer to read/write for optimization
     - Add download progress bar to client (in packets, redraw with \b)
