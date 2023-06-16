@@ -117,9 +117,10 @@ session *make_session(int fd,
     sess->cur_f = NULL;
     sess->packets_left = 0; // Not logged in
 
+    p_init_reader(&sess->in_reader); // For login recieving
+
     // Protocol step one: state that it is a bbs server
     session_post_init_message(sess);
-    p_init_reader(&sess->in_reader); // For login recieving
 
     return sess;
 }
@@ -140,8 +141,7 @@ void session_handle_login(session *sess)
 
     if (matched)
         sess->usernm = strdup(usernm);
-        
-    p_reset_reader(&sess->in_reader);
+
     return;
 }
 
@@ -243,11 +243,12 @@ int session_read(session *sess)
     }
     sess->in_buf_used += rc;
     
+    int parse_res = 0;
     while (sess->in_buf_used > 0) {
         size_t chars_processed = 0;
-        int parse_res = p_reader_process_str(&sess->in_reader, 
-                                             sess->in_buf, sess->in_buf_used,
-                                             &chars_processed);
+        parse_res = p_reader_process_str(&sess->in_reader, 
+                                         sess->in_buf, sess->in_buf_used,
+                                         &chars_processed);
         if (chars_processed < sess->in_buf_used) {
             memmove(sess->in_buf, 
                     sess->in_buf + chars_processed, 
@@ -270,9 +271,10 @@ int session_read(session *sess)
             default:
                 break;
         }
-
-        p_reset_reader(&sess->in_reader);
     }
+
+    if (parse_res != 0)
+        p_reset_reader(&sess->in_reader);
 
     return sess->state != sstate_finish &&
            sess->state != sstate_error;
@@ -320,6 +322,7 @@ int session_write(session *sess)
                 if (sess->packets_left <= 0) {
                     fclose(sess->cur_f);
                     sess->cur_f = NULL;
+                    p_reset_reader(&sess->in_reader);
                     sess->state = sstate_await;
                 }
                 break;

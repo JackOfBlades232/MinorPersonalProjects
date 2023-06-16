@@ -5,22 +5,19 @@
 
 #include <stdio.h>
 
-#define ARRAY_RESIZE \
-    if (*cnt >= max_cnt) \
-        return 0; \
-    if (*cnt >= *cap) { \
-        while (*cnt >= *cap) \
-            *cap += cap_step; \
-        if (*cap > max_cnt) \
-            *cap = max_cnt; \
-        *arr = realloc(*arr, *cap * sizeof(char *)); \
-    }
-
 int add_string_to_string_array(char ***arr, const char *str, 
                                size_t *cnt, size_t *cap,
                                size_t cap_step, size_t max_cnt)
 {
-    ARRAY_RESIZE;
+    if (*cnt >= max_cnt)
+        return 0;
+    if (*cnt >= *cap) {
+        while (*cnt >= *cap)
+            *cap += cap_step;
+        if (*cap > max_cnt)
+            *cap = max_cnt;
+        *arr = realloc(*arr, *cap * sizeof(char *));
+    }
 
     size_t slen = strlen(str);
     (*arr)[*cnt] = malloc((slen+1) * sizeof(char));
@@ -35,11 +32,19 @@ int add_string_to_bytestr_array(byte_arr **arr, const char *str, size_t len,
                                 size_t *cnt, size_t *cap,
                                 size_t cap_step, size_t max_cnt)
 {
-    ARRAY_RESIZE;
+    if (*cnt >= max_cnt)
+        return 0;
+    if (*cnt >= *cap) {
+        while (*cnt >= *cap)
+            *cap += cap_step;
+        if (*cap > max_cnt)
+            *cap = max_cnt;
+        *arr = realloc(*arr, *cap * sizeof(byte_arr));
+    }
 
-    (*arr)[*cnt].str = malloc(len * sizeof(char));
-    memcpy((*arr)[*cnt].str, str, len);
-    (*arr)[*cnt].len = len;
+    ((*arr)[*cnt]).str = malloc(len * sizeof(char));
+    memcpy(((*arr)[*cnt]).str, str, len);
+    ((*arr)[*cnt]).len = len;
 
     (*cnt)++;
     return 1;

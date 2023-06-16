@@ -22,7 +22,7 @@ enum {
     NUM_ACTIONS = 4
 };
 
-typedef enum client_action_tag { // @TODO: add log in action
+typedef enum client_action_tag {
     log_in,
     list_files,
     query_file,

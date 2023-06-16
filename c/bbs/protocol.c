@@ -58,7 +58,7 @@ p_message *p_create_message(p_role role, p_type type)
     msg->role = role;
     msg->type = type;
     msg->cap = MESSAGE_BASE_CAP;
-    msg->words = malloc(msg->cap * sizeof(byte_arr *));
+    msg->words = malloc(msg->cap * sizeof(byte_arr));
     return msg;
 }
 
@@ -278,7 +278,7 @@ static size_t parse_cnt(p_message_reader *reader, const char *str, size_t len)
             }
 
             if (reader->int_bytes_read == WORD_CNT_BYTES) {
-                reader->msg->words = malloc(reader->msg->cap * sizeof(char *));
+                reader->msg->words = malloc(reader->msg->cap * sizeof(byte_arr));
                 
                 reader->int_bytes_read = -1;
                 reader->state = rs_content;
@@ -300,8 +300,7 @@ static void store_reader_cur_word(p_message_reader *reader)
         }
     
         p_add_word_to_message(reader->msg, reader->cur_word, reader->wlen);
-        // @TODO: remove mem leak
-        //free(reader->cur_word);
+        free(reader->cur_word);
     }
 
     reader->wcap = 0;

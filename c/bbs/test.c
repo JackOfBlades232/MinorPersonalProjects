@@ -8,34 +8,25 @@
 
 int main(int argc, char **argv)
 {
-    /*
-    p_message *msg = p_create_message(r_server, ts_init);
-    p_add_word_to_message(msg, "hhf");
-    p_add_word_to_message(msg, "232");
+    p_message *msg = p_create_message(r_client, tc_login);
+    p_add_string_to_message(msg, "bruh");
+    p_add_string_to_message(msg, "__");
     
     p_sendable_message smsg = p_construct_sendable_message(msg);
-    for (size_t i = 0; i < smsg.len; i++) {
-        putchar(smsg.str[i]);
-    }
-    putchar('\n');
+    debug_print_buf(smsg.str, smsg.len);
 
     p_message_reader reader;
     p_init_reader(&reader);
 
-    int pr_res = p_reader_process_str(&reader, smsg.str, smsg.len);
+    size_t chars_processed = 0;
+    p_reader_process_str(&reader, smsg.str, smsg.len, &chars_processed);
 
-    putchar('\n');
-    printf("%d %d\n", pr_res, reader.state);
-    if (pr_res == 1) {
-        printf("%d %d | %ld %ld\n", reader.msg->role, reader.msg->type,
-                                  reader.msg->cnt, reader.msg->cap);
-        for (size_t i = 0; i < reader.msg->cnt; i++)
-            puts(reader.msg->words[i]);
-    }
+    debug_log_p_message(reader.msg);
 
     p_deinit_sendable_message(&smsg);
     p_deinit_reader(&reader);
     p_free_message(msg);
+    /*
     */
 
 
@@ -57,6 +48,7 @@ int main(int argc, char **argv)
     }
     */
 
+    /*
     if (argc < 2)
         return 0;
     database db;
@@ -85,6 +77,7 @@ int main(int argc, char **argv)
 
         db_deinit(&db);
     }
+    */
 
     /*
     debug_cat_file(stderr, "database_ex/data/humpty.txt");
