@@ -1,3 +1,3 @@
 file: humpty.txt
 description: a test small text file containing a poem
-access: t
+access: *

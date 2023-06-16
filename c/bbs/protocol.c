@@ -369,30 +369,32 @@ size_t parse_content(p_message_reader *reader, const char *str, size_t len)
     return chars_read;
 }
 
-int p_reader_process_str(p_message_reader *reader, const char *str, size_t *len)
+int p_reader_process_str(p_message_reader *reader, 
+                         const char *str, size_t len, size_t *chars_processed)
 {
     if (reader->state == rs_empty || reader->state == rs_error)
         return -1;
 
     int result = 0;
-
-    while (*len > 0) {
+    
+    *chars_processed = 0;
+    while (len > 0) {
         size_t chars_read;
         switch (reader->state) {
             case rs_header:
-                chars_read = match_header(reader, str, *len);
+                chars_read = match_header(reader, str, len);
                 break;
             case rs_role:
-                chars_read = parse_role(reader, str, *len);
+                chars_read = parse_role(reader, str, len);
                 break;
             case rs_type:
-                chars_read = parse_type(reader, str, *len);
+                chars_read = parse_type(reader, str, len);
                 break;
             case rs_cnt:
-                chars_read = parse_cnt(reader, str, *len);
+                chars_read = parse_cnt(reader, str, len);
                 break;
             case rs_content:
-                chars_read = parse_content(reader, str, *len);
+                chars_read = parse_content(reader, str, len);
                 break;
             case rs_finished:
                 break;
@@ -402,7 +404,9 @@ int p_reader_process_str(p_message_reader *reader, const char *str, size_t *len)
         }
 
         str += chars_read;
-        *len -= chars_read;
+        len -= chars_read;
+
+        *chars_processed += chars_read;
 
         if (reader->state == rs_finished) {
             result = 1;

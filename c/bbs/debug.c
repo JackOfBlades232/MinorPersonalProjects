@@ -7,127 +7,127 @@ enum {
     MAX_FILE_LEN_FOR_DISPLAY = 65535
 };
 
-void debug_log_p_role(FILE* f, p_role role)
+void debug_log_p_role(p_role role)
 {
     switch (role) {
         case r_unknown:
-            fprintf(f, "unknown");
+            fprintf(stderr, "unknown");
             break;
         case r_server:
-            fprintf(f, "server");
+            fprintf(stderr, "server");
             break;
         case r_client:
-            fprintf(f, "client");
+            fprintf(stderr, "client");
             break;
         default:
-            fprintf(f, "ROLE %d MISSING, IMPLEMENT", role);
+            fprintf(stderr, "ROLE %d MISSING, IMPLEMENT", role);
     }
 }
 
-void debug_log_p_type(FILE* f, p_type type)
+void debug_log_p_type(p_type type)
 {
     switch (type) {
         case t_unknown:
-            fprintf(f, "unknown");
+            fprintf(stderr, "unknown");
             break;
         case ts_init:
-            fprintf(f, "s-init");
+            fprintf(stderr, "s-init");
             break;
         case tc_login:
-            fprintf(f, "c-login");
+            fprintf(stderr, "c-login");
             break;
         case ts_login_success:
-            fprintf(f, "s-login-success");
+            fprintf(stderr, "s-login-success");
             break;
         case ts_login_failed:
-            fprintf(f, "s-login-failed");
+            fprintf(stderr, "s-login-failed");
             break;
         case tc_list_files:
-            fprintf(f, "c-list-files");
+            fprintf(stderr, "c-list-files");
             break;
         case ts_file_list_response:
-            fprintf(f, "s-file-list-response");
+            fprintf(stderr, "s-file-list-response");
             break;
         case tc_file_query:
-            fprintf(f, "c-file-query");
+            fprintf(stderr, "c-file-query");
             break;
         case ts_file_not_found:
-            fprintf(f, "s-file-not-found");
+            fprintf(stderr, "s-file-not-found");
             break;
         case ts_file_restricted:
-            fprintf(f, "s-file-restricted");
+            fprintf(stderr, "s-file-restricted");
             break;
         case ts_start_file_transfer:
-            fprintf(f, "s-start-file-transfer");
+            fprintf(stderr, "s-start-file-transfer");
             break;
         case ts_file_packet:
-            fprintf(f, "s-file-packet");
+            fprintf(stderr, "s-file-packet");
             break;
         case tc_leave_message:
-            fprintf(f, "c-leave-message");
+            fprintf(stderr, "c-leave-message");
             break;
         case ts_message_done:
-            fprintf(f, "s-message-done");
+            fprintf(stderr, "s-message-done");
             break;
         default:
-            fprintf(f, "TYPE %d MISSING, IMPLEMENT", type);
+            fprintf(stderr, "TYPE %d MISSING, IMPLEMENT", type);
     }
 }
 
-void debug_log_p_message(FILE* f, p_message *msg)
+void debug_log_p_message(p_message *msg)
 {
     if (!msg) {
-        fprintf(f, "DEBUG: message is null\n");
+        fprintf(stderr, "DEBUG: message is null\n");
         return;
     }
 
-    fprintf(f, "DEBUG: message\n");
+    fprintf(stderr, "DEBUG: message\n");
 
-    fprintf(f, "DEBUG: role: ");
-    debug_log_p_role(f, msg->role);
-    fprintf(f, " type: ");
-    debug_log_p_type(f, msg->type);
-    fputc('\n', f);
+    fprintf(stderr, "DEBUG: role: ");
+    debug_log_p_role(msg->role);
+    fprintf(stderr, " type: ");
+    debug_log_p_type(msg->type);
+    fputc('\n', stderr);
 
-    fprintf(f, "DEBUG: words[%ld]: ", msg->cnt);
+    fprintf(stderr, "DEBUG: words[%ld]: ", msg->cnt);
     for (size_t i = 0; i < msg->cnt; i++)
-        fprintf(f, "[%ld] %s", strlen(msg->words[i]), msg->words[i]);
-    fputc('\n', f);
+        fprintf(stderr, "[%ld] %s", strlen(msg->words[i]), msg->words[i]);
+    fputc('\n', stderr);
 }
 
-void debug_cat_file(FILE* f, const char *filename)
+void debug_cat_file(const char *filename)
 {
     FILE *file;
     if (!filename) {
-        fprintf(f, "DEBUG: filename is null\n");
+        fprintf(stderr, "DEBUG: filename is null\n");
         return;
     }
 
-    fprintf(f, "DEBUG: cat file %s\n", filename);
+    fprintf(stderr, "DEBUG: cat file %s\n", filename);
 
     file = fopen(filename, "r");
     if (!file) 
-        fprintf(f, "DEBUG: can't open file\n");
+        fprintf(stderr, "DEBUG: can't open file\n");
     else {
         fseek(file, 0, SEEK_END);
         long len = ftell(file);
         rewind(file);
-        fprintf(f, "DEBUG: byte length: %ld\n", len);
+        fprintf(stderr, "DEBUG: byte length: %ld\n", len);
 
         if (len > MAX_FILE_LEN_FOR_DISPLAY)
-            fprintf(f, "DEBUG: too long to display\n");
+            fprintf(stderr, "DEBUG: too long to display\n");
         else {
             int c;
             while ((c = fgetc(file)) != EOF)
-                fputc(c, f);
-            fprintf(f, "DEBUG: eof\n");
+                fputc(c, stderr);
+            fprintf(stderr, "DEBUG: eof\n");
         }
     }
 }
 
-void debug_print_buf(FILE *f, const char *buf, size_t len)
+void debug_print_buf(const char *buf, size_t len)
 {
     for (size_t i = 0; i < len; i++)
-        fputc(buf[i], f);
-    fputc('\n', f);
+        fputc(buf[i], stderr);
+    fputc('\n', stderr);
 }

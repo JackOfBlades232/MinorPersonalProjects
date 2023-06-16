@@ -2,6 +2,7 @@
 #ifndef PROTOCOL_SENTRY
 #define PROTOCOL_SENTRY
 
+#include "utils.h"
 #include <stddef.h>
 
 /*
@@ -41,10 +42,7 @@ typedef struct p_message_tag {
     size_t cnt, cap;
 } p_message;
 
-typedef struct p_sendable_message_tag {
-    char *str;
-    size_t len;
-} p_sendable_message;
+typedef byte_arr p_sendable_message;
 
 typedef enum p_read_state_tag { 
     rs_empty,
@@ -76,6 +74,7 @@ void p_init_reader(p_message_reader *reader);
 void p_deinit_reader(p_message_reader *reader);
 void p_reset_reader(p_message_reader *reader);
 int p_reader_is_live(p_message_reader *reader);
-int p_reader_process_str(p_message_reader *reader, const char *str, size_t *len);
+int p_reader_process_str(p_message_reader *reader, 
+                         const char *str, size_t len, size_t *chars_processed);
 
 #endif

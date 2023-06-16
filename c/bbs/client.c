@@ -17,7 +17,7 @@
 #include "debug.h"
 
 enum {
-    SERV_READ_BUFSIZE = 128,
+    SERV_READ_BUFSIZE = 2048,
     ACTION_BUFSIZE = 32,
     NUM_ACTIONS = 4
 };
@@ -110,16 +110,34 @@ int action_to_p_type(client_action action)
 
 int await_server_message()
 {
-    size_t read_res;
+    size_t read_res = 0;
     int parse_res = 0;
 
-    while ((read_res = read(sock, serv_read_buf, sizeof(serv_read_buf))) > 0) {
+    while (
+            serv_buf_used > 0 ||
+            (read_res = read(sock, serv_read_buf, sizeof(serv_read_buf))) > 0
+          ) {
+        size_t chars_processed;
         serv_buf_used += read_res;
-        parse_res = p_reader_process_str(&reader, serv_read_buf, &serv_buf_used);
+        //debug_print_buf(serv_read_buf, serv_buf_used);
+        parse_res = p_reader_process_str(&reader, 
+                                         serv_read_buf, serv_buf_used, 
+                                         &chars_processed);
+        if (chars_processed < serv_buf_used) {
+            //printf("Go go segfault?\n");
+            memmove(serv_read_buf, 
+                    serv_read_buf + chars_processed, 
+                    serv_buf_used - chars_processed);
+        }
+
+        serv_buf_used -= chars_processed;
+        read_res = 0;
+
         if (parse_res != 0)
             break;
     }
 
+    printf("await parse res: %d\n", parse_res);
     return parse_res == 1;
 }
 
@@ -286,8 +304,6 @@ int parse_action_response(client_action action)
             return 1;
 
         case query_file:
-            debug_log_p_message(stderr, reader.msg);
-
             if (reader.msg->type == ts_file_not_found)
                 printf("File not found\n");
             else if (reader.msg->type == ts_file_restricted)
@@ -298,16 +314,15 @@ int parse_action_response(client_action action)
                     ) {
                 char *e;
                 long packets_left = strtol(reader.msg->words[0], &e, 10);
-                if (*e != '\0' || packets_left <= 0) {
-                    printf("Strtol fail\n");
+                if (*e != '\0' || packets_left <= 0)
                     return 0;
-                }
+
+                p_reset_reader(&reader);
+                printf("packets: %d\n", packets_left);
 
                 FILE *f = fopen(last_queried_filename, "w"); // @TODO: check for null? again, should not happen
-                if (!f) {
-                    printf("File fail\n");
+                if (!f) 
                     return 0;
-                }
                 while (packets_left > 0 && await_server_message()) {
                     if (
                             reader.msg->type != ts_file_packet ||
@@ -316,18 +331,20 @@ int parse_action_response(client_action action)
                         printf("Bad packet\n");
                         break;
                     }
+
+                    debug_log_p_message(reader.msg);
                         
                     fputs(reader.msg->words[0], f);
                     packets_left--;
+
+                    p_reset_reader(&reader);
                 }
 
 
                 fclose(f);
                 return packets_left == 0;
-            } else {
-                printf("Bad format\n");
+            } else
                 return 0;
-            }
 
             return 1;
 
