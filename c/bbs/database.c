@@ -1,7 +1,6 @@
 /* bbs/database.c */
 #include "database.h"
 #include "constants.h"
-#include "utils.h"
 #include <stdlib.h>
 #include <string.h>
 
@@ -619,11 +618,11 @@ file_lookup_result lookup_file(database *db, const char *filename, const char *u
     return res;
 }
 
-void store_message(database *db, const char *username, const char *message)
+void store_message(database *db, const char *username, byte_arr message)
 {
     fputs(username, db->message_f);
     fputc('\n', db->message_f);
-    fputs(message, db->message_f);
+    fputs(message.str, db->message_f); // since '\0' is included
     fputs("\n\n", db->message_f);
     fflush(db->message_f);
 }

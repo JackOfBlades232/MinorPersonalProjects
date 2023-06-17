@@ -69,13 +69,17 @@ static database db = {0};
 void session_post_msg(session *sess, p_message *msg)
 {
     p_sendable_message smsg = p_construct_sendable_message(msg);
-    //write(sess->fd, smsg.str, smsg.len);
-    //p_deinit_sendable_message(&smsg);
     
-    // @TODO: what if last out_buf was not sent fully? (though it is my responsibility not to let this happen)
+    // We presume that whenever we post a message, the previous one has
+    // already been posted. It is a safe assumption, since all regular messages
+    // are small, and the only big messages are file packets, which
+    // we are guaranteed to send in sucession without sending anything else
+    // inbetween
     sess->out_buf = smsg.str;
     sess->out_buf_len = smsg.len;
     sess->out_buf_sent = 0;
+
+    // Transferring ownership of smsg.str, thus not freeing now
 }
 
 void session_post_empty_message(session *sess, p_type type) 
@@ -161,6 +165,32 @@ void session_post_file_list(session *sess)
     p_free_message(response);
 }
 
+p_message *construct_num_packets_response(session *sess, const char *filename)
+{
+    p_message *response;
+
+    sess->cur_f = fopen(filename, "r");
+    if (!sess->cur_f) {
+        sess->state = sstate_error;
+        return NULL;
+    }
+
+    fseek(sess->cur_f, 0, SEEK_END);
+    long len = ftell(sess->cur_f);
+    rewind(sess->cur_f);
+    sess->packets_left = ((len-1) / MAX_WORD_LEN) + 1;
+
+    char packets_left_digits[LONG_MAX_DIGITS+1];
+    snprintf(packets_left_digits, sizeof(packets_left_digits)-1, "%ld", sess->packets_left);
+    packets_left_digits[sizeof(packets_left_digits)] = '\0';
+
+    response = p_create_message(r_server, ts_start_file_transfer);
+    p_add_string_to_message(response, packets_left_digits);
+
+    return response;
+}
+
+
 void session_process_file_query(session *sess)
 {
     p_message *msg = sess->in_reader.msg;
@@ -176,24 +206,9 @@ void session_process_file_query(session *sess)
                                                 sess->usernm, &filename);
 
     if (lookup_res == found) {
-        // @TODO: factor out num-packet sending ?
-        sess->cur_f = fopen(filename, "r");
-        if (!sess->cur_f) {
-            sess->state = sstate_error;
+        response = construct_num_packets_response(sess, filename);
+        if (!response)
             goto defer;
-        }
-
-        fseek(sess->cur_f, 0, SEEK_END);
-        long len = ftell(sess->cur_f);
-        rewind(sess->cur_f);
-        sess->packets_left = ((len-1) / MAX_WORD_LEN) + 1;
-
-        char packets_left_digits[LONG_MAX_DIGITS+1];
-        snprintf(packets_left_digits, sizeof(packets_left_digits)-1, "%ld", sess->packets_left);
-        packets_left_digits[sizeof(packets_left_digits)] = '\0';
-
-        response = p_create_message(r_server, ts_start_file_transfer);
-        p_add_string_to_message(response, packets_left_digits);
 
         sess->state = sstate_file_transfer;
     } else {
@@ -217,11 +232,7 @@ void session_store_message(session *sess) {
         return;
     }
 
-    // @HACK
-    char *message_text = strndup(msg->words[0].str, msg->words[0].len);
-    store_message(&db, sess->usernm, message_text);
-    free(message_text);
-
+    store_message(&db, sess->usernm, msg->words[0]);
     session_post_empty_message(sess, ts_message_done);
 }
 
@@ -445,6 +456,27 @@ void server_deinit()
     }
 }
 
+#ifndef DEBUG
+void daemonize_self()
+{
+    int pid;
+    close(STDIN_FILENO);
+    close(STDOUT_FILENO);
+    close(STDERR_FILENO);
+    open("/dev/null", O_RDONLY);
+    open("/dev/null", O_WRONLY);
+    open("/dev/null", O_WRONLY);
+    chdir("/");
+    pid = fork();
+    if (pid > 0)
+        exit(0);
+    setsid();
+    pid = fork();
+    if (pid > 0)
+        exit(0);
+}
+#endif
+
 int main(int argc, char **argv)
 {
     int result = 0;
@@ -472,7 +504,9 @@ int main(int argc, char **argv)
         return_defer(2);
     }
 
-    // @TODO: should I daemonize the server?
+#ifndef DEBUG
+    daemonize_self();
+#endif
 
     for (;;) {
         fd_set readfds, writefds;
@@ -494,7 +528,6 @@ int main(int argc, char **argv)
             }
         }
 
-        // @TODO: impl writefds, since we may be sending large files
         int sr = select(maxfd+1, &readfds, &writefds, NULL, NULL);
         if (sr == -1) {
             perror("select");

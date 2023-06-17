@@ -64,9 +64,10 @@
 
 Refac:
     * Sort out the error scenarios in client
-    - Go through in-code todos
+    * Go through in-code todos
+    - Refactor db stuff & db todos
+    - Go through client.c todos
     - Add error messages to client (and server?) for special situations
-    - Refactor db stuff
     - Remake all sizeof() to *var, instead of type (fucked me up hard with byte_arr)
     - Refactor byte_arr usage accross protocol, client and server
     - Brush up client ui (new lines & prettiness)

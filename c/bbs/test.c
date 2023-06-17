@@ -10,6 +10,30 @@ int main(int argc, char **argv)
 {
     /*
     p_message *msg = p_create_message(r_client, tc_login);
+
+    for (size_t i = 0; i < 132; i++) {
+        char buf[1000] = {0};
+        if (!p_add_word_to_message(msg, buf, 1000)) {
+            printf("Failed on iter %d, tot len before fail: %d\n", i, msg->tot_w_len);
+            break;
+        } else
+            printf("Iter %d, tot len: %d\n", i, msg->tot_w_len);
+    }
+
+    for (size_t i = 0; i < 256; i++) {
+        char buf[10] = {0};
+        if (!p_add_word_to_message(msg, buf, 10)) {
+            printf("Failed on iter %d, tot len before fail: %d\n", i, msg->tot_w_len);
+            break;
+        } else
+            printf("Iter %d, tot len: %d\n", i, msg->tot_w_len);
+    }
+
+    char buf[5000] = {0};
+    if (!p_add_word_to_message(msg, buf, 5000)) {
+        printf("Failed add\n");
+    }
+
     p_add_string_to_message(msg, "bruh");
     p_add_string_to_message(msg, "__");
     
@@ -48,6 +72,7 @@ int main(int argc, char **argv)
     }
     */
 
+    /*
     if (argc < 2)
         return 0;
     database db;
@@ -76,11 +101,10 @@ int main(int argc, char **argv)
 
         db_deinit(&db);
     }
-    /*
     */
 
+    debug_cat_file("database_ex/data/humpty.txt");
     /*
-    debug_cat_file(stderr, "database_ex/data/humpty.txt");
     */
 
     return 0;

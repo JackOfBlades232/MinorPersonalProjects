@@ -11,8 +11,6 @@
 #define DELIM ':'
 #define ENDC ','
 
-// @TODO: I should cap max total message len, 4 megs sounds unreasonable
-
 enum { 
     BYTE_POT = 256,
     WORD_LEN_BYTES = 2,
@@ -81,7 +79,6 @@ int p_add_word_to_message(p_message *msg, const char *word, size_t len)
             len > MAX_MSG_WORD_LEN || 
             msg->tot_w_len + len > MAX_MSG_TOTAL_WORD_LEN
        ) {
-        printf("Punked\n");
         return 0;
     }
 
@@ -196,7 +193,6 @@ void p_deinit_reader(p_message_reader *reader)
 
 void p_reset_reader(p_message_reader *reader)
 {
-    // @TODO: optimize
     p_deinit_reader(reader);
     p_init_reader(reader);
 }
@@ -256,7 +252,7 @@ MAKE_TRY_PARSE_BYTE_FIELD(role, rs_type)
 MAKE_TRY_GET_BYTE_FIELD(type, NUM_TYPES)
 MAKE_TRY_PARSE_BYTE_FIELD(type, rs_cnt)
 
-// @HACK
+// Hacky, but i shall redeem the signed mess in future projects
 static int char_to_uint_byte_val(char c)
 {
     int ic = (int) c;

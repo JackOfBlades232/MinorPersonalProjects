@@ -2,6 +2,7 @@
 #ifndef DATABASE_SENTRY
 #define DATABASE_SENTRY
 
+#include "utils.h"
 #include <sys/types.h>
 #include <dirent.h>
 #include <stdio.h>
@@ -20,17 +21,15 @@ typedef struct user_data_tag {
 } user_data;
 
 typedef struct database_tag {
-    // @TODO: clean up redundant data
     char *data_path;
     file_metadata **file_metas;
     user_data **user_datas;
-    // @TEST
     FILE *message_f;
 } database;
 
 typedef enum file_lookup_result_tag {
     found, not_found, no_access 
-}file_lookup_result;
+} file_lookup_result;
 
 int db_init(database* db, const char *path);
 void db_deinit(database* db);
@@ -38,6 +37,6 @@ void db_deinit(database* db);
 int try_match_credentials(database* db, const char *usernm, const char *passwd);
 int file_is_available_to_user(file_metadata *fmd, const char *username);
 file_lookup_result lookup_file(database *db, const char *filename, const char *username, char **out);
-void store_message(database *db, const char *username, const char *message);
+void store_message(database *db, const char *username, byte_arr message);
 
 #endif

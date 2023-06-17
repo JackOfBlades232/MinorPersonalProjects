@@ -9,6 +9,7 @@ enum {
 
 void debug_log_p_role(p_role role)
 {
+#ifdef DEBUG
     switch (role) {
         case r_unknown:
             fprintf(stderr, "unknown");
@@ -22,10 +23,12 @@ void debug_log_p_role(p_role role)
         default:
             fprintf(stderr, "ROLE %d MISSING, IMPLEMENT", role);
     }
+#endif
 }
 
 void debug_log_p_type(p_type type)
 {
+#ifdef DEBUG
     switch (type) {
         case t_unknown:
             fprintf(stderr, "unknown");
@@ -72,10 +75,12 @@ void debug_log_p_type(p_type type)
         default:
             fprintf(stderr, "TYPE %d MISSING, IMPLEMENT", type);
     }
+#endif
 }
 
 void debug_log_p_message(p_message *msg)
 {
+#ifdef DEBUG
     if (!msg) {
         fprintf(stderr, "DEBUG: message is null\n");
         return;
@@ -93,10 +98,12 @@ void debug_log_p_message(p_message *msg)
     for (size_t i = 0; i < msg->cnt; i++)
         fprintf(stderr, " [%ld] %s", msg->words[i].len, msg->words[i].str);
     fputc('\n', stderr);
+#endif
 }
 
 void debug_cat_file(const char *filename)
 {
+#ifdef DEBUG
     FILE *file;
     if (!filename) {
         fprintf(stderr, "DEBUG: filename is null\n");
@@ -123,11 +130,14 @@ void debug_cat_file(const char *filename)
             fprintf(stderr, "DEBUG: eof\n");
         }
     }
+#endif
 }
 
 void debug_print_buf(const char *buf, size_t len)
 {
+#ifdef DEBUG
     for (size_t i = 0; i < len; i++)
         fputc(buf[i], stderr);
     fputc('\n', stderr);
+#endif
 }
