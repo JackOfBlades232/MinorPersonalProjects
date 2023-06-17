@@ -20,6 +20,8 @@ enum {
     WORD_CNT_BYTES = 1,
     MAX_WORD_CNT = 255, // 256**WORD_CNT_BYTES - 1
 
+    MAX_MSG_TOTAL_WORD_LEN = 131071,
+
     MESSAGE_BASE_CAP = 64,
     WORD_BASE_CAP = 16,
 
@@ -48,6 +50,7 @@ static p_message *create_empty_message()
     msg->type = t_unknown;
     msg->cnt = 0;
     msg->cap = 0;
+    msg->tot_w_len = 0;
     msg->words = NULL;
     return msg;
 }
@@ -74,9 +77,22 @@ void p_free_message(p_message *msg)
 
 int p_add_word_to_message(p_message *msg, const char *word, size_t len)
 {
-    return add_string_to_bytestr_array(&msg->words, word, len,
-                                       &msg->cnt, &msg->cap, 
-                                       MESSAGE_BASE_CAP, MAX_WORD_CNT);
+    if (
+            len > MAX_MSG_WORD_LEN || 
+            msg->tot_w_len + len > MAX_MSG_TOTAL_WORD_LEN
+       ) {
+        printf("Punked\n");
+        return 0;
+    }
+
+    if (add_string_to_bytestr_array(&msg->words, word, len,
+                                    &msg->cnt, &msg->cap, 
+                                    MESSAGE_BASE_CAP, MAX_WORD_CNT)) {
+        msg->tot_w_len += len;
+        return 1;
+    }
+
+    return 0;
 }
 
 int p_add_string_to_message(p_message *msg, const char *str)
@@ -94,14 +110,8 @@ p_sendable_message p_construct_sendable_message(p_message *msg)
 
     // header + delim + role&type bytes + delim + word cnt + ... + end char
     smsg.len = HEADER_LEN + 1 + BYTE_FIELDS_LEN + 1 + WORD_CNT_BYTES + 1;
-
-    for (size_t i = 0; i < msg->cnt; i++) {
-        size_t wlen = msg->words[i].len;
-        if (wlen > MAX_MSG_WORD_LEN)
-            return smsg;
-
-        smsg.len += 1 + WORD_LEN_BYTES + wlen; // delim + 2 len bytes + content
-    }
+    // Total word len + delim and 2byte-length before every word
+    smsg.len += msg->tot_w_len + msg->cnt * (WORD_LEN_BYTES+1);
 
     smsg.str = malloc((smsg.len+1) * sizeof(char));
 

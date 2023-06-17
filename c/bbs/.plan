@@ -63,9 +63,9 @@
     * Serverside upon recieving a message put it in the messages.txt file
 
 Refac:
-    - Sort out the error scenarios in client
-    - Add error messages to client (and server?) for special situations
+    * Sort out the error scenarios in client
     - Go through in-code todos
+    - Add error messages to client (and server?) for special situations
     - Refactor db stuff
     - Remake all sizeof() to *var, instead of type (fucked me up hard with byte_arr)
     - Refactor byte_arr usage accross protocol, client and server
@@ -78,10 +78,11 @@ Other:
     - Remake file i/o on transfer to read/write for optimization
     - Add download progress bar to client (in packets, redraw with \b)
 
-Disconnections & timeouts
+Disconnections, timeouts & exceptional situations
     - Idea: Add file status to metafile (valid, writing, corrupted), for disconnections when loading file
     - Idea: implement timeouts for pending packages
     - Idea: need to check eof if sock (=disconnected)
     - Idea: implement (^C) interception as regular exit, and send disconnection message
+    - Thought: I should really understand how to deal with invalid packets and parsing client side (now, I just kill the client)
 
 Admin user:

@@ -315,6 +315,8 @@ void prepare_next_file_chunk_for_output(session *sess)
         content->len++;
     }
 
+    out_msg->tot_w_len = content->len;
+
     session_post_msg(sess, out_msg);
     p_free_message(out_msg);
 }

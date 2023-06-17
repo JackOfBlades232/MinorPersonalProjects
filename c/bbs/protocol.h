@@ -40,6 +40,7 @@ typedef struct p_message_tag {
     p_type type;
     byte_arr *words;
     size_t cnt, cap;
+    size_t tot_w_len;
 } p_message;
 
 typedef byte_arr p_sendable_message;
@@ -66,8 +67,12 @@ typedef struct p_message_reader_tag {
 
 p_message *p_create_message(p_role role, p_type type);
 void p_free_message(p_message *msg);
+
+// Returns 0 if word too long or the word cnt is capped out, I do not use it
+// since in this application I do not approach the limits
 int p_add_word_to_message(p_message *msg, const char *word, size_t len);
 int p_add_string_to_message(p_message *msg, const char *str);
+
 p_sendable_message p_construct_sendable_message(p_message *msg);
 void p_deinit_sendable_message(p_sendable_message *msg);
 

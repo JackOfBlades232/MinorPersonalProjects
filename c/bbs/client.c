@@ -182,7 +182,8 @@ int ask_for_credential_item(p_message *msg, const char *dialogue)
         return 0;
     }
 
-    return p_add_string_to_message(msg, cred);
+    p_add_string_to_message(msg, cred);
+    return 1;
 }
 
 int login_dialogue() 
@@ -230,15 +231,13 @@ int query_file_dialogue()
     }
 
     p_message *msg = p_create_message(r_client, tc_file_query);
-    if (!p_add_string_to_message(msg, filename))
-        return_defer(0);
+    p_add_string_to_message(msg, filename);
 
     if (last_queried_filename) free(last_queried_filename);
     last_queried_filename = strdup(filename);
 
     send_message(msg);
 
-defer:
     if (msg) p_free_message(msg);
     return result;
 }
@@ -262,12 +261,10 @@ int leave_message_dialogue()
     }
 
     p_message *msg = p_create_message(r_client, tc_leave_message);
-    if (!p_add_string_to_message(msg, message))
-        return_defer(0);
+    p_add_string_to_message(msg, message);
 
     send_message(msg);
 
-defer:
     if (msg) p_free_message(msg);
     return result;
 }
@@ -312,6 +309,7 @@ int parse_action_response(client_action action)
                      reader.msg->type != ts_login_failed
                     )
                ) {
+                fprintf(stderr, "Invalid log_in server response\n");
                 return 0;
             }
             
@@ -325,6 +323,7 @@ int parse_action_response(client_action action)
 
         case list_files:
             if (reader.msg->type != ts_file_list_response) {
+                fprintf(stderr, "Invalid list_files server response\n");
                 return 0;
             }
 
@@ -350,19 +349,25 @@ int parse_action_response(client_action action)
                     ) {
                 char *e;
                 long packets_left = strtol(reader.msg->words[0].str, &e, 10);
-                if (*e != '\0' || packets_left <= 0)
+                if (*e != '\0' || packets_left <= 0) {
+                    fprintf(stderr, "Invalid num packets in query_file server response\n");
                     return 0;
+                }
 
                 p_reset_reader(&reader);
 
                 FILE *f = fopen(last_queried_filename, "w"); // @TODO: check for null? again, should not happen
-                if (!f) 
+                if (!f) {
+                    // @TODO: if can't save, send something back as a rejection
+                    fprintf(stderr, "Can't save the file\n");
                     return 0;
+                }
                 while (packets_left > 0 && await_server_message()) {
                     if (
                             reader.msg->type != ts_file_packet ||
                             reader.msg->cnt != 1
                        ) {
+                        fprintf(stderr, "Recieved invalid packet\n");
                         break;
                     }
                         
@@ -375,9 +380,15 @@ int parse_action_response(client_action action)
 
 
                 fclose(f);
+                if (packets_left > 0)
+                    fprintf(stderr, "Failed to recieve all packets\n");
+                else
+                    printf("Download complete\n");
                 return packets_left == 0;
-            } else
+            } else {
+                fprintf(stderr, "Invalid query_file server response\n");
                 return 0;
+            }
 
             return 1;
 
@@ -385,8 +396,10 @@ int parse_action_response(client_action action)
             if (reader.msg->type == ts_message_done && reader.msg->cnt == 0) {
                 printf("Message sent\n");
                 return 1;
-            } else
+            } else {
+                fprintf(stderr, "Invalid leave_message server response\n");
                 return 0;
+            }
 
         default:
             printf("Not implemented\n");
@@ -416,18 +429,22 @@ int ask_for_action()
     fgets(action_buf, sizeof(action_buf)-1, stdin);
     if (!strip_nl(action_buf)) {
         discard_stdin();
+        printf("Action name is too long\n");
         return 0;
     }
-    if (!try_get_client_action_by_name(action_buf, &action))
+    if (!try_get_client_action_by_name(action_buf, &action)) {
+        printf("Invalid action name\n");
         return 0;
+    }
 
     p_init_reader(&reader);
-    if (
-            !perform_action(action) ||
-            !await_server_message() ||
-            !parse_action_response(action)
-       ) {
-        result = 0;
+    if (perform_action(action)) { // If could not perform action in dialogue, continue
+        if (                      // If server message was invalid or unparsable, stop client
+                !await_server_message() ||
+                !parse_action_response(action)
+           ) {
+            result = 0;
+        }
     }
     p_deinit_reader(&reader);
 
@@ -472,7 +489,7 @@ int main(int argc, char **argv)
 
     // @TEST
     int action_res;
-    while ((action_res = ask_for_action())) {}
+    while ((action_res = ask_for_action()) != -1) {}
 
 defer:
     if (sock != -1) close(sock);
