@@ -173,8 +173,14 @@ int ask_for_credential_item(p_message *msg, const char *dialogue)
 
     fputs(dialogue, stdout);
     fgets(cred, sizeof(cred)-1, stdin);
-    if (!strip_nl(cred) || check_spc(cred))
+    if (!strip_nl(cred)) {
+        printf("Login item loo long\n");
         return 0;
+    }
+    if (check_spc(cred)) {
+        printf("Spaces are not allowed in login item\n");
+        return 0;
+    }
 
     return p_add_string_to_message(msg, cred);
 }
@@ -218,8 +224,10 @@ int query_file_dialogue()
     char filename[MAX_FILENAME_LEN+1];
     printf("\nInput file name: ");
     fgets(filename, sizeof(filename)-1, stdin);
-    if (!strip_nl(filename))
+    if (!strip_nl(filename)) {
+        printf("Filename is too long\n");
         return 0;
+    }
 
     p_message *msg = p_create_message(r_client, tc_file_query);
     if (!p_add_string_to_message(msg, filename))
@@ -227,6 +235,35 @@ int query_file_dialogue()
 
     if (last_queried_filename) free(last_queried_filename);
     last_queried_filename = strdup(filename);
+
+    send_message(msg);
+
+defer:
+    if (msg) p_free_message(msg);
+    return result;
+}
+
+int leave_message_dialogue()
+{
+    int result = 1;
+    
+    char message[MAX_MESSAGE_LEN+1];
+
+    if (!logged_in) {
+        printf("\nLog in to leave messages\n");
+        return 0;
+    }
+
+    printf("\nInput message: ");
+    fgets(message, sizeof(message)-1, stdin);
+    if (!strip_nl(message)) {
+        printf("Message is too long\n");
+        return 0;
+    }
+
+    p_message *msg = p_create_message(r_client, tc_leave_message);
+    if (!p_add_string_to_message(msg, message))
+        return_defer(0);
 
     send_message(msg);
 
@@ -250,8 +287,11 @@ int perform_action(client_action action)
         case query_file:
             return query_file_dialogue();
 
+        case leave_message:
+            return leave_message_dialogue();
+
         default:
-            printf("Not implemented\n");
+            fprintf(stderr, "Not implemented\n");
     }
 
     return 0;
@@ -327,7 +367,7 @@ int parse_action_response(client_action action)
                     }
                         
                     byte_arr content = reader.msg->words[0];
-                    fwrite(content.str, sizeof(char), content.len, f);
+                    fwrite(content.str, sizeof(*content.str), content.len, f);
                     packets_left--;
 
                     p_reset_reader(&reader);
@@ -340,6 +380,13 @@ int parse_action_response(client_action action)
                 return 0;
 
             return 1;
+
+        case leave_message:
+            if (reader.msg->type == ts_message_done && reader.msg->cnt == 0) {
+                printf("Message sent\n");
+                return 1;
+            } else
+                return 0;
 
         default:
             printf("Not implemented\n");

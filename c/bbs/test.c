@@ -8,6 +8,7 @@
 
 int main(int argc, char **argv)
 {
+    /*
     p_message *msg = p_create_message(r_client, tc_login);
     p_add_string_to_message(msg, "bruh");
     p_add_string_to_message(msg, "__");
@@ -26,7 +27,6 @@ int main(int argc, char **argv)
     p_deinit_sendable_message(&smsg);
     p_deinit_reader(&reader);
     p_free_message(msg);
-    /*
     */
 
 
@@ -48,7 +48,6 @@ int main(int argc, char **argv)
     }
     */
 
-    /*
     if (argc < 2)
         return 0;
     database db;
@@ -77,6 +76,7 @@ int main(int argc, char **argv)
 
         db_deinit(&db);
     }
+    /*
     */
 
     /*

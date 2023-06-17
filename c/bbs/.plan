@@ -46,7 +46,7 @@
     * Update file list as to only display avalilable files
     * Make login one of the actions & optional
 
-File transfer:
+*File transfer:
     * Implement buf for client & partial reading for both client and server
     * Send out file length or num packets in start-transfer message
     * Add session state & start streaming file immediately
@@ -57,17 +57,20 @@ File transfer:
         * The problem: new p_add and free together cause freeing of invalid pointer
             separately they are good
 
-Leave message:
-    - Make leave-message client action & dialogue (with max message len)
-    - Make message file, and db_init message file checking (enties: user\n msg\n\0\n), if not present -- create
-    - Serverside upon recieving a message put it in the messages.txt file
+*Leave message:
+    * Make leave-message client action & dialogue (with max message len)
+    * Make message file, and db_init message file checking (enties: user\n msg\n\n), if not present -- create
+    * Serverside upon recieving a message put it in the messages.txt file
 
 Refac:
+    - Sort out the error scenarios in client
+    - Add error messages to client (and server?) for special situations
     - Go through in-code todos
     - Refactor db stuff
     - Remake all sizeof() to *var, instead of type (fucked me up hard with byte_arr)
     - Refactor byte_arr usage accross protocol, client and server
     - Brush up client ui (new lines & prettiness)
+    - Make a distinct name for message to admin (not to collide with message)
     - Freestyle refac pass
 
 Other:

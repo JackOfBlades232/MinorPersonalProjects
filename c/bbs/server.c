@@ -210,6 +210,21 @@ defer:
     if (filename) free(filename);
 }
 
+void session_store_message(session *sess) {
+    p_message *msg = sess->in_reader.msg;
+    if (msg->cnt != 1 || !sess->usernm) {
+        sess->state = sstate_error;
+        return;
+    }
+
+    // @HACK
+    char *message_text = strndup(msg->words[0].str, msg->words[0].len);
+    store_message(&db, sess->usernm, message_text);
+    free(message_text);
+
+    session_post_empty_message(sess, ts_message_done);
+}
+
 void session_parse_regular_message(session *sess)
 {
     p_message *msg = sess->in_reader.msg;
@@ -227,6 +242,9 @@ void session_parse_regular_message(session *sess)
             break;
         case tc_file_query:
             session_process_file_query(sess);
+            break;
+        case tc_leave_message:
+            session_store_message(sess);
             break;
         default:
             sess->state = sstate_error;
@@ -257,11 +275,12 @@ int session_read(session *sess)
 
         sess->in_buf_used -= chars_processed;
 
-        if (parse_res == -1) {
+        if (parse_res == 0)
+            continue;
+        else if (parse_res == -1 || sess->in_reader.msg->role != r_client) {
             sess->state = sstate_error;
             break;
-        } else if (parse_res == 0)
-            continue;
+        } 
 
         switch (sess->state) {
             case sstate_await:

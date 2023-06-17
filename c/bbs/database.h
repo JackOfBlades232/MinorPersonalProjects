@@ -24,6 +24,8 @@ typedef struct database_tag {
     char *data_path;
     file_metadata **file_metas;
     user_data **user_datas;
+    // @TEST
+    FILE *message_f;
 } database;
 
 typedef enum file_lookup_result_tag {
@@ -36,5 +38,6 @@ void db_deinit(database* db);
 int try_match_credentials(database* db, const char *usernm, const char *passwd);
 int file_is_available_to_user(file_metadata *fmd, const char *username);
 file_lookup_result lookup_file(database *db, const char *filename, const char *username, char **out);
+void store_message(database *db, const char *username, const char *message);
 
 #endif

@@ -9,6 +9,7 @@
 
 static const char passwd_rel_path[] = "/passwd.txt";
 static const char data_rel_path[] = "/data/";
+static const char message_rel_path[] = "/message.txt";
 
 static const char metafile_extension[] = ".meta";
 
@@ -43,6 +44,12 @@ typedef enum metadata_parse_state_tag {
     mps_finished,
     mps_error
 } metadata_parse_state;
+
+typedef enum message_file_parse_state_tag {
+    mfps_user,
+    mfps_message,
+    mfps_delim
+} message_file_parse_state;
 
 static const char metadata_file_alias[] = "file:";
 static const char metadata_descr_alias[] = "description:";
@@ -89,6 +96,7 @@ static void free_user_data(user_data *ud)
     free(ud);
 }
 
+// @TODO: refac flag
 static int read_word_to_buf(FILE *f, char *buf, size_t bufsize, int stop_at_sep)
 {
     size_t i = 0;
@@ -333,7 +341,7 @@ static int parse_data_dir(database *db)
 
         db->file_metas[cnt] = fmd;
         cnt++;
-
+  
         fmd = NULL;
     }
 
@@ -450,26 +458,86 @@ defer:
     return result;
 }
 
+// @TODO: add message lookup for admin users?
+static int parse_message_file(database *db, const char *path)
+{
+    int result = 1;
+
+    db->message_f = fopen(path, "a+");
+    if (!db->message_f)
+        return 0;
+
+    char buf[MAX_MESSAGE_LEN];
+    int break_c;
+    message_file_parse_state state = mfps_user;
+    for (;;) {
+        break_c = read_word_to_buf(db->message_f, buf, sizeof(buf), 0);
+
+        if (break_c == 0)
+            return_defer(0);
+
+        size_t len = strlen(buf);
+        
+        switch (state) {
+            case mfps_user:
+                if (len == 0) {
+                    if (break_c == EOF)
+                        return_defer(1);
+                    else
+                        continue;
+                } else if (len > MAX_LOGIN_ITEM_LEN || break_c != '\n')
+                    return_defer(0);
+                state = mfps_message;
+                break;
+
+            case mfps_message:
+                if (len > MAX_MESSAGE_LEN || break_c != '\n')
+                    return_defer(0);
+                state = mfps_delim;
+                break;
+
+            case mfps_delim:
+                if (len != 0 || break_c != '\n')
+                    return_defer(0);
+                state = mfps_user;
+                break;
+        }
+    }
+
+defer:
+    if (!result && db->message_f) {
+        fclose(db->message_f);
+        db->message_f = NULL;
+    } else 
+        rewind(db->message_f);
+    return result;    
+}
+
 int db_init(database* db, const char *path)
 { 
     int result = 1;
 
     char *path_copy = NULL,
-         *passwd_path = NULL;
+         *passwd_path = NULL,
+         *message_path = NULL;
     size_t path_len = strlen(path);
 
     db->data_path = NULL;
     db->file_metas = NULL;
     db->user_datas = NULL;
+    db->message_f = NULL;
 
     if (path[path_len-1] == '/')
         path_len--;
     path_copy = strndup(path, path_len);
 
     passwd_path = concat_strings(path_copy, passwd_rel_path, NULL);
+    message_path = concat_strings(path_copy, message_rel_path, NULL);
     db->data_path = concat_strings(path_copy, data_rel_path, NULL);
 
     if (!parse_passwd_file(db, passwd_path))
+        return_defer(0);
+    if (!parse_message_file(db, message_path))
         return_defer(0);
     if (!parse_data_dir(db))
         return_defer(0);
@@ -477,6 +545,7 @@ int db_init(database* db, const char *path)
 defer:
     if (!result)
         db_deinit(db);
+    if (message_path) free(message_path);
     if (passwd_path) free(passwd_path);
     if (path_copy) free(path_copy);
     return result;
@@ -494,11 +563,13 @@ void db_deinit(database* db)
             free_user_data(*udp);
         free(db->user_datas);
     }
+    if (db->message_f) fclose(db->message_f);
     if (db->data_path) free(db->data_path);
 
     db->data_path = NULL;
     db->file_metas = NULL;
     db->user_datas = NULL;
+    db->message_f = NULL;
 }
 
 int try_match_credentials(database* db, const char *usernm, const char *passwd)
@@ -546,4 +617,13 @@ file_lookup_result lookup_file(database *db, const char *filename, const char *u
     }
 
     return res;
+}
+
+void store_message(database *db, const char *username, const char *message)
+{
+    fputs(username, db->message_f);
+    fputc('\n', db->message_f);
+    fputs(message, db->message_f);
+    fputs("\n\n", db->message_f);
+    fflush(db->message_f);
 }
