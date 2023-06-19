@@ -77,11 +77,16 @@ Other:
     * Add download progress bar to client (in packets, redraw with \b)
 
 Disconnections, timeouts & exceptional situations
-    - Idea: Add file status to metafile (valid, writing, corrupted), for disconnections when loading file
-    - Idea: implement timeouts for pending packages
-    - Idea: need to check eof if sock (=disconnected)
-    - Idea: implement (^C) interception as regular exit, and send disconnection message
-    - Thought: I should really understand how to deal with invalid packets and parsing client side (now, I just kill the client)
+    - Check 0 in sock (=disconnected)
+        - If serverside, close session (set state = err)
+        - If clientside, display message and kill client (string of err codes or set sock=-1 and exit loop?)
+    - Implement timeouts for awaiting messages (clientside, server should be ok with radiosilence)
+    - Idea: implement (^C) interception as regular exit
+        - Clientside: wait for end of response (with sigprocmask), terminate (no need for disc msg, it'll be 0 in sock)
+        - Serverside: for all sessions set a state equal to "finish all responses" and then terminate, not accepting new ones
+            - Important: I should add a state "serving simple response", and return to await only in write
+        
+    - If disconnected while transferring file, log this in client (*and clear it's contents?)
 
 Admin user:
     Admin user mark & dialogues (client):
@@ -96,6 +101,7 @@ Admin user:
 
     Delete file:
 
+    Disconnection on admin actions (upload):
 
 Refac 2:
     - Freestyle refac pass

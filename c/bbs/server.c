@@ -296,6 +296,10 @@ int session_read(session *sess)
                 session_parse_regular_message(sess);
                 break;
 
+            case sstate_file_transfer:
+                sess->state = sstate_error;
+                break;
+
             default:
                 break;
         }

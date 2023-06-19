@@ -305,7 +305,7 @@ int perform_action(client_action action)
     return 0;
 }
 
-int parse_login_response()
+int process_login_response()
 {
     if (
             reader.msg->cnt != 0 || 
@@ -327,7 +327,7 @@ int parse_login_response()
     return 1;
 }
 
-int parse_file_list_response()
+int process_file_list_response()
 {
     if (reader.msg->type != ts_file_list_response) {
         fprintf(stderr, "Invalid list_files server response\n");
@@ -368,7 +368,7 @@ int draw_download_progress_bar(long tot_packets, long packets_left, int prev_cha
     return new_chars;
 }
 
-int parse_query_file_response()
+int process_query_file_response()
 {
     int result = 1;
     int fd = -1;
@@ -444,7 +444,7 @@ defer:
     return result;
 }
 
-int parse_leave_note_response()
+int process_leave_note_response()
 {
     if (reader.msg->type == ts_note_done && reader.msg->cnt == 0) {
         printf("Note sent\n");
@@ -455,20 +455,20 @@ int parse_leave_note_response()
     }
 }
 
-int parse_action_response(client_action action)
+int process_action_response(client_action action)
 {
     if (reader.msg->role != r_server) 
         return 0;
 
     switch (action) {
         case log_in:
-            return parse_login_response();
+            return process_login_response();
         case list_files:
-            return parse_file_list_response();
+            return process_file_list_response();
         case query_file:    
-            return parse_query_file_response();
+            return process_query_file_response();
         case leave_note:
-            return parse_leave_note_response();
+            return process_leave_note_response();
 
         default:
             printf("Not implemented\n");
@@ -507,14 +507,21 @@ int ask_for_action()
     }
 
     p_init_reader(&reader);
-    if (perform_action(action)) { // If could not perform action in dialogue, continue
-        if (                      // If server message was invalid or unparsable, stop client
-                !await_server_message() ||
-                !parse_action_response(action)
-           ) {
-            result = 0;
-        }
+
+    // If could not perform action in dialogue, continue
+    if (!perform_action(action))
+        return_defer(1);
+
+    // If server message was invalid or unparsable, stop client
+    if (!await_server_message()) {
+        fprintf(stderr, "Error while parsing server message\n");
+        return_defer(0);
     }
+    if (!process_action_response(action)) {
+        fprintf(stderr, "Error while processing server response\n");
+        return_defer(0);
+    }
+
     p_deinit_reader(&reader);
 
 defer:
