@@ -93,6 +93,9 @@ void session_post_init_message(session *sess)
 {
     p_message *msg = p_create_message(r_server, ts_init);
     p_add_string_to_message(msg, title);
+
+    debug_log_p_message(msg);
+
     session_post_msg(sess, msg);
     p_free_message(msg);
 }
