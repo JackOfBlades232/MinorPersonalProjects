@@ -5,22 +5,31 @@
 
 #include <stdio.h>
 
+int resize_dynamic_arr(void **arr, size_t size, size_t *cnt, size_t *cap,
+                       size_t cap_step, size_t max_cnt, int null_terminated)
+{
+    if (*cnt >= max_cnt)
+        return 0;
+    if (*cnt >= *cap - null_terminated) {
+        while (*cnt >= *cap - null_terminated)
+            *cap += cap_step;
+        if (*cap - null_terminated > max_cnt)
+            *cap = max_cnt;
+        *arr = realloc(*arr, *cap * size);
+    }
+
+    return 1;
+}
+
 int add_string_to_string_array(char ***arr, const char *str, 
                                size_t *cnt, size_t *cap,
                                size_t cap_step, size_t max_cnt)
 {
-    if (*cnt >= max_cnt)
+    if (!resize_dynamic_arr((void **) arr, sizeof(**arr), cnt, cap, cap_step, max_cnt, 0))
         return 0;
-    if (*cnt >= *cap) {
-        while (*cnt >= *cap)
-            *cap += cap_step;
-        if (*cap > max_cnt)
-            *cap = max_cnt;
-        *arr = realloc(*arr, *cap * sizeof(char *));
-    }
 
     size_t slen = strlen(str);
-    (*arr)[*cnt] = malloc((slen+1) * sizeof(char));
+    (*arr)[*cnt] = malloc((slen+1) * sizeof(*((*arr)[*cnt])));
     memcpy((*arr)[*cnt], str, slen);
     (*arr)[*cnt][slen] = '\0';
 
@@ -32,17 +41,10 @@ int add_string_to_bytestr_array(byte_arr **arr, const char *str, size_t len,
                                 size_t *cnt, size_t *cap,
                                 size_t cap_step, size_t max_cnt)
 {
-    if (*cnt >= max_cnt)
+    if (!resize_dynamic_arr((void **) arr, sizeof(**arr), cnt, cap, cap_step, max_cnt, 0))
         return 0;
-    if (*cnt >= *cap) {
-        while (*cnt >= *cap)
-            *cap += cap_step;
-        if (*cap > max_cnt)
-            *cap = max_cnt;
-        *arr = realloc(*arr, *cap * sizeof(byte_arr));
-    }
 
-    ((*arr)[*cnt]).str = malloc(len * sizeof(char));
+    ((*arr)[*cnt]).str = malloc(len * sizeof(*(((*arr)[*cnt]).str)));
     memcpy(((*arr)[*cnt]).str, str, len);
     ((*arr)[*cnt]).len = len;
 

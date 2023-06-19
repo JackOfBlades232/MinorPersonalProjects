@@ -62,22 +62,19 @@
     * Make message file, and db_init message file checking (enties: user\n msg\n\n), if not present -- create
     * Serverside upon recieving a message put it in the messages.txt file
 
-Refac:
+*Refac 1:
     * Sort out the error scenarios in client
     * Go through in-code todos
-    - Refactor db stuff & db todos
-    - Go through client.c todos
-    - Add error messages to client (and server?) for special situations
-    - Remake all sizeof() to *var, instead of type (fucked me up hard with byte_arr)
-    - Refactor byte_arr usage accross protocol, client and server
-    - Brush up client ui (new lines & prettiness)
-    - Make a distinct name for message to admin (not to collide with message)
-    - Freestyle refac pass
+    * Refactor db stuff & db todos
+    * Go through client.c todos
+    * Add error messages to client for special situations
+    * Remake all sizeof() to *var, instead of type (fucked me up hard with byte_arr)
+    * Make a distinct name for message to admin (not to collide with message)
 
 Other:
     * Make title a bbs property & send with init msg
-    - Remake file i/o on transfer to read/write for optimization
-    - Add download progress bar to client (in packets, redraw with \b)
+    * Remake file i/o on transfer to read/write for optimization
+    * Add download progress bar to client (in packets, redraw with \b)
 
 Disconnections, timeouts & exceptional situations
     - Idea: Add file status to metafile (valid, writing, corrupted), for disconnections when loading file
@@ -87,3 +84,19 @@ Disconnections, timeouts & exceptional situations
     - Thought: I should really understand how to deal with invalid packets and parsing client side (now, I just kill the client)
 
 Admin user:
+    Admin user mark & dialogues (client):
+
+    Add new user:
+
+    Read & clear notes:
+
+    Edit file desription & access:
+
+    Add new file (edit the empty meta & transfer):
+
+    Delete file:
+
+
+Refac 2:
+    - Freestyle refac pass
+

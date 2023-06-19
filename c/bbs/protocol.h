@@ -31,8 +31,8 @@ typedef enum p_type_tag {
     ts_start_file_transfer = 10,
     ts_file_packet = 11,
     /* ts_last_file_packet // should this exist? */
-    tc_leave_message = 12,
-    ts_message_done = 13
+    tc_leave_note = 12,
+    ts_note_done = 13
 } p_type;
 
 typedef struct p_message_tag {
@@ -65,6 +65,10 @@ typedef struct p_message_reader_tag {
     p_message *msg;
 } p_message_reader;
 
+typedef enum p_reader_processing_res_tag {
+    rpr_done, rpr_in_progress, rpr_error
+} p_reader_processing_res;
+
 p_message *p_create_message(p_role role, p_type type);
 void p_free_message(p_message *msg);
 
@@ -80,7 +84,8 @@ void p_init_reader(p_message_reader *reader);
 void p_deinit_reader(p_message_reader *reader);
 void p_reset_reader(p_message_reader *reader);
 int p_reader_is_live(p_message_reader *reader);
-int p_reader_process_str(p_message_reader *reader, 
-                         const char *str, size_t len, size_t *chars_processed);
+p_reader_processing_res p_reader_process_str(p_message_reader *reader, 
+                                             const char *str, size_t len,
+                                             size_t *chars_processed);
 
 #endif

@@ -66,11 +66,11 @@ void debug_log_p_type(p_type type)
         case ts_file_packet:
             fprintf(stderr, "s-file-packet");
             break;
-        case tc_leave_message:
-            fprintf(stderr, "c-leave-message");
+        case tc_leave_note:
+            fprintf(stderr, "c-leave-note");
             break;
-        case ts_message_done:
-            fprintf(stderr, "s-message-done");
+        case ts_note_done:
+            fprintf(stderr, "s-note-done");
             break;
         default:
             fprintf(stderr, "TYPE %d MISSING, IMPLEMENT", type);

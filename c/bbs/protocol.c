@@ -38,7 +38,7 @@ const p_type valid_types[NUM_TYPES] = {
     ts_init, tc_login, ts_login_success, ts_login_failed,
     tc_list_files, ts_file_list_response, tc_file_query, ts_file_not_found,
     ts_file_restricted, ts_start_file_transfer, ts_file_packet,
-    tc_leave_message, ts_message_done
+    tc_leave_note, ts_note_done
 };
 
 static p_message *create_empty_message()
@@ -110,7 +110,7 @@ p_sendable_message p_construct_sendable_message(p_message *msg)
     // Total word len + delim and 2byte-length before every word
     smsg.len += msg->tot_w_len + msg->cnt * (WORD_LEN_BYTES+1);
 
-    smsg.str = malloc((smsg.len+1) * sizeof(char));
+    smsg.str = malloc((smsg.len+1) * sizeof(*smsg.str));
 
     // header
     memcpy(smsg.str, header, HEADER_LEN);
@@ -363,7 +363,7 @@ static size_t parse_content(p_message_reader *reader, const char *str, size_t le
                 reader->state = rs_error;
                 break;
             } else if (!reader->cur_word)
-                reader->cur_word = malloc(reader->wcap * sizeof(char));
+                reader->cur_word = malloc(reader->wcap * sizeof(*reader->cur_word));
 
             reader->cur_word[reader->wlen] = c;
             reader->wlen++;
@@ -376,13 +376,14 @@ static size_t parse_content(p_message_reader *reader, const char *str, size_t le
     return chars_read;
 }
 
-int p_reader_process_str(p_message_reader *reader, 
-                         const char *str, size_t len, size_t *chars_processed)
+p_reader_processing_res p_reader_process_str(p_message_reader *reader, 
+                                             const char *str, size_t len,
+                                             size_t *chars_processed)
 {
     if (reader->state == rs_empty || reader->state == rs_error)
-        return -1;
+        return rpr_error;
 
-    int result = 0;
+    p_reader_processing_res result = rpr_in_progress;
     
     *chars_processed = 0;
     while (len > 0) {
@@ -416,12 +417,12 @@ int p_reader_process_str(p_message_reader *reader,
         *chars_processed += chars_read;
 
         if (reader->state == rs_finished) {
-            result = 1;
+            result = rpr_done;
             break;
         }
 
         if (reader->state == rs_error) {
-            result = -1;
+            result = rpr_error;
             break;
         }
     }

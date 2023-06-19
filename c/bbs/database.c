@@ -1,20 +1,22 @@
 /* bbs/database.c */
 #include "database.h"
 #include "constants.h"
-#include <stdlib.h>
-#include <string.h>
-
 #include <stdio.h>
+#include <stdlib.h>
+#include <unistd.h>
+#include <string.h>
 
 static const char passwd_rel_path[] = "/passwd.txt";
 static const char data_rel_path[] = "/data/";
-static const char message_rel_path[] = "/message.txt";
+static const char notes_rel_path[] = "/notes.txt";
 
 static const char metafile_extension[] = ".meta";
 
 #define WORD_SEP ' '
 
 enum {
+    WORD_BUFSIZE = 256,
+
     METADATA_BASE_NAME_BUFSIZE = 16,
     METADATA_BASE_DESCR_BUFSIZE = 32,
     METADATA_BASE_USER_CAP = 4,
@@ -24,8 +26,6 @@ enum {
     METADATA_MAX_DESCR_LEN = 128,
     METADATA_MAX_USER_CNT = 4,
     METADATA_MAX_LOGIN_ITEM_LEN = MAX_LOGIN_ITEM_LEN,
-
-    WORD_BUFSIZE = 256,
 
     METAFILES_BASE_CAP = 32,
     METAFILES_MAX_CNT = 2048,
@@ -44,11 +44,11 @@ typedef enum metadata_parse_state_tag {
     mps_error
 } metadata_parse_state;
 
-typedef enum message_file_parse_state_tag {
+typedef enum notes_file_parse_state_tag {
     mfps_user,
-    mfps_message,
+    mfps_note,
     mfps_delim
-} message_file_parse_state;
+} notes_file_parse_state;
 
 static const char metadata_file_alias[] = "file:";
 static const char metadata_descr_alias[] = "description:";
@@ -95,8 +95,7 @@ static void free_user_data(user_data *ud)
     free(ud);
 }
 
-// @TODO: refac flag
-static int read_word_to_buf(FILE *f, char *buf, size_t bufsize, int stop_at_sep)
+static int read_word_to_buf(FILE *f, char *buf, size_t bufsize, char sep)
 {
     size_t i = 0;
     int c;
@@ -105,10 +104,7 @@ static int read_word_to_buf(FILE *f, char *buf, size_t bufsize, int stop_at_sep)
         return 0;
 
     while ((c = getc(f)) != EOF) {
-        if (
-                (stop_at_sep && c == WORD_SEP) || 
-                is_nl(c)
-           )
+        if (c == sep || is_nl(c))
             break;
         else if (i >= bufsize-1)
             return 0;
@@ -139,18 +135,12 @@ static int file_exists_and_is_available(const char *filename, const char *dirnam
     int result = 1;
     char *full_path = concat_strings(dirname, filename, NULL);
 
-    FILE *f = fopen(full_path, "r");
-    if (!f)
-        return_defer(0);
+    result =
+        access(full_path, F_OK) == 0 && 
+        access(full_path, R_OK) == 0 &&
+        access(full_path, W_OK) == 0;
 
-    fclose(f);
-    f = fopen(full_path, "rw");
-    if (!f)
-        return_defer(0);
-
-defer:
-    if (f) fclose(f);
-    if (full_path) free(full_path);
+    free(full_path);
     return result;
 }
 
@@ -172,8 +162,6 @@ static int filename_ends_with_meta(const char *filename, size_t len)
 
 static file_metadata *parse_meta_file(FILE *f, const char *dirpath)
 {
-    file_metadata *fmd;
-
     char w_buf[WORD_BUFSIZE];
     int break_c;
 
@@ -183,13 +171,13 @@ static file_metadata *parse_meta_file(FILE *f, const char *dirpath)
     if (!f)
         return NULL;
 
-    fmd = create_metadata();
+    file_metadata *fmd = create_metadata();
 
     for (;;) {
-        break_c = read_word_to_buf(
-                f, w_buf, sizeof(w_buf),
-                !parsed_alias || state != mps_descr // so as to read the whole 
-                );                                  // description content in one go 
+        // If reading description content, allow regular word sep (space)
+        char sep = (!parsed_alias || state != mps_descr) ? WORD_SEP : '\n'; 
+
+        break_c = read_word_to_buf(f, w_buf, sizeof(w_buf), sep);
         if (break_c == 0)
             goto defer;
 
@@ -211,12 +199,10 @@ static file_metadata *parse_meta_file(FILE *f, const char *dirpath)
                     goto defer;
 
                 if (
+                        len <= METADATA_MAX_NAME_LEN &&
                         !filename_ends_with_meta(w_buf, len) && 
                         file_exists_and_is_available(w_buf, dirpath)
                    ) {
-                    if (len > METADATA_MAX_NAME_LEN)
-                        goto defer;
-
                     fmd->name = strndup(w_buf, len);
 
                     state = mps_descr;
@@ -236,19 +222,14 @@ static file_metadata *parse_meta_file(FILE *f, const char *dirpath)
                 break;
 
             case mps_users:
-                if (len > METADATA_MAX_LOGIN_ITEM_LEN)
+                if (
+                        len > METADATA_MAX_LOGIN_ITEM_LEN ||
+                        fmd->is_for_all_users
+                   ) { 
                     goto defer;
-
-                if (fmd->is_for_all_users) {
-                    state = mps_error;
-                    goto defer;
-                }
-
-                if (strings_are_equal(w_buf, all_users_symbol)) {
-                    if (fmd->cnt != 0) {
-                        state = mps_error;
+                } else if (strings_are_equal(w_buf, all_users_symbol)) {
+                    if (fmd->cnt != 0)
                         goto defer;
-                    }
 
                     fmd->is_for_all_users = 1;
                 } else {
@@ -325,18 +306,12 @@ static int parse_data_dir(database *db)
         if (!fmd)
             return_defer(0);
 
-        int resize = 0;
-        while (cnt >= cap-1) {
-            if (!resize)
-                resize = 1;
-            cap += METAFILES_BASE_CAP;
-        }
-    
-        if (cap-1 > METAFILES_MAX_CNT)
+        if (!resize_dynamic_arr(
+                    (void **) &db->file_metas, sizeof(*(db->file_metas)),
+                    &cnt, &cap, METAFILES_BASE_CAP, METAFILES_MAX_CNT, 1
+                    )) {
             return_defer(0);
-
-        if (resize)
-            db->file_metas = realloc(db->file_metas, cap * sizeof(*(db->file_metas)));
+        }
 
         db->file_metas[cnt] = fmd;
         cnt++;
@@ -388,7 +363,7 @@ static int parse_passwd_file(database *db, const char *path)
     int break_c;
     user_data *ud = NULL;
     for (;;) {
-        break_c = read_word_to_buf(passwd_f, buf, sizeof(buf), 1);
+        break_c = read_word_to_buf(passwd_f, buf, sizeof(buf), WORD_SEP);
         if (break_c == 0)
             return_defer(0);
         
@@ -415,19 +390,12 @@ static int parse_passwd_file(database *db, const char *path)
 
             ud->passwd =  strndup(buf, len);
 
-            int resize = 0;
-            while (cnt >= cap-1) {
-                if (!resize)
-                    resize = 1;
-                cap += USERS_BASE_CAP;
-            }
-
-            if (cap-1 > USERS_MAX_CNT) {
+            if (!resize_dynamic_arr(
+                        (void **) &db->user_datas, sizeof(*(db->user_datas)),
+                        &cnt, &cap, USERS_BASE_CAP, USERS_MAX_CNT, 1
+                        )) {
                 return_defer(0);
             }
-
-            if (resize)
-                db->user_datas = realloc(db->user_datas, cap * sizeof(*(db->user_datas)));
 
             db->user_datas[cnt] = ud;
             cnt++;
@@ -457,20 +425,20 @@ defer:
     return result;
 }
 
-// @TODO: add message lookup for admin users?
-static int parse_message_file(database *db, const char *path)
+// @TODO: add note lookup for admin users?
+static int parse_notes_file(database *db, const char *path)
 {
     int result = 1;
 
-    db->message_f = fopen(path, "a+");
-    if (!db->message_f)
+    db->notes_f = fopen(path, "a+");
+    if (!db->notes_f)
         return 0;
 
-    char buf[MAX_MESSAGE_LEN];
+    char buf[MAX_NOTE_LEN];
     int break_c;
-    message_file_parse_state state = mfps_user;
+    notes_file_parse_state state = mfps_user;
     for (;;) {
-        break_c = read_word_to_buf(db->message_f, buf, sizeof(buf), 0);
+        break_c = read_word_to_buf(db->notes_f, buf, sizeof(buf), '\n');
 
         if (break_c == 0)
             return_defer(0);
@@ -486,11 +454,11 @@ static int parse_message_file(database *db, const char *path)
                         continue;
                 } else if (len > MAX_LOGIN_ITEM_LEN || break_c != '\n')
                     return_defer(0);
-                state = mfps_message;
+                state = mfps_note;
                 break;
 
-            case mfps_message:
-                if (len > MAX_MESSAGE_LEN || break_c != '\n')
+            case mfps_note:
+                if (len > MAX_NOTE_LEN || break_c != '\n')
                     return_defer(0);
                 state = mfps_delim;
                 break;
@@ -504,11 +472,11 @@ static int parse_message_file(database *db, const char *path)
     }
 
 defer:
-    if (!result && db->message_f) {
-        fclose(db->message_f);
-        db->message_f = NULL;
-    } else 
-        rewind(db->message_f);
+    if (!result && db->notes_f) {
+        fclose(db->notes_f);
+        db->notes_f = NULL;
+    } else if (db->notes_f)
+        rewind(db->notes_f);
     return result;    
 }
 
@@ -518,25 +486,25 @@ int db_init(database* db, const char *path)
 
     char *path_copy = NULL,
          *passwd_path = NULL,
-         *message_path = NULL;
+         *notes_path = NULL;
     size_t path_len = strlen(path);
 
     db->data_path = NULL;
     db->file_metas = NULL;
     db->user_datas = NULL;
-    db->message_f = NULL;
+    db->notes_f = NULL;
 
     if (path[path_len-1] == '/')
         path_len--;
     path_copy = strndup(path, path_len);
 
     passwd_path = concat_strings(path_copy, passwd_rel_path, NULL);
-    message_path = concat_strings(path_copy, message_rel_path, NULL);
+    notes_path = concat_strings(path_copy, notes_rel_path, NULL);
     db->data_path = concat_strings(path_copy, data_rel_path, NULL);
 
     if (!parse_passwd_file(db, passwd_path))
         return_defer(0);
-    if (!parse_message_file(db, message_path))
+    if (!parse_notes_file(db, notes_path))
         return_defer(0);
     if (!parse_data_dir(db))
         return_defer(0);
@@ -544,7 +512,7 @@ int db_init(database* db, const char *path)
 defer:
     if (!result)
         db_deinit(db);
-    if (message_path) free(message_path);
+    if (notes_path) free(notes_path);
     if (passwd_path) free(passwd_path);
     if (path_copy) free(path_copy);
     return result;
@@ -562,16 +530,16 @@ void db_deinit(database* db)
             free_user_data(*udp);
         free(db->user_datas);
     }
-    if (db->message_f) fclose(db->message_f);
+    if (db->notes_f) fclose(db->notes_f);
     if (db->data_path) free(db->data_path);
 
     db->data_path = NULL;
     db->file_metas = NULL;
     db->user_datas = NULL;
-    db->message_f = NULL;
+    db->notes_f = NULL;
 }
 
-int try_match_credentials(database* db, const char *usernm, const char *passwd)
+int db_try_match_credentials(database* db, const char *usernm, const char *passwd)
 {
     for (user_data **udp = db->user_datas; *udp; udp++) {
         if (
@@ -585,7 +553,7 @@ int try_match_credentials(database* db, const char *usernm, const char *passwd)
     return 0;
 }
 
-int file_is_available_to_user(file_metadata *fmd, const char *username)
+int db_file_is_available_to_user(file_metadata *fmd, const char *username)
 {
     if (fmd->is_for_all_users)
         return 1;
@@ -600,7 +568,7 @@ int file_is_available_to_user(file_metadata *fmd, const char *username)
     return 0;
 }
 
-file_lookup_result lookup_file(database *db, const char *filename, const char *username, char **out)
+file_lookup_result db_lookup_file(database *db, const char *filename, const char *username, char **out)
 {
     file_lookup_result res = not_found;
 
@@ -608,7 +576,7 @@ file_lookup_result lookup_file(database *db, const char *filename, const char *u
         if (strings_are_equal((*fmdp)->name, filename)) {
             res = no_access;
 
-            if (file_is_available_to_user(*fmdp, username)) {
+            if (db_file_is_available_to_user(*fmdp, username)) {
                 *out = concat_strings(db->data_path, (*fmdp)->name, NULL);
                 return found;
             }
@@ -618,11 +586,11 @@ file_lookup_result lookup_file(database *db, const char *filename, const char *u
     return res;
 }
 
-void store_message(database *db, const char *username, byte_arr message)
+void db_store_note(database *db, const char *username, byte_arr note)
 {
-    fputs(username, db->message_f);
-    fputc('\n', db->message_f);
-    fputs(message.str, db->message_f); // since '\0' is included
-    fputs("\n\n", db->message_f);
-    fflush(db->message_f);
+    fputs(username, db->notes_f);
+    fputc('\n', db->notes_f);
+    fputs(note.str, db->notes_f); // since '\0' is included
+    fputs("\n\n", db->notes_f);
+    fflush(db->notes_f);
 }

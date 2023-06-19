@@ -12,6 +12,9 @@ typedef struct byte_arr_tag {
     size_t len;
 } byte_arr;
 
+int resize_dynamic_arr(void **arr, size_t size, size_t *cnt, size_t *cap,
+                       size_t cap_step, size_t max_cnt, int null_terminated);
+
 int add_string_to_string_array(char ***arr, const char *str, 
                                size_t *cnt, size_t *cap,
                                size_t cap_step, size_t max_cnt);
