@@ -185,7 +185,7 @@ p_message *construct_num_packets_response(session *sess, const char *filename)
 
     char packets_left_digits[LONG_MAX_DIGITS+1];
     snprintf(packets_left_digits, sizeof(packets_left_digits)-1, "%ld", sess->packets_left);
-    packets_left_digits[sizeof(packets_left_digits)] = '\0';
+    packets_left_digits[sizeof(packets_left_digits)-1] = '\0';
 
     response = p_create_message(r_server, ts_start_file_transfer);
     p_add_string_to_message(response, packets_left_digits);
