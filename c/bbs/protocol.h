@@ -3,6 +3,7 @@
 #define PROTOCOL_SENTRY
 
 #include "utils.h"
+#include "types.h"
 #include <stddef.h>
 
 /*
@@ -12,27 +13,28 @@
 */ 
 
 typedef enum p_role_tag { 
-    r_unknown = 0,
-    r_server = 1, 
-    r_client = 2
+    r_unknown,
+    r_server, 
+    r_client
 } p_role;
 
 typedef enum p_type_tag { 
-    t_unknown = 0,
-    ts_init = 1,
-    tc_login = 2,
-    ts_login_success = 3,
-    ts_login_failed = 4,
-    tc_list_files = 5,
-    ts_file_list_response = 6,
-    tc_file_query = 7,
-    ts_file_not_found = 8,
-    ts_file_restricted = 9,
-    ts_start_file_transfer = 10,
-    ts_file_packet = 11,
-    /* ts_last_file_packet // should this exist? */
-    tc_leave_note = 12,
-    ts_note_done = 13
+    t_unknown,
+    ts_init,
+    tc_login,
+    ts_login_success,
+    ts_login_poster,
+    ts_login_admin,
+    ts_login_failed,
+    tc_list_files,
+    ts_file_list_response,
+    tc_file_query,
+    ts_file_not_found,
+    ts_file_restricted,
+    ts_start_file_transfer,
+    ts_file_packet,
+    tc_leave_note,
+    ts_note_done
 } p_type;
 
 typedef struct p_message_tag {
@@ -87,5 +89,8 @@ int p_reader_is_live(p_message_reader *reader);
 p_reader_processing_res p_reader_process_str(p_message_reader *reader, 
                                              const char *str, size_t len,
                                              size_t *chars_processed);
+
+p_type user_type_to_p_type(user_type ut);
+user_type p_type_to_user_type(p_type pt);
 
 #endif

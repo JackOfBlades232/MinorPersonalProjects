@@ -28,17 +28,17 @@ enum {
     MAX_DIGITS = 32, // overkill
 
     NUM_ROLES = 2,
-    NUM_TYPES = 13
+    NUM_TYPES = 15
 };
 
 const char header[HEADER_LEN+1] = "BBS232";
 
 const p_role valid_roles[NUM_ROLES] = { r_server, r_client };
 const p_type valid_types[NUM_TYPES] = {
-    ts_init, tc_login, ts_login_success, ts_login_failed,
-    tc_list_files, ts_file_list_response, tc_file_query, ts_file_not_found,
-    ts_file_restricted, ts_start_file_transfer, ts_file_packet,
-    tc_leave_note, ts_note_done
+    ts_init, tc_login, ts_login_success, ts_login_poster,
+    ts_login_admin, ts_login_failed, tc_list_files, ts_file_list_response, 
+    tc_file_query, ts_file_not_found, ts_file_restricted, ts_start_file_transfer, 
+    ts_file_packet, tc_leave_note, ts_note_done
 };
 
 static p_message *create_empty_message()
@@ -428,4 +428,32 @@ p_reader_processing_res p_reader_process_str(p_message_reader *reader,
     }
 
     return result;
+}
+
+p_type user_type_to_p_type(user_type ut)
+{
+    switch (ut) {
+        case ut_regular:
+            return ts_login_success;
+        case ut_poster:
+            return ts_login_poster;
+        case ut_admin:
+            return ts_login_admin;
+        default:
+            return ts_login_failed;
+    }
+}
+
+user_type p_type_to_user_type(p_type pt)
+{
+    switch (pt) {
+        case ts_login_success:
+            return ut_regular;
+        case ts_login_poster:
+            return ut_poster;
+        case ts_login_admin:
+            return ut_admin;
+        default:
+            return ut_none;
+    }
 }

@@ -2,6 +2,7 @@
 #include "protocol.h"
 #include "constants.h"
 #include "utils.h"
+#include "types.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
@@ -64,7 +65,7 @@ static char serv_read_buf[SERV_READ_BUFSIZE];
 static size_t serv_buf_used = 0;
 static p_message_reader reader = {0};
 
-static int logged_in = 0;
+static user_type login_user_type = ut_none;
 static char *last_queried_filename = NULL;
 await_server_msg_result last_await_res = asr_ok;
 
@@ -265,7 +266,7 @@ int login_dialogue()
     p_message *msg;
     struct termios ts;
 
-    if (logged_in) {
+    if (login_user_type != ut_none) {
         printf("\nYou are already logged in\n");
         return 0;
     }
@@ -328,7 +329,7 @@ int leave_note_dialogue()
     
     char note[MAX_NOTE_LEN+1];
 
-    if (!logged_in) {
+    if (login_user_type == ut_none) {
         printf("\nLog in to leave notes\n");
         return 0;
     }
@@ -380,6 +381,8 @@ int process_login_response()
             reader.msg->cnt != 0 || 
             (
              reader.msg->type != ts_login_success &&
+             reader.msg->type != ts_login_poster &&
+             reader.msg->type != ts_login_admin &&
              reader.msg->type != ts_login_failed
             )
        ) {
@@ -387,11 +390,11 @@ int process_login_response()
         return 0;
     }
 
-    if (reader.msg->type == ts_login_success) {
-        logged_in = 1;
-        printf("\nLogged in\n");
-    } else
+    login_user_type = p_type_to_user_type(reader.msg->type);
+    if (login_user_type == ut_none)
         printf("Invalid username/password, please try again\n");
+    else 
+        printf("\nLogged in\n");
 
     return 1;
 }

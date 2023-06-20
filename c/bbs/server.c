@@ -157,8 +157,7 @@ void session_handle_login(session *sess)
          *passwd = msg->words[1].str;
 
     sess->ut = db_try_match_credentials(&db, usernm, passwd);
-    // @TODO: send specific messages on poster/admin login
-    session_post_empty_message(sess, sess->ut != ut_none ? ts_login_success : ts_login_failed);
+    session_post_empty_message(sess, user_type_to_p_type(sess->ut));
 
     if (sess->ut != ut_none)
         sess->usernm = strdup(usernm);
