@@ -71,22 +71,20 @@
     * Remake all sizeof() to *var, instead of type (fucked me up hard with byte_arr)
     * Make a distinct name for message to admin (not to collide with message)
 
-Other:
+*Other:
     * Make title a bbs property & send with init msg
     * Remake file i/o on transfer to read/write for optimization
     * Add download progress bar to client (in packets, redraw with \b)
 
-Disconnections, timeouts & exceptional situations
+*Disconnections, timeouts & exceptional situations
     * Check 0 in read sock (=disconnected)
         * If serverside, close session (set state = err)
         * If clientside, display message and kill client (string of err codes or set sock=-1 and exit loop?)
-    - Implement timeouts for awaiting messages (clientside, server should be ok with radiosilence)
-    - Idea: implement (^C) interception as regular exit
-        - Clientside: wait for end of response (with sigprocmask), terminate (no need for disc msg, it'll be 0 in sock)
-        - Serverside: for all sessions set a state equal to "finish all responses" and then terminate, not accepting new ones
-            - Important: I should add a state "serving simple response", and return to await only in write
-        
-    - If disconnected while transferring file, log this in client (*and clear it's contents?)
+    * Implement timeouts for awaiting messages (clientside, server should be ok with radiosilence)
+    * If disconnected while transferring file, log this in client
+    * implement (^C) interception as regular exit
+        * Clientside: just add an exit command and leave ^C to be a killer
+        * Serverside: close all sessions porperly and terminate
 
 Admin user:
     Admin user mark & dialogues (client):

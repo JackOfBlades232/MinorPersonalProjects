@@ -8,6 +8,7 @@
 #include <string.h>
 #include <unistd.h>
 #include <errno.h>
+#include <signal.h>
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <fcntl.h>
@@ -65,6 +66,15 @@ static const char title[] =
 // Global server vars
 static server serv = {0};
 static database db = {0};
+
+static volatile sig_atomic_t recieved_int = 0;
+static sigset_t orig_mask;
+
+void int_handler(int s)
+{
+    signal(SIGINT, int_handler);
+    recieved_int = 1;
+}
 
 void session_post_msg(session *sess, p_message *msg)
 {
@@ -477,6 +487,15 @@ void daemonize_self()
 }
 #endif
 
+void set_up_sigint()
+{
+    sigset_t mask;
+    signal(SIGINT, int_handler);
+    sigemptyset(&mask);
+    sigaddset(&mask, SIGINT);
+    sigprocmask(SIG_BLOCK, &mask, &orig_mask);
+}
+
 int main(int argc, char **argv)
 {
     int result = 0;
@@ -504,6 +523,8 @@ int main(int argc, char **argv)
         return_defer(2);
     }
 
+    set_up_sigint();
+
 #ifndef DEBUG
     daemonize_self();
 #endif
@@ -528,10 +549,18 @@ int main(int argc, char **argv)
             }
         }
 
-        int sr = select(maxfd+1, &readfds, &writefds, NULL, NULL);
-        if (sr == -1) {
+        int sr = pselect(maxfd+1, &readfds, &writefds, NULL, NULL, &orig_mask);
+        if (sr == -1 && errno != EINTR) {
             perror("select");
             return_defer(-1);
+        }
+
+        if (recieved_int) {
+#ifdef DEBUG
+            fprintf(stderr, "DEBUG: Shutting down server\n");
+#endif
+
+            return_defer(0);
         }
 
         if (FD_ISSET(serv.ls, &readfds))

@@ -20,7 +20,7 @@
 enum {
     SERV_READ_BUFSIZE = 2048,
     ACTION_BUFSIZE = 32,
-    NUM_ACTIONS = 4,
+    NUM_ACTIONS = 5,
 
     DOWNLOAD_PLACK_NUM_BUFSIZE = 128,
 
@@ -34,15 +34,16 @@ typedef enum client_action_tag {
     log_in,
     list_files,
     query_file,
-    leave_note
+    leave_note,
+    exit_client
 } client_action;
 
 static const client_action all_actions[NUM_ACTIONS] = {
-    log_in, list_files, query_file, leave_note
+    log_in, list_files, query_file, leave_note, exit_client
 };
 
 static const char *action_names[NUM_ACTIONS] = {
-    "login", "list", "query", "note"
+    "login", "list", "query", "note", "exit"
 };
 
 typedef enum await_server_msg_result_tag {
@@ -58,13 +59,13 @@ typedef enum await_server_msg_result_tag {
 
 // Global client state
 static int sock = -1;
+
 static char serv_read_buf[SERV_READ_BUFSIZE];
 static size_t serv_buf_used = 0;
 static p_message_reader reader = {0};
+
 static int logged_in = 0;
-
 static char *last_queried_filename = NULL;
-
 await_server_msg_result last_await_res = asr_ok;
 
 void send_message(p_message *msg)
@@ -131,6 +132,7 @@ int await_server_message()
 {
     int sel_res = 1;
     size_t read_res = 1;
+
     p_reader_processing_res pr_res = rpr_in_progress;
 
     while (pr_res == rpr_in_progress) {
@@ -484,7 +486,7 @@ int process_query_file_response()
                 reader.msg->type != ts_file_packet ||
                 reader.msg->cnt != 1
            ) {
-            fprintf(stderr, "ERR: Recieved invalid packet\n");
+            fprintf(stderr, "ERR: Recieved invalid packet, file is incomplete\n");
             return_defer(0);
         }
 
@@ -501,8 +503,15 @@ int process_query_file_response()
     putchar('\n');
 
     if (packets_left > 0) {
+        if (
+                last_await_res == asr_timeout || 
+                last_await_res == asr_disconnected
+           )
+            printf("Failed to recieve all packets, file is incomplete\n");
+        else
+            fprintf(stderr, "ERR: Failed to recieve all packets, file is incomplete\n");
+
         log_await_error();
-        fprintf(stderr, "ERR: Failed to recieve all packets\n");
         return_defer(0);
     } else
         printf("Download complete\n");
@@ -570,6 +579,11 @@ int ask_for_action()
         printf("Invalid action name\n");
         return_defer(1);
     }
+    
+    if (action == exit_client) {
+        printf("\nExiting\n");
+        return_defer(0);
+    }
 
     p_init_reader(&reader);
 
@@ -587,9 +601,8 @@ int ask_for_action()
         return_defer(0);
     }
 
-    p_deinit_reader(&reader);
-
 defer:
+    p_deinit_reader(&reader);
     fflush(stdin);
     return result;
 }
