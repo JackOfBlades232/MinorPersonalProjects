@@ -77,9 +77,9 @@ Other:
     * Add download progress bar to client (in packets, redraw with \b)
 
 Disconnections, timeouts & exceptional situations
-    - Check 0 in sock (=disconnected)
-        - If serverside, close session (set state = err)
-        - If clientside, display message and kill client (string of err codes or set sock=-1 and exit loop?)
+    * Check 0 in read sock (=disconnected)
+        * If serverside, close session (set state = err)
+        * If clientside, display message and kill client (string of err codes or set sock=-1 and exit loop?)
     - Implement timeouts for awaiting messages (clientside, server should be ok with radiosilence)
     - Idea: implement (^C) interception as regular exit
         - Clientside: wait for end of response (with sigprocmask), terminate (no need for disc msg, it'll be 0 in sock)

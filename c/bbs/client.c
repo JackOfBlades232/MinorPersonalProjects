@@ -42,6 +42,14 @@ static const char *action_names[NUM_ACTIONS] = {
     "login", "list", "query", "note"
 };
 
+typedef enum await_server_msg_result_tag {
+    asr_ok, 
+    asr_incomplete, 
+    asr_process_err, 
+    asr_read_err, 
+    asr_disconnected
+} await_server_msg_result;
+
 // @TODO: add privileged client actions
 
 // Global client state
@@ -52,6 +60,8 @@ static p_message_reader reader = {0};
 static int logged_in = 0;
 
 static char *last_queried_filename = NULL;
+
+await_server_msg_result last_await_res = asr_ok;
 
 void send_message(p_message *msg)
 {
@@ -123,7 +133,9 @@ int await_server_message()
             (read_res = read(sock, serv_read_buf, sizeof(serv_read_buf))) > 0
           ) {
         size_t chars_processed;
-        serv_buf_used += read_res;
+        if (serv_buf_used == 0)
+            serv_buf_used += read_res;
+
         pr_res = p_reader_process_str(&reader, serv_read_buf, serv_buf_used, &chars_processed);
         if (chars_processed < serv_buf_used) {
             memmove(serv_read_buf, 
@@ -132,13 +144,43 @@ int await_server_message()
         }
 
         serv_buf_used -= chars_processed;
-        read_res = 0;
 
         if (pr_res != rpr_in_progress)
             break;
     }
 
-    return pr_res == rpr_done;
+    if (read_res < 0)
+        last_await_res = asr_read_err;
+    else if (read_res == 0)
+        last_await_res = asr_disconnected;
+    else if (pr_res == rpr_error)
+        last_await_res = asr_process_err;
+    else if (pr_res == rpr_in_progress)
+        last_await_res = asr_incomplete;
+    else
+        last_await_res = asr_ok;
+
+    return last_await_res == asr_ok;
+}
+
+void log_await_error()
+{
+    switch (last_await_res) {
+        case asr_incomplete:
+            fprintf(stderr, "ERR: Recieved incomplete message\n");
+            break;
+        case asr_process_err:
+            fprintf(stderr, "ERR: Failed to parse message\n");
+            break;
+        case asr_read_err:
+            fprintf(stderr, "ERR: Failed to read socket\n");
+            break;
+        case asr_disconnected:
+            printf("\nYou have been disconnected\n");
+            break;
+        default:
+            break;
+    }
 }
 
 int connect_to_server(struct sockaddr_in serv_addr)
@@ -153,8 +195,10 @@ int connect_to_server(struct sockaddr_in serv_addr)
         return 0;
 
     p_init_reader(&reader);
-    if (!await_server_message())
+    if (!await_server_message()) {
+        log_await_error();
         return_defer(0);
+    }
 
     if (
             reader.msg->role == r_server && 
@@ -299,7 +343,7 @@ int perform_action(client_action action)
             return leave_note_dialogue();
 
         default:
-            fprintf(stderr, "Not implemented\n");
+            fprintf(stderr, "ERR: Not implemented\n");
     }
 
     return 0;
@@ -314,7 +358,7 @@ int process_login_response()
              reader.msg->type != ts_login_failed
             )
        ) {
-        fprintf(stderr, "Invalid log_in server response\n");
+        fprintf(stderr, "ERR: Invalid log_in server response\n");
         return 0;
     }
 
@@ -330,7 +374,7 @@ int process_login_response()
 int process_file_list_response()
 {
     if (reader.msg->type != ts_file_list_response) {
-        fprintf(stderr, "Invalid list_files server response\n");
+        fprintf(stderr, "ERR: Invalid list_files server response\n");
         return 0;
     }
 
@@ -385,25 +429,25 @@ int process_query_file_response()
             reader.msg->type != ts_start_file_transfer ||
             reader.msg->cnt != 1
        ) {
-        fprintf(stderr, "Invalid query_file server response\n");
+        fprintf(stderr, "ERR: Invalid query_file server response\n");
         return_defer(0);
     }
 
     char *e;
     long packets_left = strtol(reader.msg->words[0].str, &e, 10);
     if (*e != '\0' || packets_left <= 0) {
-        fprintf(stderr, "Invalid num packets in query_file server response\n");
+        fprintf(stderr, "ERR: Invalid num packets in query_file server response\n");
         return_defer(0);
     }
 
     if (!last_queried_filename) {
-        fprintf(stderr, "Last queried filename is NULL, this is a bug\n");
+        fprintf(stderr, "ERR: Last queried filename is NULL, this is a bug\n");
         return_defer(0);
     }
 
     fd = open(last_queried_filename, O_WRONLY | O_CREAT | O_TRUNC, 0666);
     if (fd == -1) {
-        fprintf(stderr, "Can't save the file\n");
+        fprintf(stderr, "ERR: Can't save the file\n");
         return_defer(0);
     }
 
@@ -417,7 +461,7 @@ int process_query_file_response()
                 reader.msg->type != ts_file_packet ||
                 reader.msg->cnt != 1
            ) {
-            fprintf(stderr, "Recieved invalid packet\n");
+            fprintf(stderr, "ERR: Recieved invalid packet\n");
             return_defer(0);
         }
 
@@ -434,7 +478,8 @@ int process_query_file_response()
     putchar('\n');
 
     if (packets_left > 0) {
-        fprintf(stderr, "Failed to recieve all packets\n");
+        log_await_error();
+        fprintf(stderr, "ERR: Failed to recieve all packets\n");
         return_defer(0);
     } else
         printf("Download complete\n");
@@ -450,7 +495,7 @@ int process_leave_note_response()
         printf("Note sent\n");
         return 1;
     } else {
-        fprintf(stderr, "Invalid leave_note server response\n");
+        fprintf(stderr, "ERR: Invalid leave_note server response\n");
         return 0;
     }
 }
@@ -486,10 +531,7 @@ int ask_for_action()
     client_action action;
 
     printf("\nAvailable actions: ");
-    for (int i = 0; i < NUM_ACTIONS; i++) {
-        if (i == 0)
-            printf("%s", action_names[i]);
-        else
+    for (int i = 0; i < NUM_ACTIONS; i++) { if (i == 0) printf("%s", action_names[i]); else
             printf(", %s", action_names[i]);
     }
     putchar('\n');
@@ -514,11 +556,11 @@ int ask_for_action()
 
     // If server message was invalid or unparsable, stop client
     if (!await_server_message()) {
-        fprintf(stderr, "Error while parsing server message\n");
+        log_await_error();
         return_defer(0);
     }
     if (!process_action_response(action)) {
-        fprintf(stderr, "Error while processing server response\n");
+        fprintf(stderr, "ERR: Error while processing server response\n");
         return_defer(0);
     }
 
@@ -538,29 +580,29 @@ int main(int argc, char **argv)
     struct sockaddr_in serv_addr;
 
     if (!isatty(STDIN_FILENO)) {
-        fprintf(stderr, "Launch this from a tty\n");
+        fprintf(stderr, "ERR: Launch this from a tty\n");
         return_defer(1);
     }
 
     if (argc != 3) {
-        fprintf(stderr, "Usage: <ip> <port>\n");
+        fprintf(stderr, "ERR: Usage: <ip> <port>\n");
         return_defer(1);
     }
 
     serv_addr.sin_family = AF_INET;
     port = strtol(argv[2], &endptr, 10);
     if (!*argv[2] || *endptr) {
-        fprintf(stderr, "Invalid port number\n");
+        fprintf(stderr, "ERR: Invalid port number\n");
         return_defer(1);
     }
     serv_addr.sin_port = htons(port);
     if (!inet_aton(argv[1], &serv_addr.sin_addr)) {
-        fprintf(stderr, "Provide valid server ip-address\n");
+        fprintf(stderr, "ERR: Provide valid server ip-address\n");
         return_defer(1);
     }
 
     if (!connect_to_server(serv_addr)) {
-        fprintf(stderr, "Failed to connect to server\n");
+        fprintf(stderr, "ERR: Failed to connect to server\n");
         return_defer(2);
     }
 
