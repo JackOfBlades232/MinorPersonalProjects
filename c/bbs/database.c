@@ -279,13 +279,14 @@ static int parse_data_dir(database *db)
     size_t cnt = 0,
            cap = METAFILES_BASE_CAP;
 
+    file_metadata *fmd = NULL;
+
     data_dir = opendir(db->data_path);
     if (!data_dir)
         return_defer(0);
 
     db->file_metas = malloc(cap * sizeof(*db->file_metas));
 
-    file_metadata *fmd = NULL;
     while ((dent = readdir(data_dir)) != NULL) {
         if (dent->d_type != DT_REG && dent->d_type != DT_UNKNOWN)
             continue;
@@ -353,6 +354,8 @@ static int parse_passwd_file(database *db, const char *path)
     size_t cnt = 0,
            cap = USERS_BASE_CAP;
 
+    user_data *ud = NULL;
+
     passwd_f = fopen(path, "r");
     if (!passwd_f)
         return_defer(0);
@@ -361,7 +364,6 @@ static int parse_passwd_file(database *db, const char *path)
     db->user_datas[0] = NULL;
 
     int break_c;
-    user_data *ud = NULL;
     for (;;) {
         break_c = read_word_to_buf(passwd_f, buf, sizeof(buf), WORD_SEP);
         if (break_c == 0)

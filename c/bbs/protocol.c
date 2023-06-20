@@ -387,7 +387,7 @@ p_reader_processing_res p_reader_process_str(p_message_reader *reader,
     
     *chars_processed = 0;
     while (len > 0) {
-        size_t chars_read;
+        size_t chars_read = 0;
         switch (reader->state) {
             case rs_header:
                 chars_read = match_header(reader, str, len);
