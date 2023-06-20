@@ -28,13 +28,15 @@ typedef enum p_type_tag {
     ts_login_failed,
     tc_list_files,
     ts_file_list_response,
-    tc_file_query,
+    tc_file_check,
+    ts_file_exists,
     ts_file_not_found,
+    tc_file_query,
     ts_file_restricted,
     ts_start_file_transfer,
     ts_file_packet,
     tc_leave_note,
-    ts_note_done
+    ts_note_done,
 } p_type;
 
 typedef struct p_message_tag {

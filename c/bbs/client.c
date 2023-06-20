@@ -248,6 +248,12 @@ void log_await_error()
     }
 }
 
+int await_error_is_normal()
+{
+    return last_await_res == asr_timeout || 
+           last_await_res == asr_disconnected;
+}
+
 int connect_to_server(struct sockaddr_in serv_addr)
 {
     int result = 0;
@@ -385,8 +391,53 @@ int leave_note_dialogue()
 
     send_message(msg);
 
-    if (msg) p_free_message(msg);
+    p_free_message(msg);
     return result;
+}
+
+int post_file_dialogue()
+{
+    char filename[MAX_FILENAME_LEN+1];
+    printf("\nInput file name: ");
+    fgets(filename, sizeof(filename)-1, stdin);
+    if (!strip_nl(filename)) {
+        printf("Filename is too long\n");
+        return 0;
+    }
+
+    p_message *msg = p_create_message(r_client, tc_file_check);
+    p_add_string_to_message(msg, filename);
+    send_message(msg);
+    p_free_message(msg);
+
+    if (!await_server_message()) {
+        if (await_error_is_normal())
+            printf("Failed to check file existence\n");
+        else
+            fprintf(stderr, "ERR: failed to check file existence\n");
+        log_await_error();
+        return -1; // To terminate in ask for action
+    }
+
+    if (
+            reader.msg->role != r_server ||
+            (
+             reader.msg->type != ts_file_exists &&
+             reader.msg->type != ts_file_not_found
+            ) ||
+            reader.msg->cnt != 0
+       ) {
+        fprintf(stderr, "ERR: Invalid file-check server response");
+        return -1; // To terminate in ask for action
+    }
+
+    if (reader.msg->type == ts_file_exists) {
+        printf("A file with this name already exists\n");
+        return 0;
+    }
+
+    // @TODO: WIP
+    return 0;
 }
 
 int perform_action(client_action action)
@@ -406,6 +457,9 @@ int perform_action(client_action action)
 
         case leave_note:
             return leave_note_dialogue();
+
+        case post_file:
+            return post_file_dialogue();
 
         default:
             fprintf(stderr, "ERR: Not implemented\n");
@@ -545,10 +599,7 @@ int process_query_file_response()
     putchar('\n');
 
     if (packets_left > 0) {
-        if (
-                last_await_res == asr_timeout || 
-                last_await_res == asr_disconnected
-           )
+        if (await_error_is_normal())
             printf("Failed to recieve all packets, file is incomplete\n");
         else
             fprintf(stderr, "ERR: Failed to recieve all packets, file is incomplete\n");
@@ -651,9 +702,11 @@ int ask_for_action()
 
     p_init_reader(&reader);
 
-    // If could not perform action in dialogue, continue
-    if (!perform_action(action))
-        return_defer(1);
+    // If could not perform action in dialogue (0), continue
+    // If there was a critical error (-1), break
+    int perf_res = perform_action(action);
+    if (perf_res != 1)
+        return_defer(perf_res == 0);
 
     // If server message was invalid or unparsable, stop client
     if (!await_server_message()) {

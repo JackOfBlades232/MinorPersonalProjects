@@ -252,6 +252,23 @@ void session_store_note(session *sess) {
     session_post_empty_message(sess, ts_note_done);
 }
 
+void session_process_file_check(session *sess)
+{
+    p_message *msg = sess->in_reader.msg;
+
+    if (msg->cnt != 1) {
+        sess->state = sstate_error;
+        return;
+    }
+
+    char *filename = NULL;
+    file_lookup_result lookup_res = db_lookup_file(&db, msg->words[0].str, 
+                                                   sess->usernm, sess->ut,
+                                                   &filename);
+    
+    session_post_empty_message(sess, lookup_res == not_found ? ts_file_not_found : ts_file_exists);
+}
+
 void session_parse_regular_message(session *sess)
 {
     p_message *msg = sess->in_reader.msg;
@@ -272,6 +289,9 @@ void session_parse_regular_message(session *sess)
             break;
         case tc_leave_note:
             session_store_note(sess);
+            break;
+        case tc_file_check:
+            return session_process_file_check(sess);
             break;
         default:
             sess->state = sstate_error;
