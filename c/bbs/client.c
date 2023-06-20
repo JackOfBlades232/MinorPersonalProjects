@@ -406,9 +406,19 @@ perform_action_result leave_note_dialogue()
 
 perform_action_result post_file_dialogue()
 {
+    perform_action_result result = par_ok;
+
     char filename[MAX_FILENAME_LEN+1];
     if (!try_read_item_from_stdin(filename, sizeof(filename), "\nInput file name: ", "Filename is too long"))
         return par_retry;
+
+    if (
+            access(filename, F_OK) == -1 || // doesn't exist
+            access(filename, R_OK) == -1    // or is not readable
+       ) {
+        printf("Can't read this file\n");
+        return par_retry;
+    }
 
     p_message *msg = p_create_message(r_client, tc_file_check);
     p_add_string_to_message(msg, filename);
@@ -437,12 +447,28 @@ perform_action_result post_file_dialogue()
         return par_retry;
     }
 
-    char descr[MAX_DESCR_LEN+1];
-    if (!try_read_item_from_stdin(descr, sizeof(descr), "\nInput description: ", "Description is too long"))
-        return par_retry;
+    msg = p_create_message(r_client, tc_post_file);
+    p_add_string_to_message(msg, filename);
 
-    // @TODO: WIP
-    return par_retry;
+    char descr[MAX_DESCR_LEN+1];
+    if (!try_read_item_from_stdin(descr, sizeof(descr), "Input description: ", "Description is too long"))
+        return_defer(par_retry);
+    p_add_string_to_message(msg, descr);
+
+    char users[MAX_USER_CNT*(MAX_LOGIN_ITEM_LEN+1)];
+    if (!try_read_item_from_stdin(users, sizeof(users), "Input users that will have access to the file: ", "The list is too long"))
+        return_defer(par_retry);
+
+    // @TODO: validate (and cut up (will be words 2..n-2)?) users string
+    // @TODO: open file, count packets and put it in message
+    // @TODO: send this all over
+    // @TODO: immediately start packet transmission
+    // @TODO: add ui for upload
+defer:
+    result = par_retry; // @TEST
+
+    if (msg) p_free_message(msg);
+    return result;
 }
 
 perform_action_result perform_action(client_action action)

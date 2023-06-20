@@ -9,7 +9,7 @@ enum {
     MAX_USER_CNT = 32,
     MAX_NOTE_LEN = 256,
 
-    MAX_WORD_LEN = 4095
+    MAX_WORD_LEN = 4096 // must be >= user_cnt * (login_len+1), see client post msg
 };
 
 #endif
