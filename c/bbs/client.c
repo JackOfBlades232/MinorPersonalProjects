@@ -292,16 +292,26 @@ defer:
     return result;
 }
 
+int try_read_item_from_stdin(char *buf, size_t bufsize, 
+                             const char* prompt, const char *overflow_msg)
+{
+    fputs(prompt, stdout);
+    fgets(buf, bufsize-1, stdin);
+    if (!strip_nl(buf)) {
+        puts(overflow_msg);
+        return 0;
+    }
+
+    return 1;
+}
+
 int ask_for_credential_item(p_message *msg, const char *dialogue)
 {
     char cred[MAX_LOGIN_ITEM_LEN];
 
-    fputs(dialogue, stdout);
-    fgets(cred, sizeof(cred)-1, stdin);
-    if (!strip_nl(cred)) {
-        printf("Login item loo long\n");
+    if (!try_read_item_from_stdin(cred, sizeof(cred), dialogue, "Login item too long"))
         return 0;
-    }
+
     if (check_spc(cred)) {
         printf("Spaces are not allowed in login item\n");
         return 0;
@@ -346,14 +356,10 @@ defer:
 perform_action_result query_file_dialogue()
 {
     perform_action_result result = par_ok;
-    
     char filename[MAX_FILENAME_LEN+1];
-    printf("\nInput file name: ");
-    fgets(filename, sizeof(filename)-1, stdin);
-    if (!strip_nl(filename)) {
-        printf("Filename is too long\n");
+
+    if (!try_read_item_from_stdin(filename, sizeof(filename), "\nInput file name: ", "Filename is too long"))
         return par_retry;
-    }
 
     if (
             access(filename, F_OK) == 0 && // exists
@@ -386,12 +392,8 @@ perform_action_result leave_note_dialogue()
         return par_retry;
     }
 
-    printf("\nInput note: ");
-    fgets(note, sizeof(note)-1, stdin);
-    if (!strip_nl(note)) {
-        printf("Note is too long\n");
+    if (!try_read_item_from_stdin(note, sizeof(note), "\nInput note: ", "Note is too long"))
         return par_retry;
-    }
 
     p_message *msg = p_create_message(r_client, tc_leave_note);
     p_add_string_to_message(msg, note);
@@ -405,12 +407,8 @@ perform_action_result leave_note_dialogue()
 perform_action_result post_file_dialogue()
 {
     char filename[MAX_FILENAME_LEN+1];
-    printf("\nInput file name: ");
-    fgets(filename, sizeof(filename)-1, stdin);
-    if (!strip_nl(filename)) {
-        printf("Filename is too long\n");
+    if (!try_read_item_from_stdin(filename, sizeof(filename), "\nInput file name: ", "Filename is too long"))
         return par_retry;
-    }
 
     p_message *msg = p_create_message(r_client, tc_file_check);
     p_add_string_to_message(msg, filename);
@@ -438,6 +436,10 @@ perform_action_result post_file_dialogue()
         printf("A file with this name already exists\n");
         return par_retry;
     }
+
+    char descr[MAX_DESCR_LEN+1];
+    if (!try_read_item_from_stdin(descr, sizeof(descr), "\nInput description: ", "Description is too long"))
+        return par_retry;
 
     // @TODO: WIP
     return par_retry;
@@ -680,14 +682,10 @@ int ask_for_action()
     client_action action;
 
     output_available_actions();
-    printf("Input action: ");
 
-    fgets(action_buf, sizeof(action_buf)-1, stdin);
-    if (!strip_nl(action_buf)) {
-        discard_stdin();
-        printf("Action name is too long\n");
+    if (!try_read_item_from_stdin(action_buf, sizeof(action_buf), "Input action: ", "Action name is too long"))
         return_defer(1);
-    }
+
     if (!try_get_client_action_by_name(action_buf, &action)) {
         printf("Invalid action name\n");
         return_defer(1);
