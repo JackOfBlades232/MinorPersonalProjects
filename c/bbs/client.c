@@ -21,11 +21,6 @@
 enum {
     SERV_READ_BUFSIZE = 2048,
     ACTION_BUFSIZE = 32,
-
-    NUM_REG_ACTIONS = 5,
-    NUM_POSTER_ACTIONS = 1,
-    NUM_ADMIN_ACTIONS = 5,
-
     DOWNLOAD_PLACK_NUM_BUFSIZE = 128,
 
     SERV_AWAIT_TIMEOUT_SEC = 12
@@ -48,22 +43,31 @@ typedef enum client_action_tag {
     delete_file
 } client_action;
 
-static const client_action reg_actions[NUM_REG_ACTIONS] = {
+static const client_action reg_actions[] = {
     log_in, list_files, query_file, leave_note, exit_client
 };
+#define NUM_REG_ACTIONS sizeof(reg_actions)/sizeof(*reg_actions)
 static const char *reg_action_names[NUM_REG_ACTIONS] = {
     "login", "list", "query", "note", "exit"
 };
 
-static const client_action poster_actions[NUM_POSTER_ACTIONS] = { post_file };
+static const client_action poster_actions[] = { post_file };
+#define NUM_POSTER_ACTIONS sizeof(poster_actions)/sizeof(*poster_actions)
 static const char *poster_action_names[NUM_POSTER_ACTIONS] = { "post" };
 
-static const client_action admin_actions[NUM_ADMIN_ACTIONS] = {
+static const client_action admin_actions[] = {
     add_user, read_notes, clear_notes, edit_file_meta, delete_file
 };
+#define NUM_ADMIN_ACTIONS sizeof(admin_actions)/sizeof(*admin_actions)
 static const char *admin_action_names[NUM_ADMIN_ACTIONS] = {
     "add user", "read notes", "clear notes", "edit", "delete"
 };
+
+typedef enum perform_action_result_tag {
+    par_ok,
+    par_retry,
+    par_error
+} perform_action_result; 
 
 typedef enum await_server_msg_result_tag {
     asr_ok, 
@@ -73,8 +77,6 @@ typedef enum await_server_msg_result_tag {
     asr_timeout,
     asr_disconnected
 } await_server_msg_result;
-
-// @TODO: add privileged client actions
 
 // Global client state
 static int sock = -1;
@@ -127,26 +129,27 @@ int search_word_arr(const char **arr, size_t size, const char *query)
 
 int try_get_client_action_by_name(const char *name, client_action *out)
 {
+    user_type req_type = ut_none;
     int i = search_word_arr(reg_action_names, NUM_REG_ACTIONS, name); 
-    if (i != -1) {
+    if (i >= 0)
         *out = reg_actions[i];
-        return 1;
-    }
 
-    if (login_user_type == ut_poster || login_user_type == ut_admin) {
-        i = search_word_arr(poster_action_names, NUM_POSTER_ACTIONS, name); 
-        if (i != -1) {
+    if (i == -1) {
+        req_type = ut_poster;
+        i = search_word_arr(poster_action_names, NUM_POSTER_ACTIONS, name);
+        if (i >= 0)
             *out = poster_actions[i];
-            return 1;
-        }
     }
 
-    if (login_user_type == ut_admin) {
-        i = search_word_arr(admin_action_names, NUM_ADMIN_ACTIONS, name); 
-        if (i != -1) {
+    if (i == -1) {
+        req_type = ut_admin;
+        i = search_word_arr(admin_action_names, NUM_ADMIN_ACTIONS, name);
+        if (i >= 0)
             *out = admin_actions[i];
-            return 1;
-        }
+    }
+
+    if (i != -1 && req_type <= login_user_type) {
+        return 1;
     }
 
     return 0;
@@ -248,10 +251,14 @@ void log_await_error()
     }
 }
 
-int await_error_is_normal()
+void log_await_error_with_caption(const char *caption)
 {
-    return last_await_res == asr_timeout || 
-           last_await_res == asr_disconnected;
+    if (last_await_res == asr_timeout || last_await_res == asr_disconnected)
+        printf("%s\n", caption);
+    else
+        fprintf(stderr, "ERR: %s\n", caption);
+
+    log_await_error();
 }
 
 int connect_to_server(struct sockaddr_in serv_addr)
@@ -304,22 +311,22 @@ int ask_for_credential_item(p_message *msg, const char *dialogue)
     return 1;
 }
 
-int login_dialogue() 
+perform_action_result login_dialogue() 
 {
-    int result = 1;
+    perform_action_result result = par_ok;
 
     p_message *msg;
     struct termios ts;
 
     if (login_user_type != ut_none) {
         printf("\nYou are already logged in\n");
-        return 0;
+        return par_retry;
     }
 
     msg = p_create_message(r_client, tc_login);
 
     if (!ask_for_credential_item(msg, "\nUsername: "))
-        return_defer(0);
+        return_defer(par_retry);
 
     disable_echo(&ts);
     int passwd_res = ask_for_credential_item(msg, "Password: ");
@@ -327,7 +334,7 @@ int login_dialogue()
     tcsetattr(STDIN_FILENO, TCSANOW, &ts);
 
     if (!passwd_res)
-        return_defer(0);
+        return_defer(par_retry);
 
     send_message(msg);
 
@@ -336,16 +343,16 @@ defer:
     return result;
 }
 
-int query_file_dialogue()
+perform_action_result query_file_dialogue()
 {
-    int result = 1;
+    perform_action_result result = par_ok;
     
     char filename[MAX_FILENAME_LEN+1];
     printf("\nInput file name: ");
     fgets(filename, sizeof(filename)-1, stdin);
     if (!strip_nl(filename)) {
         printf("Filename is too long\n");
-        return 0;
+        return par_retry;
     }
 
     if (
@@ -353,7 +360,7 @@ int query_file_dialogue()
             access(filename, W_OK) == -1   // and is not writeable
        ) {
         printf("Can't overwrite this file\n");
-        return 0;
+        return par_retry;
     }
 
     p_message *msg = p_create_message(r_client, tc_file_query);
@@ -368,22 +375,22 @@ int query_file_dialogue()
     return result;
 }
 
-int leave_note_dialogue()
+perform_action_result leave_note_dialogue()
 {
-    int result = 1;
+    perform_action_result result = par_ok;
     
     char note[MAX_NOTE_LEN+1];
 
     if (login_user_type == ut_none) {
         printf("\nLog in to leave notes\n");
-        return 0;
+        return par_retry;
     }
 
     printf("\nInput note: ");
     fgets(note, sizeof(note)-1, stdin);
     if (!strip_nl(note)) {
         printf("Note is too long\n");
-        return 0;
+        return par_retry;
     }
 
     p_message *msg = p_create_message(r_client, tc_leave_note);
@@ -395,14 +402,14 @@ int leave_note_dialogue()
     return result;
 }
 
-int post_file_dialogue()
+perform_action_result post_file_dialogue()
 {
     char filename[MAX_FILENAME_LEN+1];
     printf("\nInput file name: ");
     fgets(filename, sizeof(filename)-1, stdin);
     if (!strip_nl(filename)) {
         printf("Filename is too long\n");
-        return 0;
+        return par_retry;
     }
 
     p_message *msg = p_create_message(r_client, tc_file_check);
@@ -411,12 +418,8 @@ int post_file_dialogue()
     p_free_message(msg);
 
     if (!await_server_message()) {
-        if (await_error_is_normal())
-            printf("Failed to check file existence\n");
-        else
-            fprintf(stderr, "ERR: failed to check file existence\n");
-        log_await_error();
-        return -1; // To terminate in ask for action
+        log_await_error_with_caption("Failed to check file existence");
+        return par_error; // To terminate in ask for action
     }
 
     if (
@@ -428,19 +431,19 @@ int post_file_dialogue()
             reader.msg->cnt != 0
        ) {
         fprintf(stderr, "ERR: Invalid file-check server response");
-        return -1; // To terminate in ask for action
+        return par_error; // To terminate in ask for action
     }
 
     if (reader.msg->type == ts_file_exists) {
         printf("A file with this name already exists\n");
-        return 0;
+        return par_retry;
     }
 
     // @TODO: WIP
-    return 0;
+    return par_retry;
 }
 
-int perform_action(client_action action)
+perform_action_result perform_action(client_action action)
 {
     p_type type = action_to_p_type(action);
 
@@ -450,7 +453,7 @@ int perform_action(client_action action)
 
         case list_files:
             send_empty_message(type);
-            return 1;
+            return par_ok;
 
         case query_file:
             return query_file_dialogue();
@@ -465,7 +468,7 @@ int perform_action(client_action action)
             fprintf(stderr, "ERR: Not implemented\n");
     }
 
-    return 0;
+    return par_retry;
 }
 
 int process_login_response()
@@ -599,12 +602,7 @@ int process_query_file_response()
     putchar('\n');
 
     if (packets_left > 0) {
-        if (await_error_is_normal())
-            printf("Failed to recieve all packets, file is incomplete\n");
-        else
-            fprintf(stderr, "ERR: Failed to recieve all packets, file is incomplete\n");
-
-        log_await_error();
+        log_await_error_with_caption("Failed to recieve all packets, file is incomplete");
         return_defer(0);
     } else
         printf("Download complete\n");
@@ -662,12 +660,12 @@ void output_available_actions()
 {
     printf("\nAvailable actions: ");
     output_word_arr(reg_action_names, NUM_REG_ACTIONS);
-    if (login_user_type == ut_poster || login_user_type == ut_admin) {
-        printf("\n                   ");
+    if (login_user_type >= ut_poster) {
+        printf(" | ");
         output_word_arr(poster_action_names, NUM_POSTER_ACTIONS);
     }
-    if (login_user_type == ut_admin) {
-        printf("\n                   ");
+    if (login_user_type >= ut_admin) {
+        printf(" | ");
         output_word_arr(admin_action_names, NUM_ADMIN_ACTIONS);
     }
 
@@ -702,11 +700,13 @@ int ask_for_action()
 
     p_init_reader(&reader);
 
-    // If could not perform action in dialogue (0), continue
-    // If there was a critical error (-1), break
+    // If could not perform action in dialogue, continue
+    // If there was a critical error, break
     int perf_res = perform_action(action);
-    if (perf_res != 1)
-        return_defer(perf_res == 0);
+    if (perf_res == par_retry)
+        return_defer(1);
+    else if (perf_res == par_error)
+        return_defer(0);
 
     // If server message was invalid or unparsable, stop client
     if (!await_server_message()) {

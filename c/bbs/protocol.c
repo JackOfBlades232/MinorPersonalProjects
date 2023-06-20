@@ -23,24 +23,24 @@ enum {
     MESSAGE_BASE_CAP = 64,
     WORD_BASE_CAP = 16,
 
-    HEADER_LEN = 6,
     BYTE_FIELDS_LEN = 2,
     MAX_DIGITS = 32, // overkill
-
-    NUM_ROLES = 2,
-    NUM_TYPES = 17
 };
 
-const char header[HEADER_LEN+1] = "BBS232";
+const char header[] = "BBS232";
+#define HEADER_LEN sizeof(header)-1
 
-const p_role valid_roles[NUM_ROLES] = { r_server, r_client };
-const p_type valid_types[NUM_TYPES] = {
+const p_role valid_roles[] = { r_server, r_client };
+const p_type valid_types[] = {
     ts_init, tc_login, ts_login_success, ts_login_poster,
     ts_login_admin, ts_login_failed, tc_list_files, ts_file_list_response, 
     tc_file_check, ts_file_exists, ts_file_not_found,
     tc_file_query, ts_file_restricted, ts_start_file_transfer, 
     ts_file_packet, tc_leave_note, ts_note_done
 };
+
+#define NUM_ROLES sizeof(valid_roles)/sizeof(*valid_roles)
+#define NUM_TYPES sizeof(valid_types)/sizeof(*valid_types)
 
 static p_message *create_empty_message()
 {
