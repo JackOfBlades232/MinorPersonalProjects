@@ -90,7 +90,7 @@ Poster & Admin user:
     Admin user mark & dialogues (client):
         * Add a star-user to passwd_f and parsing, flag to user_data and flag to session
         * Add new login response: logged in as admin, and change logged_in glob var to login status (no, yes, admin)
-        - Make new action list and dialogue variants in ask for action for poster & admin users
+        * Make new action list and dialogue variants in ask for action for poster & admin users
 
 Poster:
     Add new file (edit the empty meta & transfer):

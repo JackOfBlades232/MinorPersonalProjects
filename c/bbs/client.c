@@ -21,7 +21,10 @@
 enum {
     SERV_READ_BUFSIZE = 2048,
     ACTION_BUFSIZE = 32,
-    NUM_ACTIONS = 5,
+
+    NUM_REG_ACTIONS = 5,
+    NUM_POSTER_ACTIONS = 1,
+    NUM_ADMIN_ACTIONS = 5,
 
     DOWNLOAD_PLACK_NUM_BUFSIZE = 128,
 
@@ -36,15 +39,30 @@ typedef enum client_action_tag {
     list_files,
     query_file,
     leave_note,
-    exit_client
+    exit_client,
+    post_file,
+    add_user,
+    read_notes,
+    clear_notes,
+    edit_file_meta,
+    delete_file
 } client_action;
 
-static const client_action all_actions[NUM_ACTIONS] = {
+static const client_action reg_actions[NUM_REG_ACTIONS] = {
     log_in, list_files, query_file, leave_note, exit_client
 };
-
-static const char *action_names[NUM_ACTIONS] = {
+static const char *reg_action_names[NUM_REG_ACTIONS] = {
     "login", "list", "query", "note", "exit"
+};
+
+static const client_action poster_actions[NUM_POSTER_ACTIONS] = { post_file };
+static const char *poster_action_names[NUM_POSTER_ACTIONS] = { "post" };
+
+static const client_action admin_actions[NUM_ADMIN_ACTIONS] = {
+    add_user, read_notes, clear_notes, edit_file_meta, delete_file
+};
+static const char *admin_action_names[NUM_ADMIN_ACTIONS] = {
+    "add user", "read notes", "clear notes", "edit", "delete"
 };
 
 typedef enum await_server_msg_result_tag {
@@ -97,20 +115,41 @@ void discard_stdin()
     while (getchar() != '\n') {};
 }
 
+int search_word_arr(const char **arr, size_t size, const char *query)
+{
+    for (int i = 0; i < size; i++) {
+        if (strings_are_equal(arr[i], query))
+            return i;
+    }
+
+    return -1;
+}
+
 int try_get_client_action_by_name(const char *name, client_action *out)
 {
-    int result = 0;
-    int i;
-    for (i = 0; i < NUM_ACTIONS; i++) {
-        if (strings_are_equal(action_names[i], name)) {
-            result = 1;
-            break;
+    int i = search_word_arr(reg_action_names, NUM_REG_ACTIONS, name); 
+    if (i != -1) {
+        *out = reg_actions[i];
+        return 1;
+    }
+
+    if (login_user_type == ut_poster || login_user_type == ut_admin) {
+        i = search_word_arr(poster_action_names, NUM_POSTER_ACTIONS, name); 
+        if (i != -1) {
+            *out = poster_actions[i];
+            return 1;
         }
     }
 
-    if (result)
-        *out = all_actions[i];
-    return result;
+    if (login_user_type == ut_admin) {
+        i = search_word_arr(admin_action_names, NUM_ADMIN_ACTIONS, name); 
+        if (i != -1) {
+            *out = admin_actions[i];
+            return 1;
+        }
+    }
+
+    return 0;
 }
 
 int action_to_p_type(client_action action)
@@ -558,6 +597,32 @@ int process_action_response(client_action action)
     return 0;
 }
 
+void output_word_arr(const char **arr, size_t size)
+{
+    for (int i = 0; i < size; i++) {
+        if (i == 0)
+            printf("%s", arr[i]);
+        else
+            printf(", %s", arr[i]);
+    }
+}
+
+void output_available_actions()
+{
+    printf("\nAvailable actions: ");
+    output_word_arr(reg_action_names, NUM_REG_ACTIONS);
+    if (login_user_type == ut_poster || login_user_type == ut_admin) {
+        printf("\n                   ");
+        output_word_arr(poster_action_names, NUM_POSTER_ACTIONS);
+    }
+    if (login_user_type == ut_admin) {
+        printf("\n                   ");
+        output_word_arr(admin_action_names, NUM_ADMIN_ACTIONS);
+    }
+
+    putchar('\n');
+}
+
 int ask_for_action()
 {
     int result = 1;
@@ -565,11 +630,7 @@ int ask_for_action()
     char action_buf[ACTION_BUFSIZE];    
     client_action action;
 
-    printf("\nAvailable actions: ");
-    for (int i = 0; i < NUM_ACTIONS; i++) { if (i == 0) printf("%s", action_names[i]); else
-            printf(", %s", action_names[i]);
-    }
-    putchar('\n');
+    output_available_actions();
     printf("Input action: ");
 
     fgets(action_buf, sizeof(action_buf)-1, stdin);
