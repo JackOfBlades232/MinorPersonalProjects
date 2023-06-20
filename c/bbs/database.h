@@ -3,6 +3,7 @@
 #define DATABASE_SENTRY
 
 #include "utils.h"
+#include "types.h"
 #include <sys/types.h>
 #include <dirent.h>
 #include <stdio.h>
@@ -18,6 +19,7 @@ typedef struct file_metadata_tag {
 typedef struct user_data_tag {
     char *usernm;
     char *passwd;
+    user_type type;
 } user_data;
 
 typedef struct database_tag {
@@ -34,9 +36,13 @@ typedef enum file_lookup_result_tag {
 int db_init(database* db, const char *path);
 void db_deinit(database* db);
 
-int db_try_match_credentials(database* db, const char *usernm, const char *passwd);
-int db_file_is_available_to_user(file_metadata *fmd, const char *username);
-file_lookup_result db_lookup_file(database *db, const char *filename, const char *username, char **out);
+user_type db_try_match_credentials(database* db, const char *usernm, const char *passwd);
+
+int db_file_is_available_to_user(file_metadata *fmd, const char *username, user_type utype);
+file_lookup_result db_lookup_file(database *db, const char *filename, 
+                                  const char *username, user_type utype, 
+                                  char **out);
+
 void db_store_note(database *db, const char *username, byte_arr note);
 
 #endif

@@ -56,6 +56,10 @@ static const char metadata_users_alias[] = "access:";
 
 static const char all_users_symbol[] = "*";
 
+static const char poster_mark[] = "&";
+static const char admin_mark[] = "*";
+
+
 static file_metadata *create_metadata()
 {
     file_metadata *fmd = malloc(sizeof(*fmd));
@@ -80,11 +84,12 @@ static void free_metadata(file_metadata *fmd)
     free(fmd);
 }
 
-static user_data *create_user_data()
+static user_data *create_user_data(user_type utype)
 {
     user_data *ud = malloc(sizeof(*ud));
     ud->usernm = NULL;
     ud->passwd = NULL;
+    ud->type = utype;
     return ud;
 }
 
@@ -376,17 +381,31 @@ static int parse_passwd_file(database *db, const char *path)
         if (len == 0)
             goto case_eof;
         if (!ud) {
+            if (break_c != WORD_SEP)
+                return_defer(0);
+
+            user_type utype = ut_regular;
+            if (strings_are_equal(buf, poster_mark))
+                utype = ut_poster;
+            else if (strings_are_equal(buf, admin_mark))
+                utype = ut_admin;
+
+            ud = create_user_data(utype);
+            if (utype != ut_regular)
+                continue;
+        } 
+
+        if (!ud->usernm) {
             if (
-                    break_c != WORD_SEP || 
+                    break_c != WORD_SEP ||
                     check_spc(buf) ||
                     !username_is_new(db->user_datas, buf)
                ) {
                 return_defer(0);
             }
 
-            ud = create_user_data();
             ud->usernm = strndup(buf, len);
-        } else {
+        } else if (!ud->passwd) {
             if ((!is_nl(break_c) && break_c != EOF)  || check_spc(buf))
                 return_defer(0);
 
@@ -541,23 +560,23 @@ void db_deinit(database* db)
     db->notes_f = NULL;
 }
 
-int db_try_match_credentials(database* db, const char *usernm, const char *passwd)
+user_type db_try_match_credentials(database* db, const char *usernm, const char *passwd)
 {
     for (user_data **udp = db->user_datas; *udp; udp++) {
         if (
                 strings_are_equal((*udp)->usernm, usernm) && 
                 strings_are_equal((*udp)->passwd, passwd)
            ) {
-            return 1;
+            return (*udp)->type;
         }
     }
 
-    return 0;
+    return ut_none;
 }
 
-int db_file_is_available_to_user(file_metadata *fmd, const char *username)
+int db_file_is_available_to_user(file_metadata *fmd, const char *username, user_type utype)
 {
-    if (fmd->is_for_all_users)
+    if (utype == ut_admin || fmd->is_for_all_users)
         return 1;
     else if (!username)
         return 0;
@@ -570,7 +589,9 @@ int db_file_is_available_to_user(file_metadata *fmd, const char *username)
     return 0;
 }
 
-file_lookup_result db_lookup_file(database *db, const char *filename, const char *username, char **out)
+file_lookup_result db_lookup_file(database *db, const char *filename, 
+                                  const char *username, user_type utype, 
+                                  char **out)
 {
     file_lookup_result res = not_found;
 
@@ -578,7 +599,7 @@ file_lookup_result db_lookup_file(database *db, const char *filename, const char
         if (strings_are_equal((*fmdp)->name, filename)) {
             res = no_access;
 
-            if (db_file_is_available_to_user(*fmdp, username)) {
+            if (db_file_is_available_to_user(*fmdp, username, utype)) {
                 *out = concat_strings(db->data_path, (*fmdp)->name, NULL);
                 return found;
             }

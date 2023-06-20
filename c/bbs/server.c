@@ -44,7 +44,9 @@ typedef struct session_tag {
     size_t out_buf_sent, out_buf_len;
 
     session_state state;
+
     char *usernm;
+    user_type ut;
 
     p_message_reader in_reader;
 
@@ -131,6 +133,7 @@ session *make_session(int fd,
     sess->out_buf_len = 0;
     sess->state = sstate_await;
     sess->usernm = NULL; // Not logged in
+    sess->ut = ut_none;
     sess->cur_file_fd = -1;
     sess->packets_left = 0; // Not logged in
 
@@ -153,10 +156,11 @@ void session_handle_login(session *sess)
     char *usernm = msg->words[0].str,
          *passwd = msg->words[1].str;
 
-    int matched = db_try_match_credentials(&db, usernm, passwd);
-    session_post_empty_message(sess, matched ? ts_login_success : ts_login_failed);
+    sess->ut = db_try_match_credentials(&db, usernm, passwd);
+    // @TODO: send specific messages on poster/admin login
+    session_post_empty_message(sess, sess->ut != ut_none ? ts_login_success : ts_login_failed);
 
-    if (matched)
+    if (sess->ut != ut_none)
         sess->usernm = strdup(usernm);
 
     return;
@@ -167,7 +171,7 @@ void session_post_file_list(session *sess)
     p_message *response = p_create_message(r_server, ts_file_list_response);
 
     for (file_metadata **fmd = db.file_metas; *fmd; fmd++) {
-        if (db_file_is_available_to_user(*fmd, sess->usernm)) {
+        if (db_file_is_available_to_user(*fmd, sess->usernm, sess->ut)) {
             char *name_and_descr = concat_strings((*fmd)->name, "\n", (*fmd)->descr, NULL);
             p_add_string_to_message(response, name_and_descr);
             free(name_and_descr);
@@ -215,7 +219,8 @@ void session_process_file_query(session *sess)
 
     char *filename = NULL;
     file_lookup_result lookup_res = db_lookup_file(&db, msg->words[0].str, 
-                                                   sess->usernm, &filename);
+                                                   sess->usernm, sess->ut,
+                                                   &filename);
 
     if (lookup_res == found) {
         response = construct_num_packets_response(sess, filename);

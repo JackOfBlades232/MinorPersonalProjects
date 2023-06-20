@@ -2,9 +2,14 @@
 #include "database.h"
 #include "protocol.h"
 #include "utils.h"
+#include "types.h"
 #include "debug.h"
 #include <stdio.h>
 #include <stdlib.h>
+
+#ifndef DEBUG
+#define DEBUG
+#endif
 
 int main(int argc, char **argv)
 {
@@ -73,6 +78,7 @@ int main(int argc, char **argv)
     */
 
     /*
+    */
     if (argc < 2)
         return 0;
     database db;
@@ -97,14 +103,17 @@ int main(int argc, char **argv)
             printf("\n");
             puts(ud->usernm);
             puts(ud->passwd);
+            printf(ud->type == ut_none ? "None\n" : 
+                  (ud->type == ut_regular ? "Reg\n" :
+                  (ud->type == ut_poster ? "Poster\n" :
+                  (ud->type == ut_admin ? "Admin\n" : "Wut\n"))));
         }
 
         db_deinit(&db);
     }
-    */
 
-    debug_cat_file("database_ex/data/humpty.txt");
     /*
+    debug_cat_file("database_ex/data/humpty.txt");
     */
 
     return 0;
