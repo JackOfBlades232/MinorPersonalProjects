@@ -11,6 +11,7 @@
 #include <arpa/inet.h>
 #include <sys/types.h>
 #include <sys/stat.h>
+#include <sys/time.h>
 #include <fcntl.h>
 #include <termios.h>
 
@@ -21,7 +22,9 @@ enum {
     ACTION_BUFSIZE = 32,
     NUM_ACTIONS = 4,
 
-    DOWNLOAD_PLACK_NUM_BUFSIZE = 128
+    DOWNLOAD_PLACK_NUM_BUFSIZE = 128,
+
+    SERV_AWAIT_TIMEOUT_SEC = 12
 };
 
 #define EPSILON 0.000001
@@ -47,6 +50,7 @@ typedef enum await_server_msg_result_tag {
     asr_incomplete, 
     asr_process_err, 
     asr_read_err, 
+    asr_timeout,
     asr_disconnected
 } await_server_msg_result;
 
@@ -125,16 +129,33 @@ int action_to_p_type(client_action action)
 
 int await_server_message()
 {
-    size_t read_res = 0;
+    int sel_res = 1;
+    size_t read_res = 1;
     p_reader_processing_res pr_res = rpr_in_progress;
 
-    while (
-            serv_buf_used > 0 ||
-            (read_res = read(sock, serv_read_buf, sizeof(serv_read_buf))) > 0
-          ) {
-        size_t chars_processed;
-        if (serv_buf_used == 0)
+    while (pr_res == rpr_in_progress) {
+        if (serv_buf_used == 0) {
+            fd_set readfds;
+            struct timeval timeout;
+
+            FD_ZERO(&readfds);
+            FD_SET(sock, &readfds);
+            
+            timeout.tv_sec = SERV_AWAIT_TIMEOUT_SEC;
+            timeout.tv_usec = 0;
+
+            sel_res = select(sock+1, &readfds, NULL, NULL, &timeout);
+            if (sel_res <= 0) // error or timeout
+                break;
+
+            read_res = read(sock, serv_read_buf, sizeof(serv_read_buf));
+            if (read_res <= 0) // error or disconnect
+                break;
+
             serv_buf_used += read_res;
+        }
+
+        size_t chars_processed;
 
         pr_res = p_reader_process_str(&reader, serv_read_buf, serv_buf_used, &chars_processed);
         if (chars_processed < serv_buf_used) {
@@ -144,13 +165,12 @@ int await_server_message()
         }
 
         serv_buf_used -= chars_processed;
-
-        if (pr_res != rpr_in_progress)
-            break;
     }
 
-    if (read_res < 0)
+    if (sel_res == -1 || read_res == -1)
         last_await_res = asr_read_err;
+    else if (sel_res == 0)
+        last_await_res = asr_timeout;
     else if (read_res == 0)
         last_await_res = asr_disconnected;
     else if (pr_res == rpr_error)
@@ -173,7 +193,10 @@ void log_await_error()
             fprintf(stderr, "ERR: Failed to parse message\n");
             break;
         case asr_read_err:
-            fprintf(stderr, "ERR: Failed to read socket\n");
+            fprintf(stderr, "ERR: Failed to select/read socket\n");
+            break;
+        case asr_timeout:
+            printf("\nConnection timeout\n");
             break;
         case asr_disconnected:
             printf("\nYou have been disconnected\n");
