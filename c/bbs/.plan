@@ -113,5 +113,5 @@ Admin:
 
 Refac 2:
     - Freestyle refac pass
-    - Make create message with words vairadic
-
+    - Make create/send message with words vairadic?
+    - Refac admin action dialogue and admin actions
