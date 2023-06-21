@@ -54,8 +54,6 @@ static const char metadata_file_alias[] = "file:";
 static const char metadata_descr_alias[] = "description:";
 static const char metadata_users_alias[] = "access:";
 
-static const char all_users_symbol[] = "*";
-
 static const char poster_mark[] = "&";
 static const char admin_mark[] = "*";
 
@@ -281,8 +279,8 @@ static int parse_data_dir(database *db)
     DIR *data_dir = NULL;
     struct dirent *dent;
 
-    size_t cnt = 0,
-           cap = METAFILES_BASE_CAP;
+    db->metas_cnt = 0;
+    db->metas_cap = METAFILES_BASE_CAP;
 
     file_metadata *fmd = NULL;
 
@@ -290,7 +288,7 @@ static int parse_data_dir(database *db)
     if (!data_dir)
         return_defer(0);
 
-    db->file_metas = malloc(cap * sizeof(*db->file_metas));
+    db->file_metas = malloc(db->metas_cap * sizeof(*db->file_metas));
 
     while ((dent = readdir(data_dir)) != NULL) {
         if (dent->d_type != DT_REG && dent->d_type != DT_UNKNOWN)
@@ -314,26 +312,28 @@ static int parse_data_dir(database *db)
 
         if (!resize_dynamic_arr(
                     (void **) &db->file_metas, sizeof(*(db->file_metas)),
-                    &cnt, &cap, METAFILES_BASE_CAP, METAFILES_MAX_CNT, 1
+                    &db->metas_cnt, &db->metas_cap, METAFILES_BASE_CAP, METAFILES_MAX_CNT, 1
                     )) {
             return_defer(0);
         }
 
-        db->file_metas[cnt] = fmd;
-        cnt++;
+        db->file_metas[db->metas_cnt] = fmd;
+        db->metas_cnt++;
   
         fmd = NULL;
     }
 
-    db->file_metas[cnt] = NULL;
+    db->file_metas[db->metas_cnt] = NULL;
 
 defer:
     if (fmd) free(fmd);
     if (!result && db->file_metas) {
-        for (size_t i = 0; i < cnt; i++)
+        for (size_t i = 0; i < db->metas_cnt; i++)
             free_metadata(db->file_metas[i]);
         free(db->file_metas);
         db->file_metas = NULL;
+        db->metas_cnt = 0;
+        db->metas_cap = 0;
     }
     if (data_dir) closedir(data_dir);
     return result;
@@ -356,8 +356,8 @@ static int parse_passwd_file(database *db, const char *path)
     char buf[MAX_LOGIN_ITEM_LEN];
 
     FILE *passwd_f;
-    size_t cnt = 0,
-           cap = USERS_BASE_CAP;
+    db->users_cnt = 0;
+    db->users_cap = USERS_BASE_CAP;
 
     user_data *ud = NULL;
 
@@ -365,7 +365,7 @@ static int parse_passwd_file(database *db, const char *path)
     if (!passwd_f)
         return_defer(0);
 
-    db->user_datas = malloc(cap * sizeof(*db->file_metas));
+    db->user_datas = malloc(db->users_cap * sizeof(*db->file_metas));
     db->user_datas[0] = NULL;
 
     int break_c;
@@ -409,18 +409,18 @@ static int parse_passwd_file(database *db, const char *path)
             if ((!is_nl(break_c) && break_c != EOF)  || check_spc(buf))
                 return_defer(0);
 
-            ud->passwd =  strndup(buf, len);
+            ud->passwd = strndup(buf, len);
 
             if (!resize_dynamic_arr(
                         (void **) &db->user_datas, sizeof(*(db->user_datas)),
-                        &cnt, &cap, USERS_BASE_CAP, USERS_MAX_CNT, 1
+                        &db->users_cnt, &db->users_cap, USERS_BASE_CAP, USERS_MAX_CNT, 1
                         )) {
                 return_defer(0);
             }
 
-            db->user_datas[cnt] = ud;
-            cnt++;
-            db->user_datas[cnt] = NULL;
+            db->user_datas[db->users_cnt] = ud;
+            db->users_cnt++;
+            db->user_datas[db->users_cnt] = NULL;
 
             ud = NULL;
         }
@@ -437,10 +437,12 @@ case_eof:
 defer:
     if (ud) free(ud);
     if (!result && db->user_datas) {
-        for (size_t i = 0; i < cnt; i++)
+        for (size_t i = 0; i < db->users_cnt; i++)
             free_user_data(db->user_datas[i]);
         free(db->user_datas);
         db->user_datas = NULL;
+        db->users_cnt = 0;
+        db->users_cap = 0;
     }
     if (passwd_f) fclose(passwd_f);
     return result;
@@ -600,7 +602,8 @@ file_lookup_result db_lookup_file(database *db, const char *filename,
             res = no_access;
 
             if (db_file_is_available_to_user(*fmdp, username, utype)) {
-                *out = concat_strings(db->data_path, (*fmdp)->name, NULL);
+                if (out)
+                    *out = concat_strings(db->data_path, (*fmdp)->name, NULL);
                 return found;
             }
         }
@@ -616,4 +619,51 @@ void db_store_note(database *db, const char *username, byte_arr note)
     fputs(note.str, db->notes_f); // since '\0' is included
     fputs("\n\n", db->notes_f);
     fflush(db->notes_f);
+}
+
+int db_try_add_file(database *db, const char *filename, const char *descr,
+                    const char **users, size_t users_cnt)
+{
+    if (
+            !filename || !descr ||
+            strlen(filename) > MAX_FILENAME_LEN || 
+            strlen(descr) > MAX_DESCR_LEN ||
+            users_cnt > MAX_USER_CNT
+       ) {
+        return 0;
+    }
+
+    // @HACK
+    file_lookup_result lookup_res = db_lookup_file(&db, filename, NULL, ut_admin, NULL);
+    if (lookup_res != not_found)
+        return 0;
+
+    file_metadata *fmd = create_metadata();
+    fmd->name = strdup(filename);
+    fmd->descr = strdup(descr);
+    fmd->cap = users_cnt;
+    fmd->cnt = users_cnt;
+    fmd->users = cap == 0 ? NULL : malloc(cap * sizeof(*fmd->users));
+
+    if (users_cnt == 1 && strings_are_equal(*users, all_users_symbol)) {
+        fmd->is_for_all_users = 1;
+        fmd->cnt = 0;
+    } else {
+        fmd->is_for_all_users = 0;
+        size_t i;
+        for (i = 0; i < users_cnt; i++) {
+            if (
+                    strings_are_equal(*users, all_users_symbol) ||
+                    strlen(users[i]) > MAX_LOGIN_ITEM_LEN
+               ) {
+                return_defer(0);
+            }
+            
+            fmd->users[i] = strdup(users[i]);
+        }
+    }
+
+    // @TODO: add metafile func
+    // @TODO: write it out to disk and ad empty file to go with it
+    // @TODO: remake to return fd of the newly set up file
 }

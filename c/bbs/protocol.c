@@ -37,7 +37,7 @@ const p_type valid_types[] = {
     tc_file_check, ts_file_exists, ts_file_not_found,
     tc_file_query, ts_file_restricted, ts_start_file_transfer, 
     ts_file_packet, tc_leave_note, ts_note_done,
-    tc_post_file, tc_post_file_packet
+    tc_post_file, tc_post_file_packet, ts_invalid_post
 };
 
 #define NUM_ROLES sizeof(valid_roles)/sizeof(*valid_roles)

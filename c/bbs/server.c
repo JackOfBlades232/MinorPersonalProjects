@@ -21,8 +21,7 @@
 enum { 
     LISTEN_QLEN = 16,
     INIT_SESS_ARR_SIZE = 32,
-    INBUFSIZE = 128,
-    LONG_MAX_DIGITS = 20 //overkill
+    INBUFSIZE = 128
 };
 
 typedef enum session_state_tag { 
@@ -50,7 +49,7 @@ typedef struct session_tag {
 
     p_message_reader in_reader;
 
-    int cur_file_fd;
+    int cur_query_fd;
     long packets_left;
 } session;
 
@@ -134,7 +133,7 @@ session *make_session(int fd,
     sess->state = sstate_await;
     sess->usernm = NULL; // Not logged in
     sess->ut = ut_none;
-    sess->cur_file_fd = -1;
+    sess->cur_query_fd = -1;
     sess->packets_left = 0; // Not logged in
 
     p_init_reader(&sess->in_reader); // For login recieving
@@ -185,15 +184,15 @@ p_message *construct_num_packets_response(session *sess, const char *filename)
 {
     p_message *response;
 
-    sess->cur_file_fd = open(filename, O_RDONLY);
-    if (sess->cur_file_fd == -1) {
+    sess->cur_query_fd = open(filename, O_RDONLY);
+    if (sess->cur_query_fd == -1) {
         sess->state = sstate_error;
         return NULL;
     }
 
     // relying on the fact that long is also 8bytes
-    long len = lseek(sess->cur_file_fd, 0, SEEK_END);
-    lseek(sess->cur_file_fd, 0, SEEK_SET);
+    long len = lseek(sess->cur_query_fd, 0, SEEK_END);
+    lseek(sess->cur_query_fd, 0, SEEK_SET);
     sess->packets_left = ((len-1) / MAX_WORD_LEN) + 1;
 
     char packets_left_digits[LONG_MAX_DIGITS+1];
@@ -267,6 +266,29 @@ void session_process_file_check(session *sess)
                                                    &filename);
     
     session_post_empty_message(sess, lookup_res == not_found ? ts_file_not_found : ts_file_exists);
+    if (filename) free(filename);
+}
+
+void session_start_recieving_file(session *sess)
+{
+    // @TEST
+    debug_log_p_message(sess->in_reader.msg);
+
+    if (msg->cnt < 3) { // name, descr, num packets
+        sess->state = sstate_error;
+        return;
+    }
+
+    
+    if (lookup_res != not_found) {
+        session_post_empty_message(sess, ts_invalid_post);
+        goto defer;
+    }
+
+    // @TODO: add functionality to db
+
+defer:
+    if (filename) free(filename);
 }
 
 void session_parse_regular_message(session *sess)
@@ -293,6 +315,8 @@ void session_parse_regular_message(session *sess)
         case tc_file_check:
             return session_process_file_check(sess);
             break;
+        case tc_post_file:
+            return session_start_recieving_file(sess);
         default:
             sess->state = sstate_error;
     }
@@ -359,7 +383,7 @@ void prepare_next_file_chunk_for_output(session *sess)
     size_t cap = MAX_WORD_LEN * sizeof(*sess->out_buf);
     content->str = malloc(cap);
 
-    content->len = read(sess->cur_file_fd, content->str, cap);
+    content->len = read(sess->cur_query_fd, content->str, cap);
     out_msg->tot_w_len = content->len;
 
     session_post_msg(sess, out_msg);
@@ -386,8 +410,8 @@ int session_write(session *sess)
                 prepare_next_file_chunk_for_output(sess);
                 sess->packets_left--;
                 if (sess->packets_left <= 0) {
-                    close(sess->cur_file_fd);
-                    sess->cur_file_fd = -1;
+                    close(sess->cur_query_fd);
+                    sess->cur_query_fd = -1;
                     p_reset_reader(&sess->in_reader);
                     sess->state = sstate_await;
                 }
@@ -472,7 +496,7 @@ void server_close_session(int sd)
     p_deinit_reader(&sess->in_reader);
     if (sess->out_buf) free(sess->out_buf);
     if (sess->usernm) free(sess->usernm);
-    if (sess->cur_file_fd != -1) close(sess->cur_file_fd);
+    if (sess->cur_query_fd != -1) close(sess->cur_query_fd);
     free(sess);
     serv.sessions[sd] = NULL;
 }

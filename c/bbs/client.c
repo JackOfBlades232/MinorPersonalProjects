@@ -87,7 +87,9 @@ static p_message_reader reader = {0};
 
 static user_type login_user_type = ut_none;
 static char *last_queried_filename = NULL;
-await_server_msg_result last_await_res = asr_ok;
+static await_server_msg_result last_await_res = asr_ok;
+
+static int cur_fd = -1;
 
 void send_message(p_message *msg)
 {
@@ -356,7 +358,7 @@ defer:
 perform_action_result query_file_dialogue()
 {
     perform_action_result result = par_ok;
-    char filename[MAX_FILENAME_LEN+1];
+    char filename[MAX_FILENAME_LEN+2];
 
     if (!try_read_item_from_stdin(filename, sizeof(filename), "\nInput file name: ", "Filename is too long"))
         return par_retry;
@@ -385,7 +387,7 @@ perform_action_result leave_note_dialogue()
 {
     perform_action_result result = par_ok;
     
-    char note[MAX_NOTE_LEN+1];
+    char note[MAX_NOTE_LEN+2];
 
     if (login_user_type == ut_none) {
         printf("\nLog in to leave notes\n");
@@ -408,7 +410,7 @@ perform_action_result post_file_dialogue()
 {
     perform_action_result result = par_ok;
 
-    char filename[MAX_FILENAME_LEN+1];
+    char filename[MAX_FILENAME_LEN+2];
     if (!try_read_item_from_stdin(filename, sizeof(filename), "\nInput file name: ", "Filename is too long"))
         return par_retry;
 
@@ -450,24 +452,79 @@ perform_action_result post_file_dialogue()
     msg = p_create_message(r_client, tc_post_file);
     p_add_string_to_message(msg, filename);
 
-    char descr[MAX_DESCR_LEN+1];
+    char descr[MAX_DESCR_LEN+2];
     if (!try_read_item_from_stdin(descr, sizeof(descr), "Input description: ", "Description is too long"))
         return_defer(par_retry);
     p_add_string_to_message(msg, descr);
 
-    char users[MAX_USER_CNT*(MAX_LOGIN_ITEM_LEN+1)];
+    char users[MAX_USER_CNT*(MAX_LOGIN_ITEM_LEN+2)];
     if (!try_read_item_from_stdin(users, sizeof(users), "Input users that will have access to the file: ", "The list is too long"))
         return_defer(par_retry);
 
-    // @TODO: validate (and cut up (will be words 2..n-2)?) users string
-    // @TODO: open file, count packets and put it in message
-    // @TODO: send this all over
+    char *users_p = users;
+    size_t users_rem_len = strlen(users);
+    char *usernm = NULL;
+    size_t chars_read;
+    int added_a_user = 0,
+        for_all_users = 0;
+    while ((usernm = extract_word_from_buf(users_p, users_rem_len, &chars_read)) != NULL) {
+        if (strings_are_equal(usernm, all_users_symbol)) {
+            if (added_a_user) 
+                goto loop_err;
+            for_all_users = 1;
+        } else {
+            if (for_all_users)
+                goto loop_err;
+            added_a_user = 1;
+        }
+
+        users_p += chars_read;
+        users_rem_len -= chars_read;
+
+        if (msg->cnt-2 >= MAX_USER_CNT)
+            goto loop_err;
+
+        p_add_string_to_message(msg, usernm);
+        free(usernm);
+        continue;
+
+loop_err:
+        printf("Invalid user access list\n");
+        free(usernm);
+        return_defer(par_retry);
+    }
+
+    cur_fd = open(filename, O_RDONLY);
+    if (cur_fd == -1) {
+        fprintf(stderr, "ERR: failed to open file\n");
+        return_defer(par_retry);
+    }
+
+    long len = lseek(cur_fd, 0, SEEK_END);
+    lseek(cur_fd, 0, SEEK_SET);
+    long packets_left = ((len-1) / MAX_WORD_LEN) + 1;
+
+    char packets_left_digits[LONG_MAX_DIGITS+2];
+    snprintf(packets_left_digits, sizeof(packets_left_digits)-1, "%ld", packets_left);
+    packets_left_digits[sizeof(packets_left_digits)-1] = '\0';
+
+    p_add_string_to_message(msg, packets_left_digits);
+    send_message(msg);
+    p_free_message(msg);
+    
+    // @TEMP
+    msg = NULL;
+
     // @TODO: immediately start packet transmission
     // @TODO: add ui for upload
 defer:
     result = par_retry; // @TEST
 
     if (msg) p_free_message(msg);
+    if (cur_fd != -1) {
+        close(cur_fd);
+        cur_fd = -1;
+    }
     return result;
 }
 

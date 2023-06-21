@@ -89,6 +89,11 @@ int is_nl(int c)
     return c == '\n' || c == '\r';
 }
 
+int is_sep(int c)
+{
+    return c == '\n' || c == '\r' || c == ' ' || c == '\t';
+}
+
 int strip_nl(char *str)
 {
     int result;
@@ -102,4 +107,31 @@ int check_spc(const char *str)
 {
     for (; *str && *str != ' ' && *str != '\t'; str++) {}
     return *str;
+}
+
+char *extract_word_from_buf(const char *buf, size_t bufsize, size_t *chars_read)
+{
+    char *word;
+
+    *chars_read = 0;
+    while (bufsize > 0 && is_sep(*buf)) {
+        buf++;
+        bufsize--;
+        (*chars_read)++;
+    }
+
+    if (bufsize <= 0)
+        return NULL;
+    
+    const char *bufp = buf;
+    size_t bufsize_cpy = bufsize;
+    while (bufsize_cpy > 0 && !is_sep(*bufp)) {
+        bufp++;
+        bufsize_cpy--;
+    }
+
+    size_t wlen = bufsize-bufsize_cpy;
+    word = strndup(buf, wlen);
+    *chars_read += wlen;
+    return word;
 }

@@ -9,7 +9,11 @@ enum {
     MAX_USER_CNT = 32,
     MAX_NOTE_LEN = 256,
 
-    MAX_WORD_LEN = 4096 // must be >= user_cnt * (login_len+1), see client post msg
+    MAX_WORD_LEN = 4096, // must be >= user_cnt * (login_len+1), see client post msg
+
+    LONG_MAX_DIGITS = 20 // overkill
 };
+
+static const char all_users_symbol[] = "*";
 
 #endif

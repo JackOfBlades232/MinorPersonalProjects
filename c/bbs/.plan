@@ -99,6 +99,7 @@ Poster:
         - Serverside address new db func: create new file meta in mem, write to disk, create empty file
         - Immediately start streaming data (like server) from client
         - On server add read state to session to recieve data
+        - Add state to metafile (ready, locked, corrupted), and only allow query if ready
 
 Admin:
     Add new user:
@@ -110,6 +111,9 @@ Admin:
     Delete file:
 
     Disconnection on admin actions (upload):
+
+Other:
+    - Add new types to debug
 
 Refac 2:
     - Freestyle refac pass

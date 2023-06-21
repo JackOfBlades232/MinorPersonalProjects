@@ -27,7 +27,10 @@ int strings_are_equal(const char *str1, const char *str2);
 char *concat_strings(const char *str, ...);
 
 int is_nl(int c);
+int is_sep(int c);
 int strip_nl(char *str);
 int check_spc(const char *str);
+
+char *extract_word_from_buf(const char *buf, size_t bufsize, size_t *chars_read);
 
 #endif

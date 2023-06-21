@@ -38,7 +38,8 @@ typedef enum p_type_tag {
     tc_leave_note,
     ts_note_done,
     tc_post_file,
-    tc_post_file_packet
+    tc_post_file_packet,
+    ts_invalid_post
 } p_type;
 
 typedef struct p_message_tag {

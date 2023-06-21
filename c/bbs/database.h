@@ -25,7 +25,9 @@ typedef struct user_data_tag {
 typedef struct database_tag {
     char *data_path;
     file_metadata **file_metas;
+    size_t metas_cnt, metas_cap;
     user_data **user_datas;
+    size_t users_cnt, users_cap;
     FILE *notes_f;
 } database;
 
@@ -44,5 +46,8 @@ file_lookup_result db_lookup_file(database *db, const char *filename,
                                   char **out);
 
 void db_store_note(database *db, const char *username, byte_arr note);
+
+int db_try_add_file(database *db, const char *filename, const char *descr,
+                    const char **users, size_t users_cnt);
 
 #endif
