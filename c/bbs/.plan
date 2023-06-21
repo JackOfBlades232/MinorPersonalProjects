@@ -94,11 +94,13 @@
 Poster:
     Add new file (edit the empty meta & transfer):
         * Input filename, send to server to check if it exists (if yes, fail)
-        - Input description (with cap) -> input users sep-d by ' ' (check for correctness as meta)
-        - Send it all as words over to the server
-        - Serverside address new db func: create new file meta in mem, write to disk, create empty file
-        - Immediately start streaming data (like server) from client
-        - On server add read state to session to recieve data
+        * Input description (with cap) -> input users sep-d by ' ' (check for correctness as meta)
+        * Send it all as words over to the server
+        * Serverside address new db func: create new file meta in mem, write to disk, create empty file
+        * Immediately start streaming data (like server) from client
+        * On server add read state to session to recieve data
+        - Debug the invalid db after upload bug
+        - Debug the insane loop serverside on posting multi-packet file
         - Add state to metafile (ready, locked, corrupted), and only allow query if ready
 
 Admin:

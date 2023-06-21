@@ -5,6 +5,9 @@
 #include <stdlib.h>
 #include <unistd.h>
 #include <string.h>
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <fcntl.h>
 
 static const char passwd_rel_path[] = "/passwd.txt";
 static const char data_rel_path[] = "/data/";
@@ -163,7 +166,16 @@ static int filename_ends_with_meta(const char *filename, size_t len)
     return 1;
 }
 
-static file_metadata *parse_meta_file(FILE *f, const char *dirpath)
+static int metafile_name_is_correct(const char *metafile_name, const char *filename)
+{
+    for (; *metafile_name == *filename; metafile_name++, filename++) {}
+    if (*filename)
+        return 0;
+
+    return strings_are_equal(metafile_name, metafile_extension);
+}
+
+static file_metadata *parse_meta_file(const char *filename, const char *dirpath)
 {
     char w_buf[WORD_BUFSIZE];
     int break_c;
@@ -171,6 +183,9 @@ static file_metadata *parse_meta_file(FILE *f, const char *dirpath)
     metadata_parse_state state = mps_file;
     int parsed_alias = 0;
 
+    char *full_path = concat_strings(dirpath, filename, NULL);
+    FILE *f = fopen(full_path, "r");
+    free(full_path);
     if (!f)
         return NULL;
 
@@ -204,6 +219,7 @@ static file_metadata *parse_meta_file(FILE *f, const char *dirpath)
                 if (
                         len <= METADATA_MAX_NAME_LEN &&
                         !filename_ends_with_meta(w_buf, len) && 
+                        metafile_name_is_correct(filename, w_buf) &&
                         file_exists_and_is_available(w_buf, dirpath)
                    ) {
                     fmd->name = strndup(w_buf, len);
@@ -270,6 +286,7 @@ defer:
         free_metadata(fmd);
         fmd = NULL;
     }
+    if (f) fclose(f);
     return fmd;
 }
 
@@ -298,14 +315,7 @@ static int parse_data_dir(database *db)
         if (!filename_ends_with_meta(dent->d_name, len))
             continue;
 
-        char *full_path = concat_strings(db->data_path, dent->d_name, NULL);
-        FILE *mf = fopen(full_path, "r");
-        free(full_path);
-        if (!mf)
-            return_defer(0);
-
-        fmd = parse_meta_file(mf, db->data_path);
-        fclose(mf);
+        fmd = parse_meta_file(dent->d_name, db->data_path);
         
         if (!fmd)
             return_defer(0);
@@ -624,26 +634,34 @@ void db_store_note(database *db, const char *username, byte_arr note)
 int db_try_add_file(database *db, const char *filename, const char *descr,
                     const char **users, size_t users_cnt)
 {
+    int result = -1; // fd
+    file_metadata *fmd = NULL;
+    FILE *meta_f = NULL;
+    char *full_filename = NULL,
+         *metafile_name = NULL;
+
+    // @TODO: make helpful returns so as to know what went wrong
+    // (invalid input/metafile exists/capped out on metafiles)
+    
     if (
             !filename || !descr ||
             strlen(filename) > MAX_FILENAME_LEN || 
             strlen(descr) > MAX_DESCR_LEN ||
             users_cnt > MAX_USER_CNT
        ) {
-        return 0;
+        return -1;
     }
 
-    // @HACK
-    file_lookup_result lookup_res = db_lookup_file(&db, filename, NULL, ut_admin, NULL);
+    file_lookup_result lookup_res = db_lookup_file(db, filename, NULL, ut_admin, NULL);
     if (lookup_res != not_found)
-        return 0;
+        return -1;
 
-    file_metadata *fmd = create_metadata();
+    fmd = create_metadata();
     fmd->name = strdup(filename);
     fmd->descr = strdup(descr);
     fmd->cap = users_cnt;
     fmd->cnt = users_cnt;
-    fmd->users = cap == 0 ? NULL : malloc(cap * sizeof(*fmd->users));
+    fmd->users = fmd->cap == 0 ? NULL : malloc(fmd->cap * sizeof(*fmd->users));
 
     if (users_cnt == 1 && strings_are_equal(*users, all_users_symbol)) {
         fmd->is_for_all_users = 1;
@@ -656,14 +674,52 @@ int db_try_add_file(database *db, const char *filename, const char *descr,
                     strings_are_equal(*users, all_users_symbol) ||
                     strlen(users[i]) > MAX_LOGIN_ITEM_LEN
                ) {
-                return_defer(0);
+                return_defer(-1);
             }
             
             fmd->users[i] = strdup(users[i]);
         }
     }
 
-    // @TODO: add metafile func
-    // @TODO: write it out to disk and ad empty file to go with it
-    // @TODO: remake to return fd of the newly set up file
+    full_filename = concat_strings(db->data_path, filename, NULL);
+    metafile_name = concat_strings(full_filename, metafile_extension, NULL);
+
+    if (
+            access(full_filename, F_OK) == 0 ||
+            access(metafile_name, F_OK) == 0
+       ) {
+        return_defer(-1);
+    }
+
+    result = open(full_filename, O_WRONLY | O_CREAT | O_TRUNC, 0664);
+    if (result == -1)
+        return_defer(-1);
+
+    meta_f = fopen(metafile_name, "w");
+    if (!meta_f)
+        return_defer(-1);
+
+
+    fprintf(meta_f, "%s %s\n", metadata_file_alias, filename);
+    fprintf(meta_f, "%s %s\n", metadata_descr_alias, descr);
+    fprintf(meta_f, "%s", metadata_users_alias);
+    for (size_t i = 0; i < users_cnt; i++)
+        fprintf(meta_f, " %s", users[i]);
+
+    if (!resize_dynamic_arr(
+                (void **) &db->file_metas, sizeof(*(db->file_metas)),
+                &db->metas_cnt, &db->metas_cap, METAFILES_BASE_CAP, METAFILES_MAX_CNT, 1
+                )) {
+        return_defer(-1);
+    }
+
+    db->file_metas[db->metas_cnt] = fmd;
+    db->metas_cnt++;
+
+defer:
+    if (meta_f) fclose(meta_f);
+    if (metafile_name) free(metafile_name);
+    if (full_filename) free(full_filename);
+    if (result == -1 && fmd) free_metadata(fmd);
+    return result;
 }

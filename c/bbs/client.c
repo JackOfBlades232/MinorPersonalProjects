@@ -65,7 +65,7 @@ static const char *admin_action_names[NUM_ADMIN_ACTIONS] = {
 
 typedef enum perform_action_result_tag {
     par_ok,
-    par_retry,
+    par_continue,
     par_error
 } perform_action_result; 
 
@@ -91,11 +91,12 @@ static await_server_msg_result last_await_res = asr_ok;
 
 static int cur_fd = -1;
 
-void send_message(p_message *msg)
+int send_message(p_message *msg)
 {
     p_sendable_message smsg = p_construct_sendable_message(msg);
-    write(sock, smsg.str, smsg.len);
+    int wc = write(sock, smsg.str, smsg.len);
     p_deinit_sendable_message(&smsg);
+    return wc;
 }
 
 void send_empty_message(p_type type) 
@@ -332,13 +333,13 @@ perform_action_result login_dialogue()
 
     if (login_user_type != ut_none) {
         printf("\nYou are already logged in\n");
-        return par_retry;
+        return par_continue;
     }
 
     msg = p_create_message(r_client, tc_login);
 
     if (!ask_for_credential_item(msg, "\nUsername: "))
-        return_defer(par_retry);
+        return_defer(par_continue);
 
     disable_echo(&ts);
     int passwd_res = ask_for_credential_item(msg, "Password: ");
@@ -346,7 +347,7 @@ perform_action_result login_dialogue()
     tcsetattr(STDIN_FILENO, TCSANOW, &ts);
 
     if (!passwd_res)
-        return_defer(par_retry);
+        return_defer(par_continue);
 
     send_message(msg);
 
@@ -361,14 +362,14 @@ perform_action_result query_file_dialogue()
     char filename[MAX_FILENAME_LEN+2];
 
     if (!try_read_item_from_stdin(filename, sizeof(filename), "\nInput file name: ", "Filename is too long"))
-        return par_retry;
+        return par_continue;
 
     if (
             access(filename, F_OK) == 0 && // exists
             access(filename, W_OK) == -1   // and is not writeable
        ) {
         printf("Can't overwrite this file\n");
-        return par_retry;
+        return par_continue;
     }
 
     p_message *msg = p_create_message(r_client, tc_file_query);
@@ -391,11 +392,11 @@ perform_action_result leave_note_dialogue()
 
     if (login_user_type == ut_none) {
         printf("\nLog in to leave notes\n");
-        return par_retry;
+        return par_continue;
     }
 
     if (!try_read_item_from_stdin(note, sizeof(note), "\nInput note: ", "Note is too long"))
-        return par_retry;
+        return par_continue;
 
     p_message *msg = p_create_message(r_client, tc_leave_note);
     p_add_string_to_message(msg, note);
@@ -406,20 +407,43 @@ perform_action_result leave_note_dialogue()
     return result;
 }
 
+int draw_load_progress_bar(const char *prefix,
+        long tot_packets, long packets_left, int prev_chars)
+{
+    for (int i = 0; i < prev_chars; i++)
+        putchar('\b');
+
+    int new_chars = printf("%s [", prefix);
+    long packets_downloaded = tot_packets-packets_left;
+    float fraction = (float) packets_downloaded / tot_packets;
+    for (float pr = 0.; pr < 1.; pr += DOWNLOAD_PROGRESS_BAR_VAL) {
+        if (pr < fraction)
+            putchar('=');
+        else
+            putchar(' ');
+        new_chars++;
+    }
+
+    new_chars += printf("] %ld/%ld packets", packets_downloaded, tot_packets);
+
+    fflush(stdout);
+    return new_chars;
+}
+
 perform_action_result post_file_dialogue()
 {
-    perform_action_result result = par_ok;
+    perform_action_result result = par_continue;
 
     char filename[MAX_FILENAME_LEN+2];
     if (!try_read_item_from_stdin(filename, sizeof(filename), "\nInput file name: ", "Filename is too long"))
-        return par_retry;
+        return par_continue;
 
     if (
             access(filename, F_OK) == -1 || // doesn't exist
             access(filename, R_OK) == -1    // or is not readable
        ) {
         printf("Can't read this file\n");
-        return par_retry;
+        return par_continue;
     }
 
     p_message *msg = p_create_message(r_client, tc_file_check);
@@ -446,7 +470,7 @@ perform_action_result post_file_dialogue()
 
     if (reader.msg->type == ts_file_exists) {
         printf("A file with this name already exists\n");
-        return par_retry;
+        return par_continue;
     }
 
     msg = p_create_message(r_client, tc_post_file);
@@ -454,12 +478,12 @@ perform_action_result post_file_dialogue()
 
     char descr[MAX_DESCR_LEN+2];
     if (!try_read_item_from_stdin(descr, sizeof(descr), "Input description: ", "Description is too long"))
-        return_defer(par_retry);
+        return_defer(par_continue);
     p_add_string_to_message(msg, descr);
 
     char users[MAX_USER_CNT*(MAX_LOGIN_ITEM_LEN+2)];
     if (!try_read_item_from_stdin(users, sizeof(users), "Input users that will have access to the file: ", "The list is too long"))
-        return_defer(par_retry);
+        return_defer(par_continue);
 
     char *users_p = users;
     size_t users_rem_len = strlen(users);
@@ -491,13 +515,13 @@ perform_action_result post_file_dialogue()
 loop_err:
         printf("Invalid user access list\n");
         free(usernm);
-        return_defer(par_retry);
+        return_defer(par_continue);
     }
 
     cur_fd = open(filename, O_RDONLY);
     if (cur_fd == -1) {
         fprintf(stderr, "ERR: failed to open file\n");
-        return_defer(par_retry);
+        return_defer(par_continue);
     }
 
     long len = lseek(cur_fd, 0, SEEK_END);
@@ -511,15 +535,38 @@ loop_err:
     p_add_string_to_message(msg, packets_left_digits);
     send_message(msg);
     p_free_message(msg);
-    
-    // @TEMP
     msg = NULL;
 
-    // @TODO: immediately start packet transmission
-    // @TODO: add ui for upload
-defer:
-    result = par_retry; // @TEST
+    long tot_packets = packets_left;
+    long last_draw_res = draw_load_progress_bar("Uploading", tot_packets, packets_left, 0);
 
+    while (packets_left > 0) {
+        p_message *out_msg = p_create_message(r_client, tc_post_file_packet);
+        out_msg->cnt = 1;
+
+        // Create the chunk directly in the message to avoid more copying;
+        byte_arr *content = out_msg->words;
+        size_t cap = MAX_WORD_LEN * sizeof(*content->str);
+        content->str = malloc(cap);
+
+        content->len = read(cur_fd, content->str, cap);
+        out_msg->tot_w_len = content->len;
+
+        int sr = send_message(out_msg);
+        p_free_message(out_msg);
+
+        if (sr <= 0) {
+            printf("Error while sending packet, might be disconnected\n");
+            return_defer(par_error);
+        }
+
+        packets_left--;
+        last_draw_res = draw_load_progress_bar("Uploading", tot_packets, packets_left, last_draw_res);
+    }
+    
+    printf("\nUpload complete\n");
+
+defer:
     if (msg) p_free_message(msg);
     if (cur_fd != -1) {
         close(cur_fd);
@@ -553,7 +600,7 @@ perform_action_result perform_action(client_action action)
             fprintf(stderr, "ERR: Not implemented\n");
     }
 
-    return par_retry;
+    return par_continue;
 }
 
 int process_login_response()
@@ -599,28 +646,6 @@ int process_file_list_response()
     return 1;
 }
 
-int draw_download_progress_bar(long tot_packets, long packets_left, int prev_chars)
-{
-    for (int i = 0; i < prev_chars; i++)
-        putchar('\b');
-
-    int new_chars = printf("Downloading [");
-    long packets_downloaded = tot_packets-packets_left;
-    float fraction = (float) packets_downloaded / tot_packets;
-    for (float pr = 0.; pr < 1.; pr += DOWNLOAD_PROGRESS_BAR_VAL) {
-        if (pr < fraction)
-            putchar('=');
-        else
-            putchar(' ');
-        new_chars++;
-    }
-
-    new_chars += printf("] %ld/%ld packets", packets_downloaded, tot_packets);
-
-    fflush(stdout);
-    return new_chars;
-}
-
 int process_query_file_response()
 {
     int result = 1;
@@ -654,7 +679,7 @@ int process_query_file_response()
         return_defer(0);
     }
 
-    fd = open(last_queried_filename, O_WRONLY | O_CREAT | O_TRUNC, 0666);
+    fd = open(last_queried_filename, O_WRONLY | O_CREAT | O_TRUNC, 0664);
     if (fd == -1) {
         fprintf(stderr, "ERR: Can't save the file\n");
         return_defer(0);
@@ -663,7 +688,7 @@ int process_query_file_response()
     p_reset_reader(&reader);
 
     long tot_packets = packets_left;
-    int last_draw_res = draw_download_progress_bar(tot_packets, packets_left, 0);
+    int last_draw_res = draw_load_progress_bar("Downloading", tot_packets, packets_left, 0);
 
     while (packets_left > 0 && await_server_message()) {
         if (
@@ -678,8 +703,7 @@ int process_query_file_response()
         write(fd, content.str, content.len * sizeof(*content.str));
         packets_left--;
 
-        last_draw_res = draw_download_progress_bar(tot_packets, packets_left, 
-                                                   last_draw_res);
+        last_draw_res = draw_load_progress_bar("Downloading", tot_packets, packets_left, last_draw_res);
 
         p_reset_reader(&reader);
     }
@@ -784,7 +808,7 @@ int ask_for_action()
     // If could not perform action in dialogue, continue
     // If there was a critical error, break
     int perf_res = perform_action(action);
-    if (perf_res == par_retry)
+    if (perf_res == par_continue)
         return_defer(1);
     else if (perf_res == par_error)
         return_defer(0);

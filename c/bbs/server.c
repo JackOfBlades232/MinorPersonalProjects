@@ -27,6 +27,7 @@ enum {
 typedef enum session_state_tag { 
     sstate_await, 
     sstate_file_transfer, 
+    sstate_file_recv, 
     sstate_finish, 
     sstate_error 
 } session_state;
@@ -50,7 +51,10 @@ typedef struct session_tag {
     p_message_reader in_reader;
 
     int cur_query_fd;
-    long packets_left;
+    long out_packets_left;
+
+    int cur_post_fd;
+    long in_packets_left;
 } session;
 
 typedef struct server_tag {
@@ -134,7 +138,9 @@ session *make_session(int fd,
     sess->usernm = NULL; // Not logged in
     sess->ut = ut_none;
     sess->cur_query_fd = -1;
-    sess->packets_left = 0; // Not logged in
+    sess->out_packets_left = 0;
+    sess->cur_post_fd = -1;
+    sess->in_packets_left = 0;
 
     p_init_reader(&sess->in_reader); // For login recieving
 
@@ -190,13 +196,12 @@ p_message *construct_num_packets_response(session *sess, const char *filename)
         return NULL;
     }
 
-    // relying on the fact that long is also 8bytes
     long len = lseek(sess->cur_query_fd, 0, SEEK_END);
     lseek(sess->cur_query_fd, 0, SEEK_SET);
-    sess->packets_left = ((len-1) / MAX_WORD_LEN) + 1;
+    sess->out_packets_left = ((len-1) / MAX_WORD_LEN) + 1;
 
     char packets_left_digits[LONG_MAX_DIGITS+1];
-    snprintf(packets_left_digits, sizeof(packets_left_digits)-1, "%ld", sess->packets_left);
+    snprintf(packets_left_digits, sizeof(packets_left_digits)-1, "%ld", sess->out_packets_left);
     packets_left_digits[sizeof(packets_left_digits)-1] = '\0';
 
     response = p_create_message(r_server, ts_start_file_transfer);
@@ -271,24 +276,38 @@ void session_process_file_check(session *sess)
 
 void session_start_recieving_file(session *sess)
 {
-    // @TEST
-    debug_log_p_message(sess->in_reader.msg);
+    p_message *msg = sess->in_reader.msg;
 
     if (msg->cnt < 3) { // name, descr, num packets
         sess->state = sstate_error;
         return;
     }
 
+    char *filename = msg->words[0].str;
+    char *descr = msg->words[1].str;
+    size_t users_cnt = msg->cnt-3;
+    char **users = malloc(users_cnt * sizeof(*users));
+    for (size_t i = 0; i < users_cnt; i++)
+        users[i] = msg->words[i+2].str;
+
+    sess->cur_post_fd = db_try_add_file(&db, filename, descr, (const char **) users, users_cnt);
     
-    if (lookup_res != not_found) {
+    if (sess->cur_post_fd == -1) {
         session_post_empty_message(sess, ts_invalid_post);
         goto defer;
     }
 
-    // @TODO: add functionality to db
+    char *e;
+    sess->in_packets_left = strtol(msg->words[msg->cnt-1].str, &e, 10);
+    if (*e != '\0' || sess->in_packets_left <= 0) {
+        sess->state = sstate_error;
+        return;
+    }
+
+    sess->state = sstate_file_recv;
 
 defer:
-    if (filename) free(filename);
+    if (users) free(users);
 }
 
 void session_parse_regular_message(session *sess)
@@ -319,6 +338,29 @@ void session_parse_regular_message(session *sess)
             return session_start_recieving_file(sess);
         default:
             sess->state = sstate_error;
+    }
+}
+
+void session_parse_recv_packet(session *sess)
+{
+    p_message *msg = sess->in_reader.msg;
+    if (
+            msg->role != r_client ||
+            msg->type != tc_post_file_packet ||
+            msg->cnt != 1
+       ) {
+        sess->state = sstate_error;
+        return;
+    }
+
+    byte_arr content = msg->words[0];
+    write(sess->cur_post_fd, content.str, content.len * sizeof(*content.str));
+    sess->in_packets_left--;
+
+    if (sess->in_packets_left <= 0) {
+        close(sess->cur_post_fd);
+        sess->cur_post_fd = -1;
+        sess->state = sstate_await;
     }
 }
 
@@ -355,6 +397,10 @@ int session_read(session *sess)
         switch (sess->state) {
             case sstate_await:
                 session_parse_regular_message(sess);
+                break;
+
+            case sstate_file_recv:
+                session_parse_recv_packet(sess);
                 break;
 
             case sstate_file_transfer:
@@ -408,8 +454,8 @@ int session_write(session *sess)
         switch (sess->state) {
             case sstate_file_transfer:
                 prepare_next_file_chunk_for_output(sess);
-                sess->packets_left--;
-                if (sess->packets_left <= 0) {
+                sess->out_packets_left--;
+                if (sess->out_packets_left <= 0) {
                     close(sess->cur_query_fd);
                     sess->cur_query_fd = -1;
                     p_reset_reader(&sess->in_reader);
@@ -497,6 +543,7 @@ void server_close_session(int sd)
     if (sess->out_buf) free(sess->out_buf);
     if (sess->usernm) free(sess->usernm);
     if (sess->cur_query_fd != -1) close(sess->cur_query_fd);
+    if (sess->cur_post_fd != -1) close(sess->cur_post_fd);
     free(sess);
     serv.sessions[sd] = NULL;
 }
