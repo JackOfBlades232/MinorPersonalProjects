@@ -99,12 +99,20 @@ Poster:
         * Serverside address new db func: create new file meta in mem, write to disk, create empty file
         * Immediately start streaming data (like server) from client
         * On server add read state to session to recieve data
-        - Debug the invalid db after upload bug
-        - Debug the insane loop serverside on posting multi-packet file
+        * Debug the invalid db after upload bug
+        * Debug the insane loop serverside on posting multi-packet file
+        - Strip relative path in query/post filenames
         - Add state to metafile (ready, locked, corrupted), and only allow query if ready
+            - Do something with corrupted files (how do we detect em, and what to do?)
 
 Admin:
     Add new user:
+        - Make dialogue
+        - After username send quesion "does the user exist?"
+        - If yes, no add, else: input password and input role
+        - If all correct, send add user message
+        - Add db func to add user (to mem and passwd both), with additional check
+        - Recieve on server, call db func and reply
 
     Read & clear notes:
 
@@ -112,10 +120,10 @@ Admin:
 
     Delete file:
 
-    Disconnection on admin actions (upload):
-
 Other:
     - Add new types to debug
+    - Right now if sever (or client) disconnects, the other can still pour packets. 
+        Is this a big problem? I might address this in future projects
 
 Refac 2:
     - Freestyle refac pass

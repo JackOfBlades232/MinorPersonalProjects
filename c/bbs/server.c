@@ -291,10 +291,11 @@ void session_start_recieving_file(session *sess)
         users[i] = msg->words[i+2].str;
 
     sess->cur_post_fd = db_try_add_file(&db, filename, descr, (const char **) users, users_cnt);
+    free(users);
     
     if (sess->cur_post_fd == -1) {
         session_post_empty_message(sess, ts_invalid_post);
-        goto defer;
+        return;
     }
 
     char *e;
@@ -305,9 +306,6 @@ void session_start_recieving_file(session *sess)
     }
 
     sess->state = sstate_file_recv;
-
-defer:
-    if (users) free(users);
 }
 
 void session_parse_regular_message(session *sess)
@@ -410,6 +408,8 @@ int session_read(session *sess)
             default:
                 break;
         }
+
+        p_reset_reader(&sess->in_reader);
     }
 
     if (pr_res != rpr_in_progress)

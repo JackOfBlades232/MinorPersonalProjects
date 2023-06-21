@@ -556,7 +556,7 @@ loop_err:
         p_free_message(out_msg);
 
         if (sr <= 0) {
-            printf("Error while sending packet, might be disconnected\n");
+            printf("\nError while sending packet, might be disconnected\n");
             return_defer(par_error);
         }
 

@@ -705,6 +705,7 @@ int db_try_add_file(database *db, const char *filename, const char *descr,
     fprintf(meta_f, "%s", metadata_users_alias);
     for (size_t i = 0; i < users_cnt; i++)
         fprintf(meta_f, " %s", users[i]);
+    fputc('\n', meta_f);
 
     if (!resize_dynamic_arr(
                 (void **) &db->file_metas, sizeof(*(db->file_metas)),
