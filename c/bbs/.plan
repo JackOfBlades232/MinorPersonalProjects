@@ -106,12 +106,8 @@
 
 Admin:
     Add new user:
-        - Make dialogue
-        - After username send quesion "does the user exist?"
-        - If yes, no add, else: input password and input role
-        - If all correct, send add user message
-        - Add db func to add user (to mem and passwd both), with additional check
-        - Recieve on server, call db func and reply
+        * Do the usual ting
+        - Add specifying user type in add user
 
     Read & clear notes:
 
@@ -120,11 +116,14 @@ Admin:
     Delete file (I consciously allow the admin to delete file mid-download for someone):
 
 Other:
+    - Implement locking after: asking if file exists (so no one can write or edit it too)
+                               asking if user exists (so no one can try and add two identical users)
+        Currently these scenarios cause error & connection shutdown
+        Also, once a session is closed the locked file/user shall be released
     - Add new types to debug
-    - Right now if sever (or client) disconnects, the other can still pour packets. 
+    - Right now if server (or client) disconnects, the other can still pour packets. 
         Is this a big problem? I might address this in future projects
 
 Refac 2:
     - Freestyle refac pass
     - Make create/send message with words vairadic?
-    - Refac admin actions

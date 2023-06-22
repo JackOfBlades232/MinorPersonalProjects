@@ -103,6 +103,51 @@ void debug_log_p_type(p_type type)
         case ts_note_done:
             fprintf(stderr, "s-note-done");
             break;
+        case tc_post_file:
+            fprintf(stderr, "c-post-file");
+            break;
+        case tc_post_file_packet:
+            fprintf(stderr, "c-post-file-packet");
+            break;
+        case tc_user_check:
+            fprintf(stderr, "c-user-check");
+            break;
+        case ts_user_exists:
+            fprintf(stderr, "s-user-exists");
+            break;
+        case ts_user_does_not_exist:
+            fprintf(stderr, "s-user-does-not-exist");
+            break;
+        case tc_add_user:
+            fprintf(stderr, "c-add-user");
+            break;
+        case ts_user_added:
+            fprintf(stderr, "s-user-added");
+            break;
+        case tc_ask_for_next_note:
+            fprintf(stderr, "c-ask-for-next-note");
+            break;
+        case ts_show_and_rm_note:
+            fprintf(stderr, "s-show-and-rm-note");
+            break;
+        case ts_no_notes_left:
+            fprintf(stderr, "s-no-notes-left");
+            break;
+        case tc_edit_file_meta:
+            fprintf(stderr, "c-edit-file-meta");
+            break;
+        case ts_file_edit_done:
+            fprintf(stderr, "s-file-edit-done");
+            break;
+        case tc_delete_file:
+            fprintf(stderr, "c-delete-file");
+            break;
+        case ts_file_deleted:
+            fprintf(stderr, "s-file-deleted");
+            break;
+        case ts_cant_delete_file:
+            fprintf(stderr, "s-cant-delete-file");
+            break;
         default:
             fprintf(stderr, "TYPE %d MISSING, IMPLEMENT", type);
     }

@@ -29,6 +29,7 @@ typedef struct database_tag {
     size_t metas_cnt, metas_cap;
     user_data **user_datas;
     size_t users_cnt, users_cap;
+    FILE *passwd_f;
     FILE *notes_f;
 } database;
 
@@ -57,5 +58,8 @@ add_file_result db_try_add_file(database *db, const char *filename, const char *
                                 const char **users, size_t users_cnt);
 
 int db_cleanup_incomplete_meta(database *db, file_metadata *fmd);
+
+int db_user_exists(database* db, const char *usernm);
+int db_add_user(database* db, const char *usernm, const char *passwd, user_type ut);
 
 #endif

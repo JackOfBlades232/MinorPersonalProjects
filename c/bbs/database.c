@@ -59,10 +59,6 @@ static const char metadata_file_alias[] = "file:";
 static const char metadata_descr_alias[] = "description:";
 static const char metadata_users_alias[] = "access:";
 
-static const char poster_mark[] = "&";
-static const char admin_mark[] = "*";
-
-
 static file_metadata *create_metadata(int is_complete)
 {
     file_metadata *fmd = malloc(sizeof(*fmd));
@@ -369,14 +365,13 @@ static int parse_passwd_file(database *db, const char *path)
 
     char buf[MAX_LOGIN_ITEM_LEN];
 
-    FILE *passwd_f;
     db->users_cnt = 0;
     db->users_cap = USERS_BASE_CAP;
 
     user_data *ud = NULL;
 
-    passwd_f = fopen(path, "r");
-    if (!passwd_f)
+    db->passwd_f = fopen(path, "a+");
+    if (!db->passwd_f)
         return_defer(0);
 
     db->user_datas = malloc(db->users_cap * sizeof(*db->file_metas));
@@ -384,7 +379,7 @@ static int parse_passwd_file(database *db, const char *path)
 
     int break_c;
     for (;;) {
-        break_c = read_word_to_buf(passwd_f, buf, sizeof(buf), WORD_SEP);
+        break_c = read_word_to_buf(db->passwd_f, buf, sizeof(buf), WORD_SEP);
         if (break_c == 0)
             return_defer(0);
         
@@ -420,7 +415,7 @@ static int parse_passwd_file(database *db, const char *path)
 
             ud->usernm = strndup(buf, len);
         } else if (!ud->passwd) {
-            if ((!is_nl(break_c) && break_c != EOF)  || check_spc(buf))
+            if (!is_nl(break_c) || check_spc(buf))
                 return_defer(0);
 
             ud->passwd = strndup(buf, len);
@@ -450,15 +445,18 @@ case_eof:
 
 defer:
     if (ud) free(ud);
-    if (!result && db->user_datas) {
-        for (size_t i = 0; i < db->users_cnt; i++)
-            free_user_data(db->user_datas[i]);
-        free(db->user_datas);
-        db->user_datas = NULL;
-        db->users_cnt = 0;
-        db->users_cap = 0;
-    }
-    if (passwd_f) fclose(passwd_f);
+    if (!result) {
+        if (db->user_datas) {
+            for (size_t i = 0; i < db->users_cnt; i++)
+                free_user_data(db->user_datas[i]);
+            free(db->user_datas);
+            db->user_datas = NULL;
+            db->users_cnt = 0;
+            db->users_cap = 0;
+        }
+        if (db->passwd_f) fclose(db->passwd_f);
+    } else if (db->passwd_f)
+        rewind(db->passwd_f);
     return result;
 }
 
@@ -567,6 +565,7 @@ void db_deinit(database* db)
             free_user_data(*udp);
         free(db->user_datas);
     }
+    if (db->passwd_f) fclose(db->passwd_f);
     if (db->notes_f) fclose(db->notes_f);
     if (db->data_path) free(db->data_path);
 
@@ -773,6 +772,47 @@ int db_cleanup_incomplete_meta(database *db, file_metadata *fmd)
 
     free(metafile_name);
     free(full_filename);
+
+    return 1;
+}
+
+int db_user_exists(database* db, const char *usernm)
+{
+    for (user_data **udp = db->user_datas; *udp; udp++) {
+        if (strings_are_equal((*udp)->usernm, usernm))
+            return 1;
+    }
+
+    return 0;
+}
+
+int db_add_user(database* db, const char *usernm, const char *passwd, user_type ut)
+{
+    user_data *ud;
+
+    if (db_user_exists(db, usernm))
+        return 0;
+
+    ud = create_user_data(ut);
+    ud->usernm = strdup(usernm);
+    ud->passwd = strdup(passwd);
+
+    if (!resize_dynamic_arr(
+                (void **) &db->user_datas, sizeof(*(db->user_datas)),
+                &db->users_cnt, &db->users_cap, USERS_BASE_CAP, USERS_MAX_CNT, 1
+                )) {
+        free(ud);
+        return 0;
+    }
+
+    db->user_datas[db->users_cnt] = ud;
+    db->users_cnt++;
+    db->user_datas[db->users_cnt] = NULL;
+
+    if (ut > ut_regular)
+        fprintf(db->passwd_f, "%s ", ut == ut_poster ? poster_mark : admin_mark);
+    fprintf(db->passwd_f, "%s %s\n", usernm, passwd);
+    fflush(db->passwd_f);
 
     return 1;
 }

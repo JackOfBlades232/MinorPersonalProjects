@@ -37,8 +37,7 @@ typedef enum client_action_tag {
     exit_client,
     post_file,
     add_user,
-    read_notes,
-    clear_notes,
+    read_note,
     edit_file_meta,
     delete_file
 } client_action;
@@ -56,11 +55,11 @@ static const client_action poster_actions[] = { post_file };
 static const char *poster_action_names[NUM_POSTER_ACTIONS] = { "post" };
 
 static const client_action admin_actions[] = {
-    add_user, read_notes, clear_notes, edit_file_meta, delete_file
+    add_user, read_note, edit_file_meta, delete_file
 };
 #define NUM_ADMIN_ACTIONS sizeof(admin_actions)/sizeof(*admin_actions)
 static const char *admin_action_names[NUM_ADMIN_ACTIONS] = {
-    "add user", "read notes", "clear notes", "edit", "delete"
+    "add user", "read next note", "edit", "delete"
 };
 
 typedef enum perform_action_result_tag {
@@ -115,11 +114,6 @@ void disable_echo(struct termios *bkp_ts)
     tcsetattr(STDIN_FILENO, TCSANOW, &ts);
 }
 
-void discard_stdin()
-{
-    while (getchar() != '\n') {};
-}
-
 int search_word_arr(const char **arr, size_t size, const char *query)
 {
     for (int i = 0; i < size; i++) {
@@ -128,6 +122,16 @@ int search_word_arr(const char **arr, size_t size, const char *query)
     }
 
     return -1;
+}
+
+void output_word_arr(const char **arr, size_t size)
+{
+    for (int i = 0; i < size; i++) {
+        if (i == 0)
+            printf("%s", arr[i]);
+        else
+            printf(", %s", arr[i]);
+    }
 }
 
 int try_get_client_action_by_name(const char *name, client_action *out)
@@ -156,22 +160,6 @@ int try_get_client_action_by_name(const char *name, client_action *out)
     }
 
     return 0;
-}
-
-int action_to_p_type(client_action action)
-{
-    switch (action) {
-        case log_in:
-            return tc_login;
-        case list_files:
-            return tc_list_files;
-        case query_file:
-            return tc_file_query;
-        case leave_note:
-            return tc_leave_note;
-        default:
-            return t_unknown;
-    }
 }
 
 int await_server_message()
@@ -301,6 +289,7 @@ int try_read_item_from_stdin(char *buf, size_t bufsize,
     fputs(prompt, stdout);
     fgets(buf, bufsize-1, stdin);
     if (!strip_nl(buf)) {
+        discard_stdin();
         puts(overflow_msg);
         return 0;
     }
@@ -310,7 +299,7 @@ int try_read_item_from_stdin(char *buf, size_t bufsize,
 
 int ask_for_credential_item(p_message *msg, const char *dialogue)
 {
-    char cred[MAX_LOGIN_ITEM_LEN];
+    char cred[MAX_LOGIN_ITEM_LEN+2];
 
     if (!try_read_item_from_stdin(cred, sizeof(cred), dialogue, "Login item too long"))
         return 0;
@@ -578,16 +567,77 @@ defer:
     return result;
 }
 
+perform_action_result add_user_dialogue()
+{
+    char usernm[MAX_LOGIN_ITEM_LEN+2];
+    if (!try_read_item_from_stdin(usernm, sizeof(usernm), "\nInput the new user's username: ", "Username is too long"))
+        return par_continue;
+
+    p_message *msg = p_create_message(r_client, tc_user_check);
+    p_add_string_to_message(msg, usernm);
+    send_message(msg);
+    p_free_message(msg);
+
+    if (!await_server_message()) {
+        log_await_error_with_caption("Failed to check user existence");
+        return par_error; // To terminate in ask for action
+    }
+
+    if (
+            reader.msg->role != r_server ||
+            (
+             reader.msg->type != ts_user_exists &&
+             reader.msg->type != ts_user_does_not_exist
+            ) ||
+            reader.msg->cnt != 0
+       ) {
+        printf_err("Invalid user-check server response");
+        return par_error; // To terminate in ask for action
+    }
+
+    if (reader.msg->type == ts_user_exists) {
+        printf("This user already exists\n");
+        return par_continue;
+    }
+
+    char passwd[MAX_LOGIN_ITEM_LEN+2];
+    if (!try_read_item_from_stdin(passwd, sizeof(passwd), "Input the new user's password: ", "Password is too long"))
+        return par_continue;
+
+    printf("Input user type, one of [");
+    output_word_arr(user_type_names, USER_TYPES_CNT);
+    printf("]: ");
+
+    char ut_name[MAX_USER_TYPE_LEN+2];
+    if (!try_read_item_from_stdin(ut_name, sizeof(ut_name), "", "User type is too long"))
+        return par_continue;
+    int i = search_word_arr(user_type_names, USER_TYPES_CNT, ut_name);
+    if (i == -1) {
+        printf("Invalid user type\n");
+        return par_continue;
+    }
+
+    msg = p_create_message(r_client, tc_add_user);
+    p_add_string_to_message(msg, usernm);
+    p_add_string_to_message(msg, passwd);
+    if (real_user_types[i] == ut_poster)
+        p_add_string_to_message(msg, poster_mark);
+    else if (real_user_types[i] == ut_admin)
+        p_add_string_to_message(msg, admin_mark);
+    send_message(msg);
+    p_free_message(msg);
+
+    return par_ok;
+}
+
 perform_action_result perform_action(client_action action)
 {
-    p_type type = action_to_p_type(action);
-
     switch (action) {
         case log_in:
             return login_dialogue();
 
         case list_files:
-            send_empty_message(type);
+            send_empty_message(tc_list_files);
             return par_ok;
 
         case query_file:
@@ -598,6 +648,9 @@ perform_action_result perform_action(client_action action)
 
         case post_file:
             return post_file_dialogue();
+
+        case add_user:
+            return add_user_dialogue();
 
         default:
             printf_err("Not implemented\n");
@@ -735,6 +788,17 @@ int process_leave_note_response()
     }
 }
 
+int process_add_user_response()
+{
+    if (reader.msg->type == ts_user_added && reader.msg->cnt == 0) {
+        printf("\nUser added\n");
+        return 1;
+    } else {
+        printf_err("Invalid add_user server response\n");
+        return 0;
+    }
+}
+
 int process_action_response(client_action action)
 {
     if (reader.msg->role != r_server) 
@@ -749,6 +813,8 @@ int process_action_response(client_action action)
             return process_query_file_response();
         case leave_note:
             return process_leave_note_response();
+        case add_user:
+            return process_add_user_response();
 
         default:
             printf("Not implemented\n");
@@ -756,16 +822,6 @@ int process_action_response(client_action action)
     }
 
     return 0;
-}
-
-void output_word_arr(const char **arr, size_t size)
-{
-    for (int i = 0; i < size; i++) {
-        if (i == 0)
-            printf("%s", arr[i]);
-        else
-            printf(", %s", arr[i]);
-    }
 }
 
 void output_available_actions()
@@ -815,6 +871,8 @@ int ask_for_action()
         return_defer(1);
     else if (perf_res == par_error)
         return_defer(0);
+
+    p_reset_reader(&reader);
 
     // If server message was invalid or unparsable, stop client
     if (!await_server_message()) {

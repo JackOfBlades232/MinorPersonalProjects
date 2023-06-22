@@ -267,13 +267,10 @@ void session_process_file_check(session *sess)
         return;
     }
 
-    char *filename = NULL;
     file_lookup_result lookup_res = db_lookup_file(&db, msg->words[0].str, 
-                                                   sess->usernm, sess->ut,
-                                                   &filename);
+                                                   sess->usernm, sess->ut, NULL);
     
     session_post_empty_message(sess, lookup_res == not_found ? ts_file_not_found : ts_file_exists);
-    if (filename) free(filename);
 }
 
 void session_start_recieving_file(session *sess)
@@ -303,7 +300,7 @@ void session_start_recieving_file(session *sess)
     free(users);
     
     if (sess->cur_post_fd == -1) {
-        session_post_empty_message(sess, ts_invalid_post);
+        sess->state = sstate_error;
         return;
     }
 
@@ -315,6 +312,48 @@ void session_start_recieving_file(session *sess)
     }
 
     sess->state = sstate_file_recv;
+}
+
+void session_process_check_user(session *sess)
+{
+    p_message *msg = sess->in_reader.msg;
+
+    if (msg->cnt != 1) {
+        sess->state = sstate_error;
+        return;
+    }
+
+    int exists = db_user_exists(&db, msg->words[0].str);
+    session_post_empty_message(sess, exists ? ts_user_exists : ts_user_does_not_exist);
+}
+
+void session_add_user(session *sess)
+{
+    p_message *msg = sess->in_reader.msg;
+
+    if (msg->cnt != 2 && msg->cnt != 3) {
+        sess->state = sstate_error;
+        return;
+    }
+
+    user_type ut;
+    if (msg->cnt == 2)
+        ut = ut_regular;
+    else if (strings_are_equal(msg->words[2].str, poster_mark))
+        ut = ut_poster;
+    else if (strings_are_equal(msg->words[2].str, admin_mark))
+        ut = ut_admin;
+    else {
+        sess->state = sstate_error;
+        return;
+    }
+
+    if (!db_add_user(&db, msg->words[0].str, msg->words[1].str, ut)) {
+        sess->state = sstate_error;
+        return;
+    }
+
+    session_post_empty_message(sess, ts_user_added);
 }
 
 void session_parse_regular_message(session *sess)
@@ -343,6 +382,10 @@ void session_parse_regular_message(session *sess)
             break;
         case tc_post_file:
             return session_start_recieving_file(sess);
+        case tc_user_check:
+            return session_process_check_user(sess);
+        case tc_add_user:
+            return session_add_user(sess);
         default:
             sess->state = sstate_error;
     }

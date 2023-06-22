@@ -20,26 +20,48 @@ typedef enum p_role_tag {
 
 typedef enum p_type_tag { 
     t_unknown,
+
     ts_init,
     tc_login,
     ts_login_success,
     ts_login_poster,
     ts_login_admin,
     ts_login_failed,
+
     tc_list_files,
     ts_file_list_response,
+
     tc_file_check,
     ts_file_exists,
     ts_file_not_found,
+
     tc_file_query,
     ts_file_restricted,
     ts_start_file_transfer,
     ts_file_packet,
+    
     tc_leave_note,
     ts_note_done,
+
     tc_post_file,
     tc_post_file_packet,
-    ts_invalid_post
+
+    tc_user_check,
+    ts_user_exists,
+    ts_user_does_not_exist,
+    tc_add_user,
+    ts_user_added,
+
+    tc_ask_for_next_note,
+    ts_show_and_rm_note,
+    ts_no_notes_left,
+
+    tc_edit_file_meta,
+    ts_file_edit_done,
+
+    tc_delete_file,
+    ts_file_deleted,
+    ts_cant_delete_file
 } p_type;
 
 typedef struct p_message_tag {

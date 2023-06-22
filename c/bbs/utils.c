@@ -109,6 +109,12 @@ int check_spc(const char *str)
     return *str;
 }
 
+void discard_stdin()
+{
+    int c;
+    while ((c = getchar()) != '\n' && c != EOF) {}
+}
+
 char *extract_word_from_buf(const char *buf, size_t bufsize, size_t *chars_read)
 {
     char *word;

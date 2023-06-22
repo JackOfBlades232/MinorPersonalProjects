@@ -31,6 +31,8 @@ int is_sep(int c);
 int strip_nl(char *str);
 int check_spc(const char *str);
 
+void discard_stdin();
+
 char *extract_word_from_buf(const char *buf, size_t bufsize, size_t *chars_read);
 
 const char *stripped_filename(const char *filename);
