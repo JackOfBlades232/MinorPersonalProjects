@@ -703,6 +703,18 @@ add_file_result db_try_add_file(database *db, const char *filename, const char *
         goto defer;
     }
 
+    if (!resize_dynamic_arr(
+                (void **) &db->file_metas, sizeof(*(db->file_metas)),
+                &db->metas_cnt, &db->metas_cap, METAFILES_BASE_CAP, METAFILES_MAX_CNT, 1
+                )) {
+        close(result.fd);
+        result.fd = -1;
+        goto defer;
+    }
+
+    db->file_metas[db->metas_cnt] = result.fmd;
+    db->metas_cnt++;
+
     meta_f = fopen(metafile_name, "w");
     if (!meta_f) {
         close(result.fd);
@@ -716,18 +728,6 @@ add_file_result db_try_add_file(database *db, const char *filename, const char *
     for (size_t i = 0; i < users_cnt; i++)
         fprintf(meta_f, " %s", users[i]);
     fputc('\n', meta_f);
-
-    if (!resize_dynamic_arr(
-                (void **) &db->file_metas, sizeof(*(db->file_metas)),
-                &db->metas_cnt, &db->metas_cap, METAFILES_BASE_CAP, METAFILES_MAX_CNT, 1
-                )) {
-        close(result.fd);
-        result.fd = -1;
-        goto defer;
-    }
-
-    db->file_metas[db->metas_cnt] = result.fmd;
-    db->metas_cnt++;
 
 defer:
     if (meta_f) fclose(meta_f);

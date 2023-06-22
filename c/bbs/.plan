@@ -105,9 +105,9 @@
         * Add writing tag to metafile and delete it if failed to complete
 
 Admin:
-    Add new user:
+    *Add new user:
         * Do the usual ting
-        - Add specifying user type in add user
+        * Add specifying user type in add user
 
     Read & clear notes:
 

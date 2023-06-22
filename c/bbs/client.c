@@ -572,6 +572,10 @@ perform_action_result add_user_dialogue()
     char usernm[MAX_LOGIN_ITEM_LEN+2];
     if (!try_read_item_from_stdin(usernm, sizeof(usernm), "\nInput the new user's username: ", "Username is too long"))
         return par_continue;
+    if (check_spc(usernm)) {
+        printf("Invalid username\n");
+        return par_continue;
+    }
 
     p_message *msg = p_create_message(r_client, tc_user_check);
     p_add_string_to_message(msg, usernm);
@@ -603,6 +607,10 @@ perform_action_result add_user_dialogue()
     char passwd[MAX_LOGIN_ITEM_LEN+2];
     if (!try_read_item_from_stdin(passwd, sizeof(passwd), "Input the new user's password: ", "Password is too long"))
         return par_continue;
+    if (check_spc(passwd)) {
+        printf("Invalid password\n");
+        return par_continue;
+    }
 
     printf("Input user type, one of [");
     output_word_arr(user_type_names, USER_TYPES_CNT);
