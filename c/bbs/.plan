@@ -101,7 +101,7 @@ Poster:
         * On server add read state to session to recieve data
         * Debug the invalid db after upload bug
         * Debug the insane loop serverside on posting multi-packet file
-        - Strip relative path in query/post filenames
+        * Strip relative path in query/post filenames
         - Add state to metafile (ready, locked, corrupted), and only allow query if ready
             - Do something with corrupted files (how do we detect em, and what to do?)
 

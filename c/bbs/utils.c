@@ -135,3 +135,27 @@ char *extract_word_from_buf(const char *buf, size_t bufsize, size_t *chars_read)
     *chars_read += wlen;
     return word;
 }
+
+const char *stripped_filename(const char *filename)
+{
+    size_t i;
+    for (i = strlen(filename)-1; i > 0; i--) {
+        if (filename[i] == '/')
+            break;
+    }
+
+    if (filename[i] == '/')
+        return filename + i + 1;
+    else
+        return filename;
+}
+
+int filename_is_stripped(const char *filename)
+{
+    for (; *filename; filename++) {
+        if (*filename == '/')
+            return 0;
+    }
+
+    return 1;
+}

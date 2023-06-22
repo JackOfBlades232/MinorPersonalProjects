@@ -364,16 +364,19 @@ perform_action_result query_file_dialogue()
     if (!try_read_item_from_stdin(filename, sizeof(filename), "\nInput file name: ", "Filename is too long"))
         return par_continue;
 
-    if (
-            access(filename, F_OK) == 0 && // exists
-            access(filename, W_OK) == -1   // and is not writeable
-       ) {
-        printf("Can't overwrite this file\n");
-        return par_continue;
+    if (access(filename, W_OK) == -1) {
+        int fd = open(filename, O_WRONLY | O_CREAT);
+        if (fd == -1) {
+            printf("Can't write to this file\n");
+            return par_continue;
+        } else {
+            close(fd);
+            unlink(filename);
+        }
     }
 
     p_message *msg = p_create_message(r_client, tc_file_query);
-    p_add_string_to_message(msg, filename);
+    p_add_string_to_message(msg, stripped_filename(filename));
 
     if (last_queried_filename) free(last_queried_filename);
     last_queried_filename = strdup(filename);
@@ -447,7 +450,7 @@ perform_action_result post_file_dialogue()
     }
 
     p_message *msg = p_create_message(r_client, tc_file_check);
-    p_add_string_to_message(msg, filename);
+    p_add_string_to_message(msg, stripped_filename(filename));
     send_message(msg);
     p_free_message(msg);
 
@@ -474,7 +477,7 @@ perform_action_result post_file_dialogue()
     }
 
     msg = p_create_message(r_client, tc_post_file);
-    p_add_string_to_message(msg, filename);
+    p_add_string_to_message(msg, stripped_filename(filename));
 
     char descr[MAX_DESCR_LEN+2];
     if (!try_read_item_from_stdin(descr, sizeof(descr), "Input description: ", "Description is too long"))

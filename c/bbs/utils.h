@@ -33,4 +33,7 @@ int check_spc(const char *str);
 
 char *extract_word_from_buf(const char *buf, size_t bufsize, size_t *chars_read);
 
+const char *stripped_filename(const char *filename);
+int filename_is_stripped(const char *filename);
+
 #endif

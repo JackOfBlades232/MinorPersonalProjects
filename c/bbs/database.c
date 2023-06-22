@@ -218,6 +218,7 @@ static file_metadata *parse_meta_file(const char *filename, const char *dirpath)
 
                 if (
                         len <= METADATA_MAX_NAME_LEN &&
+                        filename_is_stripped(w_buf) &&
                         !filename_ends_with_meta(w_buf, len) && 
                         metafile_name_is_correct(filename, w_buf) &&
                         file_exists_and_is_available(w_buf, dirpath)
@@ -605,6 +606,9 @@ file_lookup_result db_lookup_file(database *db, const char *filename,
                                   const char *username, user_type utype, 
                                   char **out)
 {
+    if (!filename_is_stripped(filename))
+        return not_found;
+
     file_lookup_result res = not_found;
 
     for (file_metadata **fmdp = db->file_metas; *fmdp; fmdp++) {
@@ -647,7 +651,8 @@ int db_try_add_file(database *db, const char *filename, const char *descr,
             !filename || !descr ||
             strlen(filename) > MAX_FILENAME_LEN || 
             strlen(descr) > MAX_DESCR_LEN ||
-            users_cnt > MAX_USER_CNT
+            users_cnt > MAX_USER_CNT ||
+            !filename_is_stripped(filename)
        ) {
         return -1;
     }
