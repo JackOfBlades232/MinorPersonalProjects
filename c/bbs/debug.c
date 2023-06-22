@@ -7,6 +7,17 @@ enum {
     MAX_FILE_LEN_FOR_DISPLAY = 65535
 };
 
+void debug_printf(const char *format, ...)
+{
+#ifdef DEBUG
+    va_list vl;
+    fprintf(stderr, "DEBUG: ");
+    va_start(vl, format);
+    vfprintf(stderr, format, vl);
+    va_end(vl);
+#endif
+}
+
 void debug_log_p_role(p_role role)
 {
 #ifdef DEBUG

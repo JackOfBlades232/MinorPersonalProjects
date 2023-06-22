@@ -54,6 +54,7 @@ typedef struct session_tag {
     long out_packets_left;
 
     int cur_post_fd;
+    file_metadata *cur_post_meta;
     long in_packets_left;
 } session;
 
@@ -140,6 +141,7 @@ session *make_session(int fd,
     sess->cur_query_fd = -1;
     sess->out_packets_left = 0;
     sess->cur_post_fd = -1;
+    sess->cur_post_meta = NULL;
     sess->in_packets_left = 0;
 
     p_init_reader(&sess->in_reader); // For login recieving
@@ -295,7 +297,9 @@ void session_start_recieving_file(session *sess)
     for (size_t i = 0; i < users_cnt; i++)
         users[i] = msg->words[i+2].str;
 
-    sess->cur_post_fd = db_try_add_file(&db, filename, descr, (const char **) users, users_cnt);
+    add_file_result add_res = db_try_add_file(&db, filename, descr, (const char **) users, users_cnt);
+    sess->cur_post_fd = add_res.fd;
+    sess->cur_post_meta = add_res.fmd;
     free(users);
     
     if (sess->cur_post_fd == -1) {
@@ -363,6 +367,8 @@ void session_parse_recv_packet(session *sess)
     if (sess->in_packets_left <= 0) {
         close(sess->cur_post_fd);
         sess->cur_post_fd = -1;
+        sess->cur_post_meta->is_complete = 1;
+        sess->cur_post_meta = NULL;
         sess->state = sstate_await;
     }
 }
@@ -549,6 +555,12 @@ void server_close_session(int sd)
     if (sess->usernm) free(sess->usernm);
     if (sess->cur_query_fd != -1) close(sess->cur_query_fd);
     if (sess->cur_post_fd != -1) close(sess->cur_post_fd);
+    if (sess->cur_post_meta) {
+        if (sess->cur_post_meta->is_complete)
+            fprintf(stderr, "ERR: mem leak, complete metadata in closing sess\n");
+        else
+            db_cleanup_incomplete_meta(&db, sess->cur_post_meta);
+    }
     free(sess);
     serv.sessions[sd] = NULL;
 }
@@ -656,10 +668,7 @@ int main(int argc, char **argv)
         }
 
         if (recieved_int) {
-#ifdef DEBUG
-            fprintf(stderr, "DEBUG: Shutting down server\n");
-#endif
-
+            debug_printf("Shutting down server\n");
             return_defer(0);
         }
 

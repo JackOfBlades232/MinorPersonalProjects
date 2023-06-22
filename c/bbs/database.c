@@ -9,6 +9,8 @@
 #include <sys/stat.h>
 #include <fcntl.h>
 
+#include "debug.h"
+
 static const char passwd_rel_path[] = "/passwd.txt";
 static const char data_rel_path[] = "/data/";
 static const char notes_rel_path[] = "/notes.txt";
@@ -61,7 +63,7 @@ static const char poster_mark[] = "&";
 static const char admin_mark[] = "*";
 
 
-static file_metadata *create_metadata()
+static file_metadata *create_metadata(int is_complete)
 {
     file_metadata *fmd = malloc(sizeof(*fmd));
     fmd->name = NULL;
@@ -70,6 +72,7 @@ static file_metadata *create_metadata()
     fmd->cnt = 0;
     fmd->cap = METADATA_BASE_USER_CAP;
     fmd->users = malloc(fmd->cap * sizeof(*fmd->users));
+    fmd->is_complete = is_complete;
     return fmd;
 }
 
@@ -189,7 +192,7 @@ static file_metadata *parse_meta_file(const char *filename, const char *dirpath)
     if (!f)
         return NULL;
 
-    file_metadata *fmd = create_metadata();
+    file_metadata *fmd = create_metadata(1);
 
     for (;;) {
         // If reading description content, allow regular word sep (space)
@@ -616,9 +619,10 @@ file_lookup_result db_lookup_file(database *db, const char *filename,
             res = no_access;
 
             if (db_file_is_available_to_user(*fmdp, username, utype)) {
-                if (out)
+                if (out) {
                     *out = concat_strings(db->data_path, (*fmdp)->name, NULL);
-                return found;
+                }
+                return (*fmdp)->is_complete ? found : incomplete;
             }
         }
     }
@@ -635,11 +639,10 @@ void db_store_note(database *db, const char *username, byte_arr note)
     fflush(db->notes_f);
 }
 
-int db_try_add_file(database *db, const char *filename, const char *descr,
-                    const char **users, size_t users_cnt)
+add_file_result db_try_add_file(database *db, const char *filename, const char *descr,
+                                const char **users, size_t users_cnt)
 {
-    int result = -1; // fd
-    file_metadata *fmd = NULL;
+    add_file_result result = { -1, NULL };
     FILE *meta_f = NULL;
     char *full_filename = NULL,
          *metafile_name = NULL;
@@ -654,35 +657,35 @@ int db_try_add_file(database *db, const char *filename, const char *descr,
             users_cnt > MAX_USER_CNT ||
             !filename_is_stripped(filename)
        ) {
-        return -1;
+        return result;
     }
 
     file_lookup_result lookup_res = db_lookup_file(db, filename, NULL, ut_admin, NULL);
     if (lookup_res != not_found)
-        return -1;
+        return result;
 
-    fmd = create_metadata();
-    fmd->name = strdup(filename);
-    fmd->descr = strdup(descr);
-    fmd->cap = users_cnt;
-    fmd->cnt = users_cnt;
-    fmd->users = fmd->cap == 0 ? NULL : malloc(fmd->cap * sizeof(*fmd->users));
+    result.fmd = create_metadata(0);
+    result.fmd->name = strdup(filename);
+    result.fmd->descr = strdup(descr);
+    result.fmd->cap = users_cnt;
+    result.fmd->cnt = users_cnt;
+    result.fmd->users = result.fmd->cap == 0 ? NULL : malloc(result.fmd->cap * sizeof(*result.fmd->users));
 
     if (users_cnt == 1 && strings_are_equal(*users, all_users_symbol)) {
-        fmd->is_for_all_users = 1;
-        fmd->cnt = 0;
+        result.fmd->is_for_all_users = 1;
+        result.fmd->cnt = 0;
     } else {
-        fmd->is_for_all_users = 0;
+        result.fmd->is_for_all_users = 0;
         size_t i;
         for (i = 0; i < users_cnt; i++) {
             if (
                     strings_are_equal(*users, all_users_symbol) ||
                     strlen(users[i]) > MAX_LOGIN_ITEM_LEN
                ) {
-                return_defer(-1);
+                goto defer;
             }
             
-            fmd->users[i] = strdup(users[i]);
+            result.fmd->users[i] = strdup(users[i]);
         }
     }
 
@@ -693,17 +696,20 @@ int db_try_add_file(database *db, const char *filename, const char *descr,
             access(full_filename, F_OK) == 0 ||
             access(metafile_name, F_OK) == 0
        ) {
-        return_defer(-1);
+        goto defer;
     }
 
-    result = open(full_filename, O_WRONLY | O_CREAT | O_TRUNC, 0664);
-    if (result == -1)
-        return_defer(-1);
+    result.fd = open(full_filename, O_WRONLY | O_CREAT | O_TRUNC, 0664);
+    if (result.fd == -1) {
+        goto defer;
+    }
 
     meta_f = fopen(metafile_name, "w");
-    if (!meta_f)
-        return_defer(-1);
-
+    if (!meta_f) {
+        close(result.fd);
+        result.fd = -1;
+        goto defer;
+    }
 
     fprintf(meta_f, "%s %s\n", metadata_file_alias, filename);
     fprintf(meta_f, "%s %s\n", metadata_descr_alias, descr);
@@ -716,16 +722,55 @@ int db_try_add_file(database *db, const char *filename, const char *descr,
                 (void **) &db->file_metas, sizeof(*(db->file_metas)),
                 &db->metas_cnt, &db->metas_cap, METAFILES_BASE_CAP, METAFILES_MAX_CNT, 1
                 )) {
-        return_defer(-1);
+        close(result.fd);
+        result.fd = -1;
+        goto defer;
     }
 
-    db->file_metas[db->metas_cnt] = fmd;
+    db->file_metas[db->metas_cnt] = result.fmd;
     db->metas_cnt++;
 
 defer:
     if (meta_f) fclose(meta_f);
     if (metafile_name) free(metafile_name);
     if (full_filename) free(full_filename);
-    if (result == -1 && fmd) free_metadata(fmd);
+    if (result.fd == -1 && result.fmd) free_metadata(result.fmd);
     return result;
+}
+
+int db_cleanup_incomplete_meta(database *db, file_metadata *fmd)
+{
+    file_metadata **fmdp;
+    for (fmdp = db->file_metas; *fmdp; fmdp++) {
+        if (*fmdp == fmd) 
+            break;
+    }
+
+    debug_printf("Cleanup meta\n");
+
+    if (!*fmdp)
+        return 0;
+
+    debug_printf("Found meta, cur cnt: %d\n", db->metas_cnt);
+
+    size_t offset = fmdp - db->file_metas;
+    memmove(fmdp, fmdp+1, db->metas_cnt-offset);
+    db->metas_cnt--;
+    db->file_metas[db->metas_cnt] = NULL;
+
+    debug_printf("Del from arr, new cnt: %d\n", db->metas_cnt);
+
+    char *full_filename = concat_strings(db->data_path, fmd->name, NULL);
+    char *metafile_name = concat_strings(full_filename, metafile_extension, NULL);
+
+    debug_printf("Files to unlink: %s, %s\n", full_filename, metafile_name);
+    
+    unlink(full_filename);
+    unlink(metafile_name);
+    free_metadata(fmd);
+
+    free(metafile_name);
+    free(full_filename);
+
+    return 1;
 }

@@ -91,8 +91,8 @@
     * Add new login response: logged in as admin, and change logged_in glob var to login status (no, yes, admin)
     * Make new action list and dialogue variants in ask for action for poster & admin users
 
-Poster:
-    Add new file (edit the empty meta & transfer):
+*Poster:
+    *Add new file (edit the empty meta & transfer):
         * Input filename, send to server to check if it exists (if yes, fail)
         * Input description (with cap) -> input users sep-d by ' ' (check for correctness as meta)
         * Send it all as words over to the server
@@ -102,7 +102,7 @@ Poster:
         * Debug the invalid db after upload bug
         * Debug the insane loop serverside on posting multi-packet file
         * Strip relative path in query/post filenames
-        - Remake posting so as to only add metafile to all once it is uploaded, and if corrupted -- just delete
+        * Add writing tag to metafile and delete it if failed to complete
 
 Admin:
     Add new user:

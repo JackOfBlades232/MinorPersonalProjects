@@ -14,6 +14,7 @@ typedef struct file_metadata_tag {
     int is_for_all_users;
     char **users;
     size_t cnt, cap;
+    int is_complete;
 } file_metadata;
 
 typedef struct user_data_tag {
@@ -32,8 +33,13 @@ typedef struct database_tag {
 } database;
 
 typedef enum file_lookup_result_tag {
-    found, not_found, no_access 
+    found, not_found, no_access, incomplete
 } file_lookup_result;
+
+typedef struct add_file_result_tag {
+    int fd;
+    file_metadata *fmd;
+} add_file_result;
 
 int db_init(database* db, const char *path);
 void db_deinit(database* db);
@@ -47,7 +53,9 @@ file_lookup_result db_lookup_file(database *db, const char *filename,
 
 void db_store_note(database *db, const char *username, byte_arr note);
 
-int db_try_add_file(database *db, const char *filename, const char *descr,
-                    const char **users, size_t users_cnt);
+add_file_result db_try_add_file(database *db, const char *filename, const char *descr,
+                                const char **users, size_t users_cnt);
+
+int db_cleanup_incomplete_meta(database *db, file_metadata *fmd);
 
 #endif

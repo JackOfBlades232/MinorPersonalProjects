@@ -4,7 +4,9 @@
 
 #include "protocol.h"
 #include <stdio.h>
+#include <stdarg.h> 
 
+void debug_printf(const char *format, ...);
 void debug_log_p_role(p_role role);
 void debug_log_p_type(p_type type);
 void debug_log_p_message(p_message *msg);
