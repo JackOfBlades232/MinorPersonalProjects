@@ -370,7 +370,7 @@ static int parse_passwd_file(database *db, const char *path)
 
     user_data *ud = NULL;
 
-    db->passwd_f = fopen(path, "a+");
+    db->passwd_f = fopen(path, "r");
     if (!db->passwd_f)
         return_defer(0);
 
@@ -387,8 +387,9 @@ static int parse_passwd_file(database *db, const char *path)
         if (len > MAX_LOGIN_ITEM_LEN)
             return_defer(0);
 
-        if (len == 0)
+        if (len == 0) {
             goto case_eof;
+        }
         if (!ud) {
             if (break_c != WORD_SEP)
                 return_defer(0);
@@ -415,8 +416,9 @@ static int parse_passwd_file(database *db, const char *path)
 
             ud->usernm = strndup(buf, len);
         } else if (!ud->passwd) {
-            if (!is_nl(break_c) || check_spc(buf))
+            if ((!is_nl(break_c) && break_c != EOF) || check_spc(buf)) {
                 return_defer(0);
+            }
 
             ud->passwd = strndup(buf, len);
 
@@ -455,8 +457,12 @@ defer:
             db->users_cap = 0;
         }
         if (db->passwd_f) fclose(db->passwd_f);
-    } else if (db->passwd_f)
-        rewind(db->passwd_f);
+    } else if (db->passwd_f) {
+        fclose(db->passwd_f);
+        db->passwd_f = fopen(path, "a");
+        if (!db->passwd_f)
+            result = 0;
+    }
     return result;
 }
 
@@ -465,7 +471,7 @@ static int parse_notes_file(database *db, const char *path)
 {
     int result = 1;
 
-    db->notes_f = fopen(path, "a+");
+    db->notes_f = fopen(path, "r");
     if (!db->notes_f)
         return 0;
 
@@ -510,8 +516,12 @@ defer:
     if (!result && db->notes_f) {
         fclose(db->notes_f);
         db->notes_f = NULL;
-    } else if (db->notes_f)
-        rewind(db->notes_f);
+    } else if (db->notes_f) {
+        fclose(db->notes_f);
+        db->notes_f = fopen(path, "a");
+        if (!db->notes_f)
+            result = 0;
+    }
     return result;    
 }
 
@@ -725,8 +735,11 @@ add_file_result db_try_add_file(database *db, const char *filename, const char *
     fprintf(meta_f, "%s %s\n", metadata_file_alias, filename);
     fprintf(meta_f, "%s %s\n", metadata_descr_alias, descr);
     fprintf(meta_f, "%s", metadata_users_alias);
-    for (size_t i = 0; i < users_cnt; i++)
-        fprintf(meta_f, " %s", users[i]);
+    if (users_cnt > 0) {
+        for (size_t i = 0; i < users_cnt; i++)
+            fprintf(meta_f, " %s", users[i]);
+    } else 
+        fprintf(meta_f, " ");
     fputc('\n', meta_f);
 
 defer:

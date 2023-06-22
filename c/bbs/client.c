@@ -283,7 +283,7 @@ defer:
     return result;
 }
 
-int try_read_item_from_stdin(char *buf, size_t bufsize, 
+int try_read_item_from_stdin(char *buf, size_t bufsize, int can_be_empty,
                              const char* prompt, const char *overflow_msg)
 {
     fputs(prompt, stdout);
@@ -291,6 +291,9 @@ int try_read_item_from_stdin(char *buf, size_t bufsize,
     if (!strip_nl(buf)) {
         discard_stdin();
         puts(overflow_msg);
+        return 0;
+    } else if (!can_be_empty && *buf == '\0') {
+        printf("Input must be non-empty\n");
         return 0;
     }
 
@@ -301,7 +304,7 @@ int ask_for_credential_item(p_message *msg, const char *dialogue)
 {
     char cred[MAX_LOGIN_ITEM_LEN+2];
 
-    if (!try_read_item_from_stdin(cred, sizeof(cred), dialogue, "Login item too long"))
+    if (!try_read_item_from_stdin(cred, sizeof(cred), 0, dialogue, "Login item too long"))
         return 0;
 
     if (check_spc(cred)) {
@@ -350,7 +353,7 @@ perform_action_result query_file_dialogue()
     perform_action_result result = par_ok;
     char filename[MAX_FILENAME_LEN+2];
 
-    if (!try_read_item_from_stdin(filename, sizeof(filename), "\nInput file name: ", "Filename is too long"))
+    if (!try_read_item_from_stdin(filename, sizeof(filename), 0, "\nInput file name: ", "Filename is too long"))
         return par_continue;
 
     if (access(filename, W_OK) == -1) {
@@ -387,7 +390,7 @@ perform_action_result leave_note_dialogue()
         return par_continue;
     }
 
-    if (!try_read_item_from_stdin(note, sizeof(note), "\nInput note: ", "Note is too long"))
+    if (!try_read_item_from_stdin(note, sizeof(note), 0, "\nInput note: ", "Note is too long"))
         return par_continue;
 
     p_message *msg = p_create_message(r_client, tc_leave_note);
@@ -427,7 +430,7 @@ perform_action_result post_file_dialogue()
     perform_action_result result = par_continue;
 
     char filename[MAX_FILENAME_LEN+2];
-    if (!try_read_item_from_stdin(filename, sizeof(filename), "\nInput file name: ", "Filename is too long"))
+    if (!try_read_item_from_stdin(filename, sizeof(filename), 0, "\nInput file name: ", "Filename is too long"))
         return par_continue;
 
     if (
@@ -469,12 +472,12 @@ perform_action_result post_file_dialogue()
     p_add_string_to_message(msg, stripped_filename(filename));
 
     char descr[MAX_DESCR_LEN+2];
-    if (!try_read_item_from_stdin(descr, sizeof(descr), "Input description: ", "Description is too long"))
+    if (!try_read_item_from_stdin(descr, sizeof(descr), 1, "Input description: ", "Description is too long"))
         return_defer(par_continue);
     p_add_string_to_message(msg, descr);
 
     char users[MAX_USER_CNT*(MAX_LOGIN_ITEM_LEN+2)];
-    if (!try_read_item_from_stdin(users, sizeof(users), "Input users that will have access to the file: ", "The list is too long"))
+    if (!try_read_item_from_stdin(users, sizeof(users), 1, "Input users that will have access to the file: ", "The list is too long"))
         return_defer(par_continue);
 
     char *users_p = users;
@@ -570,7 +573,7 @@ defer:
 perform_action_result add_user_dialogue()
 {
     char usernm[MAX_LOGIN_ITEM_LEN+2];
-    if (!try_read_item_from_stdin(usernm, sizeof(usernm), "\nInput the new user's username: ", "Username is too long"))
+    if (!try_read_item_from_stdin(usernm, sizeof(usernm), 0, "\nInput the new user's username: ", "Username is too long"))
         return par_continue;
     if (check_spc(usernm)) {
         printf("Invalid username\n");
@@ -605,7 +608,7 @@ perform_action_result add_user_dialogue()
     }
 
     char passwd[MAX_LOGIN_ITEM_LEN+2];
-    if (!try_read_item_from_stdin(passwd, sizeof(passwd), "Input the new user's password: ", "Password is too long"))
+    if (!try_read_item_from_stdin(passwd, sizeof(passwd), 0, "Input the new user's password: ", "Password is too long"))
         return par_continue;
     if (check_spc(passwd)) {
         printf("Invalid password\n");
@@ -617,7 +620,7 @@ perform_action_result add_user_dialogue()
     printf("]: ");
 
     char ut_name[MAX_USER_TYPE_LEN+2];
-    if (!try_read_item_from_stdin(ut_name, sizeof(ut_name), "", "User type is too long"))
+    if (!try_read_item_from_stdin(ut_name, sizeof(ut_name), 0, "", "User type is too long"))
         return par_continue;
     int i = search_word_arr(user_type_names, USER_TYPES_CNT, ut_name);
     if (i == -1) {
@@ -857,7 +860,7 @@ int ask_for_action()
 
     output_available_actions();
 
-    if (!try_read_item_from_stdin(action_buf, sizeof(action_buf), "Input action: ", "Action name is too long"))
+    if (!try_read_item_from_stdin(action_buf, sizeof(action_buf), 0, "Input action: ", "Action name is too long"))
         return_defer(1);
 
     if (!try_get_client_action_by_name(action_buf, &action)) {
