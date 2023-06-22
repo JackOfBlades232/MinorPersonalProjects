@@ -387,9 +387,8 @@ static int parse_passwd_file(database *db, const char *path)
         if (len > MAX_LOGIN_ITEM_LEN)
             return_defer(0);
 
-        if (len == 0) {
+        if (len == 0)
             goto case_eof;
-        }
         if (!ud) {
             if (break_c != WORD_SEP)
                 return_defer(0);
@@ -416,9 +415,8 @@ static int parse_passwd_file(database *db, const char *path)
 
             ud->usernm = strndup(buf, len);
         } else if (!ud->passwd) {
-            if ((!is_nl(break_c) && break_c != EOF) || check_spc(buf)) {
+            if ((!is_nl(break_c) && break_c != EOF) || check_spc(buf))
                 return_defer(0);
-            }
 
             ud->passwd = strndup(buf, len);
 
