@@ -235,13 +235,13 @@ void log_await_error()
 {
     switch (last_await_res) {
         case asr_incomplete:
-            fprintf(stderr, "ERR: Recieved incomplete message\n");
+            printf_err("Recieved incomplete message\n");
             break;
         case asr_process_err:
-            fprintf(stderr, "ERR: Failed to parse message\n");
+            printf_err("Failed to parse message\n");
             break;
         case asr_read_err:
-            fprintf(stderr, "ERR: Failed to select/read socket\n");
+            printf_err("Failed to select/read socket\n");
             break;
         case asr_timeout:
             printf("\nConnection timeout\n");
@@ -259,7 +259,7 @@ void log_await_error_with_caption(const char *caption)
     if (last_await_res == asr_timeout || last_await_res == asr_disconnected)
         printf("%s\n", caption);
     else
-        fprintf(stderr, "ERR: %s\n", caption);
+        printf_err("%s\n", caption);
 
     log_await_error();
 }
@@ -467,7 +467,7 @@ perform_action_result post_file_dialogue()
             ) ||
             reader.msg->cnt != 0
        ) {
-        fprintf(stderr, "ERR: Invalid file-check server response");
+        printf_err("Invalid file-check server response");
         return par_error; // To terminate in ask for action
     }
 
@@ -523,7 +523,7 @@ loop_err:
 
     cur_fd = open(filename, O_RDONLY);
     if (cur_fd == -1) {
-        fprintf(stderr, "ERR: failed to open file\n");
+        printf_err("failed to open file\n");
         return_defer(par_continue);
     }
 
@@ -600,7 +600,7 @@ perform_action_result perform_action(client_action action)
             return post_file_dialogue();
 
         default:
-            fprintf(stderr, "ERR: Not implemented\n");
+            printf_err("Not implemented\n");
     }
 
     return par_continue;
@@ -617,7 +617,7 @@ int process_login_response()
              reader.msg->type != ts_login_failed
             )
        ) {
-        fprintf(stderr, "ERR: Invalid log_in server response\n");
+        printf_err("Invalid log_in server response\n");
         return 0;
     }
 
@@ -633,7 +633,7 @@ int process_login_response()
 int process_file_list_response()
 {
     if (reader.msg->type != ts_file_list_response) {
-        fprintf(stderr, "ERR: Invalid list_files server response\n");
+        printf_err("Invalid list_files server response\n");
         return 0;
     }
 
@@ -658,7 +658,7 @@ int process_query_file_response()
         printf("File not found\n");
         return_defer(1);
     } else if (reader.msg->type == ts_file_restricted) {
-        printf("File is restricted for this account\n");
+        printf("File is restricted now\n");
         return_defer(1);
     }
 
@@ -666,25 +666,25 @@ int process_query_file_response()
             reader.msg->type != ts_start_file_transfer ||
             reader.msg->cnt != 1
        ) {
-        fprintf(stderr, "ERR: Invalid query_file server response\n");
+        printf_err("Invalid query_file server response\n");
         return_defer(0);
     }
 
     char *e;
     long packets_left = strtol(reader.msg->words[0].str, &e, 10);
     if (*e != '\0' || packets_left <= 0) {
-        fprintf(stderr, "ERR: Invalid num packets in query_file server response\n");
+        printf_err("Invalid num packets in query_file server response\n");
         return_defer(0);
     }
 
     if (!last_queried_filename) {
-        fprintf(stderr, "ERR: Last queried filename is NULL, this is a bug\n");
+        printf_err("Last queried filename is NULL, this is a bug\n");
         return_defer(0);
     }
 
     fd = open(last_queried_filename, O_WRONLY | O_CREAT | O_TRUNC, 0664);
     if (fd == -1) {
-        fprintf(stderr, "ERR: Can't save the file\n");
+        printf_err("Can't save the file\n");
         return_defer(0);
     }
 
@@ -698,7 +698,7 @@ int process_query_file_response()
                 reader.msg->type != ts_file_packet ||
                 reader.msg->cnt != 1
            ) {
-            fprintf(stderr, "ERR: Recieved invalid packet, file is incomplete\n");
+            printf_err("Recieved invalid packet, file is incomplete\n");
             return_defer(0);
         }
 
@@ -730,7 +730,7 @@ int process_leave_note_response()
         printf("Note sent\n");
         return 1;
     } else {
-        fprintf(stderr, "ERR: Invalid leave_note server response\n");
+        printf_err("Invalid leave_note server response\n");
         return 0;
     }
 }
@@ -822,7 +822,7 @@ int ask_for_action()
         return_defer(0);
     }
     if (!process_action_response(action)) {
-        fprintf(stderr, "ERR: Error while processing server response\n");
+        printf_err("Error while processing server response\n");
         return_defer(0);
     }
 
@@ -841,29 +841,29 @@ int main(int argc, char **argv)
     struct sockaddr_in serv_addr;
 
     if (!isatty(STDIN_FILENO)) {
-        fprintf(stderr, "ERR: Launch this from a tty\n");
+        printf_err("Launch this from a tty\n");
         return_defer(1);
     }
 
     if (argc != 3) {
-        fprintf(stderr, "ERR: Usage: <ip> <port>\n");
+        printf_err("Usage: <ip> <port>\n");
         return_defer(1);
     }
 
     serv_addr.sin_family = AF_INET;
     port = strtol(argv[2], &endptr, 10);
     if (!*argv[2] || *endptr) {
-        fprintf(stderr, "ERR: Invalid port number\n");
+        printf_err("Invalid port number\n");
         return_defer(1);
     }
     serv_addr.sin_port = htons(port);
     if (!inet_aton(argv[1], &serv_addr.sin_addr)) {
-        fprintf(stderr, "ERR: Provide valid server ip-address\n");
+        printf_err("Provide valid server ip-address\n");
         return_defer(1);
     }
 
     if (!connect_to_server(serv_addr)) {
-        fprintf(stderr, "ERR: Failed to connect to server\n");
+        printf_err("Failed to connect to server\n");
         return_defer(2);
     }
 

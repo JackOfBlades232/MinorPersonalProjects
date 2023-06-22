@@ -6,7 +6,10 @@
 #include <stdio.h>
 #include <stdarg.h> 
 
+void printf_err(const char *format, ...);
+
 void debug_printf(const char *format, ...);
+void debug_printf_err(const char *format, ...);
 void debug_log_p_role(p_role role);
 void debug_log_p_type(p_type type);
 void debug_log_p_message(p_message *msg);

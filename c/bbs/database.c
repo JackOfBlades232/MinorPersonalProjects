@@ -748,8 +748,10 @@ int db_cleanup_incomplete_meta(database *db, file_metadata *fmd)
 
     debug_printf("Cleanup meta\n");
 
-    if (!*fmdp)
+    if (!*fmdp) {
+        debug_printf_err("Trying to cleanup meta not from the db array\n");
         return 0;
+    }
 
     debug_printf("Found meta, cur cnt: %d\n", db->metas_cnt);
 

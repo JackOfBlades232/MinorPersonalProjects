@@ -7,11 +7,31 @@ enum {
     MAX_FILE_LEN_FOR_DISPLAY = 65535
 };
 
+void printf_err(const char *format, ...)
+{
+    va_list vl;
+    fprintf(stderr, "ERR: ");
+    va_start(vl, format);
+    vfprintf(stderr, format, vl);
+    va_end(vl);
+}
+
 void debug_printf(const char *format, ...)
 {
 #ifdef DEBUG
     va_list vl;
     fprintf(stderr, "DEBUG: ");
+    va_start(vl, format);
+    vfprintf(stderr, format, vl);
+    va_end(vl);
+#endif
+}
+
+void debug_printf_err(const char *format, ...)
+{
+#ifdef DEBUG
+    va_list vl;
+    fprintf(stderr, "ERR: ");
     va_start(vl, format);
     vfprintf(stderr, format, vl);
     va_end(vl);
