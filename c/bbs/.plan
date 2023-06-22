@@ -102,8 +102,7 @@ Poster:
         * Debug the invalid db after upload bug
         * Debug the insane loop serverside on posting multi-packet file
         * Strip relative path in query/post filenames
-        - Add state to metafile (ready, locked, corrupted), and only allow query if ready
-            - Do something with corrupted files (how do we detect em, and what to do?)
+        - Remake posting so as to only add metafile to all once it is uploaded, and if corrupted -- just delete
 
 Admin:
     Add new user:
@@ -118,7 +117,7 @@ Admin:
 
     Edit file desription & access:
 
-    Delete file:
+    Delete file (I consciously allow the admin to delete file mid-download for someone):
 
 Other:
     - Add new types to debug

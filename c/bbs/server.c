@@ -283,6 +283,11 @@ void session_start_recieving_file(session *sess)
         return;
     }
 
+    if (sess->ut < ut_poster) {
+        sess->state = sstate_error;
+        return;
+    }
+
     char *filename = msg->words[0].str;
     char *descr = msg->words[1].str;
     size_t users_cnt = msg->cnt-3;
