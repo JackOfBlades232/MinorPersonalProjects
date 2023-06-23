@@ -141,4 +141,3 @@ Refac 2:
     - Factor out deletion from clear-meta & delete file
     - Go over todos
     - Freestyle refac pass
-    - Make create/send message with words vairadic?
