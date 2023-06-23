@@ -646,23 +646,21 @@ perform_action_result perform_action(client_action action)
     switch (action) {
         case log_in:
             return login_dialogue();
-
         case list_files:
             send_empty_message(tc_list_files);
             return par_ok;
-
         case query_file:
             return query_file_dialogue();
-
         case leave_note:
             return leave_note_dialogue();
-
         case post_file:
             return post_file_dialogue();
-
         case add_user:
             return add_user_dialogue();
-
+        case read_note:
+            debug_printf("Sent\n");
+            send_empty_message(tc_ask_for_next_note);
+            return par_ok;
         default:
             printf_err("Not implemented\n");
     }
@@ -810,6 +808,30 @@ int process_add_user_response()
     }
 }
 
+int process_read_note_response()
+{
+    if (
+            (
+             reader.msg->type != ts_show_and_rm_note ||
+             reader.msg->cnt != 2
+            ) &&
+            (
+             reader.msg->type != ts_no_notes_left ||
+             reader.msg->cnt != 0
+            )
+       ) {
+        printf_err("Invalid read_note server response\n");
+        return 0;
+    }
+
+    if (reader.msg->type == ts_no_notes_left)
+        printf("\nNo notes left\n");
+    else
+        printf("\n%s:\n%s\n", reader.msg->words[0].str, reader.msg->words[1].str);
+
+    return 1;
+}
+
 int process_action_response(client_action action)
 {
     if (reader.msg->role != r_server) 
@@ -826,7 +848,8 @@ int process_action_response(client_action action)
             return process_leave_note_response();
         case add_user:
             return process_add_user_response();
-
+        case read_note:
+            return process_read_note_response();
         default:
             printf("Not implemented\n");
             return 1;

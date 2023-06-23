@@ -109,9 +109,19 @@ Admin:
         * Do the usual ting
         * Add specifying user type in add user
 
-    Read & clear notes:
+    *Read & clear notes:
+        * Dialogue & send request
+        * DB: read first note in file, repl it by all '\0' and return to server
+        * Server: if there is a note in db, send it, else, send no_notes
+        * Client recv, display and be done
+        * Server: on shutdown and restart truncate all '\0' from notes (rnm to _bkp, create new notes and cpy)
 
     Edit file desription & access:
+        - Clientside check file existence (like in post)
+        - If exists, do the same dialogue (factor it out)
+        - Send to server
+        - Make a db func for meta editing (just edit fmd and fully rewrite file)
+        - Send response
 
     Delete file (I consciously allow the admin to delete file mid-download for someone):
 
@@ -121,8 +131,6 @@ Other:
         Currently these scenarios cause error & connection shutdown
         Also, once a session is closed the locked file/user shall be released
     - Add new types to debug
-    - Right now if server (or client) disconnects, the other can still pour packets. 
-        Is this a big problem? I might address this in future projects
 
 Refac 2:
     - Freestyle refac pass

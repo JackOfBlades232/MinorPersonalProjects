@@ -465,11 +465,11 @@ defer:
 }
 
 // @TODO: add note lookup for admin users?
-static int parse_notes_file(database *db, const char *path)
+static int parse_notes_file(database *db)
 {
     int result = 1;
 
-    db->notes_f = fopen(path, "r");
+    db->notes_f = fopen(db->notes_path, "r");
     if (!db->notes_f)
         return 0;
 
@@ -516,7 +516,7 @@ defer:
         db->notes_f = NULL;
     } else if (db->notes_f) {
         fclose(db->notes_f);
-        db->notes_f = fopen(path, "a");
+        db->notes_f = fopen(db->notes_path, "a");
         if (!db->notes_f)
             result = 0;
     }
@@ -533,21 +533,23 @@ int db_init(database* db, const char *path)
     size_t path_len = strlen(path);
 
     db->data_path = NULL;
+    db->notes_path = NULL;
+    db->passwd_f = NULL;
+    db->notes_f = NULL;
     db->file_metas = NULL;
     db->user_datas = NULL;
-    db->notes_f = NULL;
 
     if (path[path_len-1] == '/')
         path_len--;
     path_copy = strndup(path, path_len);
 
     passwd_path = concat_strings(path_copy, passwd_rel_path, NULL);
-    notes_path = concat_strings(path_copy, notes_rel_path, NULL);
+    db->notes_path = concat_strings(path_copy, notes_rel_path, NULL);
     db->data_path = concat_strings(path_copy, data_rel_path, NULL);
 
     if (!parse_passwd_file(db, passwd_path))
         return_defer(0);
-    if (!parse_notes_file(db, notes_path))
+    if (!parse_notes_file(db))
         return_defer(0);
     if (!parse_data_dir(db))
         return_defer(0);
@@ -561,8 +563,58 @@ defer:
     return result;
 }
 
+static int truncate_notes_file(database *db)
+{
+    int result = 1;
+
+    char *new_notes_path = NULL;
+    FILE *new_nf = NULL;
+
+    FILE *nf = fopen(db->notes_path, "r");
+    if (!nf)
+        return 0;
+
+    int c;
+    int has_zeroes = 0;
+    while ((c = fgetc(nf)) == '\0') { 
+        if (!has_zeroes)
+            has_zeroes = 1;
+    }
+    if (!has_zeroes)
+        return_defer(1);
+
+    new_notes_path = concat_strings(db->notes_path, ".new", NULL);
+    new_nf = fopen(new_notes_path, "w");
+    if (!new_nf)
+        return_defer(0);
+
+    if (c != '\n')
+        fputc(c, new_nf);
+
+    while ((c = fgetc(nf)) != EOF)
+        fputc(c, new_nf);
+
+    fclose(new_nf);
+    fclose(nf);
+    new_nf = NULL;
+    nf = NULL;
+
+    unlink(db->notes_path);
+    rename(new_notes_path, db->notes_path);
+
+defer:
+    if (new_nf) fclose(new_nf);
+    if (new_notes_path) free(new_notes_path);
+    if (nf) fclose(nf);
+    return result;
+}
+
 void db_deinit(database* db)
 {
+    if (db->notes_path) {
+        if (!truncate_notes_file(db))
+            debug_printf_err("Failed to truncate notes file\n");
+    }
     if (db->file_metas) {
         for (file_metadata **fmdp = db->file_metas; *fmdp; fmdp++)
             free_metadata(*fmdp);
@@ -575,12 +627,15 @@ void db_deinit(database* db)
     }
     if (db->passwd_f) fclose(db->passwd_f);
     if (db->notes_f) fclose(db->notes_f);
+    if (db->notes_path) free(db->notes_path);
     if (db->data_path) free(db->data_path);
 
     db->data_path = NULL;
+    db->notes_path = NULL;
+    db->passwd_f = NULL;
+    db->notes_f = NULL;
     db->file_metas = NULL;
     db->user_datas = NULL;
-    db->notes_f = NULL;
 }
 
 user_type db_try_match_credentials(database* db, const char *usernm, const char *passwd)
@@ -827,3 +882,58 @@ int db_add_user(database* db, const char *usernm, const char *passwd, user_type 
 
     return 1;
 }
+
+read_note_result db_read_and_rm_top_note(database *db)
+{
+    read_note_result res = { NULL, NULL };
+    FILE *nf = fopen(db->notes_path, "r+");
+    if (!nf)
+        return res;
+
+    long chars_read = 0;
+
+    char buf[MAX_NOTE_LEN];
+    int break_c;
+    notes_file_parse_state state = mfps_user;
+    for (;;) {
+        break_c = read_word_to_buf(nf, buf, sizeof(buf), '\n');
+        size_t len = strlen(buf);
+
+        chars_read += len;
+        if (break_c != EOF)
+            chars_read++;
+        
+        switch (state) {
+            case mfps_user:
+                if (len == 0) {
+                    if (break_c == EOF)
+                        goto defer;
+                    else
+                        continue;
+                }
+                res.usernm = strdup(buf);
+                state = mfps_note;
+                break;
+
+            case mfps_note:
+                res.note = strdup(buf);
+                state = mfps_delim;
+                break;
+
+            case mfps_delim:
+                goto defer;
+        }
+    }
+
+defer:
+    if (chars_read > 0) {
+        fseek(nf, -chars_read, SEEK_CUR);
+        for (; chars_read > 1; chars_read--)
+            fputc('\0', nf);
+        fputc('\n', nf);
+    }
+    debug_printf("%s: %s\n", res.usernm, res.note);
+    if (nf) fclose(nf);
+    return res;
+}
+

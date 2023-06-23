@@ -356,6 +356,30 @@ void session_add_user(session *sess)
     session_post_empty_message(sess, ts_user_added);
 }
 
+void session_try_pop_next_note(session *sess)
+{
+    p_message *msg = sess->in_reader.msg;
+
+    if (msg->cnt != 0) {
+        sess->state = sstate_error;
+        return;
+    }
+
+    read_note_result rn_res = db_read_and_rm_top_note(&db);
+    if (!rn_res.usernm || !rn_res.note)
+        session_post_empty_message(sess, ts_no_notes_left);
+    else {
+        p_message *response = p_create_message(r_server, ts_show_and_rm_note);
+        p_add_string_to_message(response, rn_res.usernm);
+        p_add_string_to_message(response, rn_res.note);
+        session_post_msg(sess, response);
+        p_free_message(response);
+    }
+
+    if (rn_res.usernm) free(rn_res.usernm);
+    if (rn_res.note) free(rn_res.note);
+}
+
 void session_parse_regular_message(session *sess)
 {
     p_message *msg = sess->in_reader.msg;
@@ -378,14 +402,20 @@ void session_parse_regular_message(session *sess)
             session_store_note(sess);
             break;
         case tc_file_check:
-            return session_process_file_check(sess);
+            session_process_file_check(sess);
             break;
         case tc_post_file:
-            return session_start_recieving_file(sess);
+            session_start_recieving_file(sess);
+            break;
         case tc_user_check:
-            return session_process_check_user(sess);
+            session_process_check_user(sess);
+            break;
         case tc_add_user:
-            return session_add_user(sess);
+            session_add_user(sess);
+            break;
+        case tc_ask_for_next_note:
+            session_try_pop_next_note(sess);
+            break;
         default:
             sess->state = sstate_error;
     }

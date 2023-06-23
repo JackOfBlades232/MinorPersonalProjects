@@ -25,12 +25,13 @@ typedef struct user_data_tag {
 
 typedef struct database_tag {
     char *data_path;
+    char *notes_path;
+    FILE *passwd_f;
+    FILE *notes_f;
     file_metadata **file_metas;
     size_t metas_cnt, metas_cap;
     user_data **user_datas;
     size_t users_cnt, users_cap;
-    FILE *passwd_f;
-    FILE *notes_f;
 } database;
 
 typedef enum file_lookup_result_tag {
@@ -41,6 +42,11 @@ typedef struct add_file_result_tag {
     int fd;
     file_metadata *fmd;
 } add_file_result;
+
+typedef struct read_note_result_tag {
+    char *usernm;
+    char *note;
+} read_note_result;
 
 int db_init(database* db, const char *path);
 void db_deinit(database* db);
@@ -61,5 +67,7 @@ int db_cleanup_incomplete_meta(database *db, file_metadata *fmd);
 
 int db_user_exists(database* db, const char *usernm);
 int db_add_user(database* db, const char *usernm, const char *passwd, user_type ut);
+
+read_note_result db_read_and_rm_top_note(database *db);
 
 #endif
