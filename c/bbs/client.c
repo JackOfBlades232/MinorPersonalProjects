@@ -425,22 +425,8 @@ int draw_load_progress_bar(const char *prefix,
     return new_chars;
 }
 
-perform_action_result post_file_dialogue()
+int check_file_existence(const char *filename)
 {
-    perform_action_result result = par_continue;
-
-    char filename[MAX_FILENAME_LEN+2];
-    if (!try_read_item_from_stdin(filename, sizeof(filename), 0, "\nInput file name: ", "Filename is too long"))
-        return par_continue;
-
-    if (
-            access(filename, F_OK) == -1 || // doesn't exist
-            access(filename, R_OK) == -1    // or is not readable
-       ) {
-        printf("Can't read this file\n");
-        return par_continue;
-    }
-
     p_message *msg = p_create_message(r_client, tc_file_check);
     p_add_string_to_message(msg, stripped_filename(filename));
     send_message(msg);
@@ -448,7 +434,7 @@ perform_action_result post_file_dialogue()
 
     if (!await_server_message()) {
         log_await_error_with_caption("Failed to check file existence");
-        return par_error; // To terminate in ask for action
+        return 0;
     }
 
     if (
@@ -460,25 +446,24 @@ perform_action_result post_file_dialogue()
             reader.msg->cnt != 0
        ) {
         printf_err("Invalid file-check server response");
-        return par_error; // To terminate in ask for action
+        return 0;
     }
 
-    if (reader.msg->type == ts_file_exists) {
-        printf("A file with this name already exists\n");
-        return par_continue;
-    }
+    return 1;
+}
 
-    msg = p_create_message(r_client, tc_post_file);
+int fill_metafile_dialogue(p_message *msg, const char *filename)
+{
     p_add_string_to_message(msg, stripped_filename(filename));
 
     char descr[MAX_DESCR_LEN+2];
     if (!try_read_item_from_stdin(descr, sizeof(descr), 1, "Input description: ", "Description is too long"))
-        return_defer(par_continue);
+        return 0;
     p_add_string_to_message(msg, descr);
 
     char users[MAX_USER_CNT*(MAX_LOGIN_ITEM_LEN+2)];
     if (!try_read_item_from_stdin(users, sizeof(users), 1, "Input users that will have access to the file: ", "The list is too long"))
-        return_defer(par_continue);
+        return 0;
 
     char *users_p = users;
     size_t users_rem_len = strlen(users);
@@ -510,8 +495,39 @@ perform_action_result post_file_dialogue()
 loop_err:
         printf("Invalid user access list\n");
         free(usernm);
-        return_defer(par_continue);
+        return 0;
     }
+
+    return 1;
+}
+
+perform_action_result post_file_dialogue()
+{
+    perform_action_result result = par_continue;
+
+    char filename[MAX_FILENAME_LEN+2];
+    if (!try_read_item_from_stdin(filename, sizeof(filename), 0, "\nInput file name: ", "Filename is too long"))
+        return par_continue;
+
+    if (
+            access(filename, F_OK) == -1 || // doesn't exist
+            access(filename, R_OK) == -1    // or is not readable
+       ) {
+        printf("Can't read this file\n");
+        return par_continue;
+    }
+
+    if (!check_file_existence(filename))
+        return par_error;
+
+    if (reader.msg->type == ts_file_exists) {
+        printf("A file with this name already exists\n");
+        return par_continue;
+    }
+
+    p_message *msg = p_create_message(r_client, tc_post_file);
+    if (!fill_metafile_dialogue(msg, filename))
+        return_defer(par_continue);
 
     cur_fd = open(filename, O_RDONLY);
     if (cur_fd == -1) {
