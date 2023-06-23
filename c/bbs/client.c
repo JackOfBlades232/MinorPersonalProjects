@@ -657,6 +657,33 @@ perform_action_result add_user_dialogue()
     return par_ok;
 }
 
+perform_action_result edit_meta_dialogue()
+{
+    perform_action_result result = par_ok;
+
+    char filename[MAX_FILENAME_LEN+2];
+    if (!try_read_item_from_stdin(filename, sizeof(filename), 0, "\nInput file name: ", "Filename is too long"))
+        return par_continue;
+
+    if (!check_file_existence(filename))
+        return par_error;
+
+    if (reader.msg->type == ts_file_not_found) {
+        printf("File not found\n");
+        return par_continue;
+    }
+
+    p_message *msg = p_create_message(r_client, tc_edit_file_meta);
+    if (!fill_metafile_dialogue(msg, filename))
+        return_defer(par_continue);
+
+    send_message(msg);
+
+defer:
+    if (msg) p_free_message(msg);
+    return result;
+}
+
 perform_action_result perform_action(client_action action)
 {
     switch (action) {
@@ -674,9 +701,10 @@ perform_action_result perform_action(client_action action)
         case add_user:
             return add_user_dialogue();
         case read_note:
-            debug_printf("Sent\n");
             send_empty_message(tc_ask_for_next_note);
             return par_ok;
+        case edit_file_meta:
+            return edit_meta_dialogue();
         default:
             printf_err("Not implemented\n");
     }
@@ -848,6 +876,17 @@ int process_read_note_response()
     return 1;
 }
 
+int process_edit_metafile_response()
+{
+    if (reader.msg->type == ts_file_edit_done && reader.msg->cnt == 0) {
+        printf("Edit comlete\n");
+        return 1;
+    } else {
+        printf_err("Invalid edit_meta server response\n");
+        return 0;
+    }
+}
+
 int process_action_response(client_action action)
 {
     if (reader.msg->role != r_server) 
@@ -866,6 +905,8 @@ int process_action_response(client_action action)
             return process_add_user_response();
         case read_note:
             return process_read_note_response();
+        case edit_file_meta:
+            return process_edit_metafile_response();
         default:
             printf("Not implemented\n");
             return 1;

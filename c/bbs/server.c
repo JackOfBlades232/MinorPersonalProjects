@@ -225,7 +225,7 @@ void session_process_file_query(session *sess)
     char *filename = NULL;
     file_lookup_result lookup_res = db_lookup_file(&db, msg->words[0].str, 
                                                    sess->usernm, sess->ut,
-                                                   &filename);
+                                                   &filename, NULL);
 
     if (lookup_res == found) {
         response = construct_num_packets_response(sess, filename);
@@ -268,7 +268,7 @@ void session_process_file_check(session *sess)
     }
 
     file_lookup_result lookup_res = db_lookup_file(&db, msg->words[0].str, 
-                                                   sess->usernm, sess->ut, NULL);
+                                                   sess->usernm, sess->ut, NULL, NULL);
     
     session_post_empty_message(sess, lookup_res == not_found ? ts_file_not_found : ts_file_exists);
 }
@@ -380,6 +380,32 @@ void session_try_pop_next_note(session *sess)
     if (rn_res.note) free(rn_res.note);
 }
 
+void session_edit_file_meta(session *sess)
+{
+    p_message *msg = sess->in_reader.msg;
+
+    if (msg->cnt < 2) {
+        sess->state = sstate_error;
+        return;
+    }
+
+    char *filename = msg->words[0].str;
+    char *descr = msg->words[1].str;
+    size_t users_cnt = msg->cnt-2;
+    char **users = malloc(users_cnt * sizeof(*users));
+    for (size_t i = 0; i < users_cnt; i++)
+        users[i] = msg->words[i+2].str;
+
+    int edit_res = db_try_edit_metadata(&db, filename, descr, (const char **) users, users_cnt);
+    free(users);
+    if (!edit_res) {
+        sess->state = sstate_error;
+        return;
+    }
+
+    session_post_empty_message(sess, ts_file_edit_done);
+}
+
 void session_parse_regular_message(session *sess)
 {
     p_message *msg = sess->in_reader.msg;
@@ -415,6 +441,9 @@ void session_parse_regular_message(session *sess)
             break;
         case tc_ask_for_next_note:
             session_try_pop_next_note(sess);
+            break;
+        case tc_edit_file_meta:
+            session_edit_file_meta(sess);
             break;
         default:
             sess->state = sstate_error;

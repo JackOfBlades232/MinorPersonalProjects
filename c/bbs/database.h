@@ -56,7 +56,7 @@ user_type db_try_match_credentials(database* db, const char *usernm, const char 
 int db_file_is_available_to_user(file_metadata *fmd, const char *username, user_type utype);
 file_lookup_result db_lookup_file(database *db, const char *filename, 
                                   const char *username, user_type utype, 
-                                  char **out);
+                                  char **out, file_metadata **fmd_out);
 
 void db_store_note(database *db, const char *username, byte_arr note);
 
@@ -69,5 +69,8 @@ int db_user_exists(database* db, const char *usernm);
 int db_add_user(database* db, const char *usernm, const char *passwd, user_type ut);
 
 read_note_result db_read_and_rm_top_note(database *db);
+
+int db_try_edit_metadata(database *db, const char *filename, const char *descr,
+                         const char **users, size_t users_cnt);
 
 #endif

@@ -669,7 +669,7 @@ int db_file_is_available_to_user(file_metadata *fmd, const char *username, user_
 
 file_lookup_result db_lookup_file(database *db, const char *filename, 
                                   const char *username, user_type utype, 
-                                  char **out)
+                                  char **out, file_metadata **fmd_out)
 {
     if (!filename_is_stripped(filename))
         return not_found;
@@ -681,9 +681,10 @@ file_lookup_result db_lookup_file(database *db, const char *filename,
             res = no_access;
 
             if (db_file_is_available_to_user(*fmdp, username, utype)) {
-                if (out) {
+                if (out)
                     *out = concat_strings(db->data_path, (*fmdp)->name, NULL);
-                }
+                if (fmd_out)
+                    *fmd_out = *fmdp;
                 return (*fmdp)->is_complete ? found : incomplete;
             }
         }
@@ -722,7 +723,7 @@ add_file_result db_try_add_file(database *db, const char *filename, const char *
         return result;
     }
 
-    file_lookup_result lookup_res = db_lookup_file(db, filename, NULL, ut_admin, NULL);
+    file_lookup_result lookup_res = db_lookup_file(db, filename, NULL, ut_admin, NULL, NULL);
     if (lookup_res != not_found)
         return result;
 
@@ -937,3 +938,81 @@ defer:
     return res;
 }
 
+int db_try_edit_metadata(database *db, const char *filename, const char *descr,
+                         const char **users, size_t users_cnt)
+{
+    int result = 1;
+    FILE *meta_f = NULL;
+    char *metafile_name = NULL;
+
+    // @TODO: make helpful returns so as to know what went wrong
+    
+    if (
+            !filename || !descr ||
+            strlen(filename) > MAX_FILENAME_LEN || 
+            strlen(descr) > MAX_DESCR_LEN ||
+            users_cnt > MAX_USER_CNT ||
+            !filename_is_stripped(filename)
+       ) {
+        return 0;
+    }
+
+    file_metadata *fmd;
+    file_lookup_result lookup_res = db_lookup_file(db, filename, NULL, ut_admin, NULL, &fmd);
+    if (lookup_res == not_found)
+        return 0;
+
+    if (fmd->descr) free(fmd->descr);
+    if (fmd->users) {
+        for (size_t i = 0; i < fmd->cnt; i++)
+            free(fmd->users[i]);
+        free(fmd->users);
+    }
+
+    fmd->descr = strdup(descr);
+    fmd->cap = users_cnt;
+    fmd->cnt = users_cnt;
+    fmd->users = fmd->cap == 0 ? NULL : malloc(fmd->cap * sizeof(*fmd->users));
+
+    if (users_cnt == 1 && strings_are_equal(*users, all_users_symbol)) {
+        fmd->is_for_all_users = 1;
+        fmd->cnt = 0;
+    } else {
+        fmd->is_for_all_users = 0;
+        size_t i;
+        for (i = 0; i < users_cnt; i++) {
+            if (
+                    strings_are_equal(*users, all_users_symbol) ||
+                    strlen(users[i]) > MAX_LOGIN_ITEM_LEN
+               ) {
+                return_defer(0);
+            }
+            
+            fmd->users[i] = strdup(users[i]);
+        }
+    }
+
+    metafile_name = concat_strings(db->data_path, filename, metafile_extension, NULL);
+
+    if (access(metafile_name, W_OK) == -1)
+        return_defer(0);
+
+    meta_f = fopen(metafile_name, "w");
+    if (!meta_f)
+        return_defer(0);
+
+    fprintf(meta_f, "%s %s\n", metadata_file_alias, filename);
+    fprintf(meta_f, "%s %s\n", metadata_descr_alias, descr);
+    fprintf(meta_f, "%s", metadata_users_alias);
+    if (users_cnt > 0) {
+        for (size_t i = 0; i < users_cnt; i++)
+            fprintf(meta_f, " %s", users[i]);
+    } else 
+        fprintf(meta_f, " ");
+    fputc('\n', meta_f);
+
+defer:
+    if (meta_f) fclose(meta_f);
+    if (metafile_name) free(metafile_name);
+    return result;
+}
