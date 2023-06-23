@@ -104,7 +104,7 @@
         * Strip relative path in query/post filenames
         * Add writing tag to metafile and delete it if failed to complete
 
-Admin:
+*Admin:
     *Add new user:
         * Do the usual ting
         * Add specifying user type in add user
@@ -123,22 +123,22 @@ Admin:
         * Make a db func for meta editing (just edit fmd and fully rewrite file)
         * Send response
 
-    Delete file (I consciously allow the admin to delete file mid-download for someone):
-        - Clientside check file existence (same as before)
-        - Factor out filename ask?
-        - If exists, send delete request
-        - Make db func for deletinf a file and it's meta
-        - Do this serverside, send response, parse it on client
+    *Delete file (I consciously allow the admin to delete file mid-download for someone):
+        * Clientside check file existence (same as before)
+        * If exists, send delete request
+        * Make db func for deletinf a file and it's meta
+        * Do this serverside, send response, parse it on client
 
 Other:
     * Add new types to debug
-    - Add errors in server on recieving admin requests from reg clients and so on
+    - Add errors in server on recieving admin requests from reg clients and so on, and in client add failsafes too
     - Implement locking after: asking if file exists (so no one can write or edit it too)
                                asking if user exists (so no one can try and add two identical users)
         Currently these scenarios cause error & connection shutdown
         Also, once a session is closed the locked file/user shall be released
 
 Refac 2:
+    - Factor out deletion from clear-meta & delete file
     - Go over todos
     - Freestyle refac pass
     - Make create/send message with words vairadic?

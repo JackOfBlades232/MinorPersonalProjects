@@ -48,6 +48,10 @@ typedef struct read_note_result_tag {
     char *note;
 } read_note_result;
 
+typedef enum delete_file_result_tag {
+    deleted, cant_delete, d_error
+} delete_file_result;
+
 int db_init(database* db, const char *path);
 void db_deinit(database* db);
 
@@ -72,5 +76,7 @@ read_note_result db_read_and_rm_top_note(database *db);
 
 int db_try_edit_metadata(database *db, const char *filename, const char *descr,
                          const char **users, size_t users_cnt);
+
+delete_file_result db_try_delete_file(database *db, const char *filename);
 
 #endif

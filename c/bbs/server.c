@@ -406,6 +406,24 @@ void session_edit_file_meta(session *sess)
     session_post_empty_message(sess, ts_file_edit_done);
 }
 
+void session_try_delete_file(session *sess)
+{
+    p_message *msg = sess->in_reader.msg;
+
+    if (msg->cnt != 1) {
+        sess->state = sstate_error;
+        return;
+    }
+    
+    delete_file_result res = db_try_delete_file(&db, msg->words[0].str);
+    if (res == d_error) {
+        sess->state = sstate_error;
+        return;
+    }
+
+    session_post_empty_message(sess, res == deleted ? ts_file_deleted : ts_cant_delete_file);
+}
+
 void session_parse_regular_message(session *sess)
 {
     p_message *msg = sess->in_reader.msg;
@@ -444,6 +462,9 @@ void session_parse_regular_message(session *sess)
             break;
         case tc_edit_file_meta:
             session_edit_file_meta(sess);
+            break;
+        case tc_delete_file:
+            session_try_delete_file(sess);
             break;
         default:
             sess->state = sstate_error;

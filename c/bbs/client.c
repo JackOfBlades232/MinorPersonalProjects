@@ -684,6 +684,20 @@ defer:
     return result;
 }
 
+perform_action_result delete_file_dialogue()
+{
+    char filename[MAX_FILENAME_LEN+2];
+    if (!try_read_item_from_stdin(filename, sizeof(filename), 0, "\nInput file name: ", "Filename is too long"))
+        return par_continue;
+
+    p_message *msg = p_create_message(r_client, tc_delete_file);
+    p_add_string_to_message(msg, filename);
+    send_message(msg);
+    p_free_message(msg);
+
+    return par_ok;
+}
+
 perform_action_result perform_action(client_action action)
 {
     switch (action) {
@@ -705,6 +719,8 @@ perform_action_result perform_action(client_action action)
             return par_ok;
         case edit_file_meta:
             return edit_meta_dialogue();
+        case delete_file:
+            return delete_file_dialogue();
         default:
             printf_err("Not implemented\n");
     }
@@ -887,6 +903,26 @@ int process_edit_metafile_response()
     }
 }
 
+int process_delete_file_response()
+{
+    if ( 
+            (
+                reader.msg->type != ts_file_deleted &&
+                reader.msg->type != ts_cant_delete_file
+            ) || reader.msg->cnt != 0
+       ) {
+        printf_err("Invalid edit_meta server response\n");
+        return 0;
+    }
+
+    if (reader.msg->type == ts_file_deleted )
+        printf("File successfully deleted\n");
+    else 
+        printf("Can't delete this file\n");
+
+    return 1;
+}
+
 int process_action_response(client_action action)
 {
     if (reader.msg->role != r_server) 
@@ -907,6 +943,8 @@ int process_action_response(client_action action)
             return process_read_note_response();
         case edit_file_meta:
             return process_edit_metafile_response();
+        case delete_file:
+            return process_delete_file_response();
         default:
             printf("Not implemented\n");
             return 1;

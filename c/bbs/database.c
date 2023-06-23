@@ -464,7 +464,6 @@ defer:
     return result;
 }
 
-// @TODO: add note lookup for admin users?
 static int parse_notes_file(database *db)
 {
     int result = 1;
@@ -710,7 +709,7 @@ add_file_result db_try_add_file(database *db, const char *filename, const char *
     char *full_filename = NULL,
          *metafile_name = NULL;
 
-    // @TODO: make helpful returns so as to know what went wrong
+    // @TODO: make helpful returns so as to know what went wrong ?
     // (invalid input/metafile exists/capped out on metafiles)
     
     if (
@@ -945,7 +944,7 @@ int db_try_edit_metadata(database *db, const char *filename, const char *descr,
     FILE *meta_f = NULL;
     char *metafile_name = NULL;
 
-    // @TODO: make helpful returns so as to know what went wrong
+    // @TODO: make helpful returns so as to know what went wrong ?
     
     if (
             !filename || !descr ||
@@ -1014,5 +1013,47 @@ int db_try_edit_metadata(database *db, const char *filename, const char *descr,
 defer:
     if (meta_f) fclose(meta_f);
     if (metafile_name) free(metafile_name);
+    return result;
+}
+
+delete_file_result db_try_delete_file(database *db, const char *filename)
+{
+    delete_file_result result = deleted;
+
+    file_metadata *fmd = NULL;
+    char *full_filename = NULL,
+         *metafile_name = NULL;
+    file_lookup_result lookup_res = db_lookup_file(db, filename, NULL, ut_admin, &full_filename, &fmd);
+    if (lookup_res != found) {
+        debug_printf("Can not delete the file\n");
+        return_defer(cant_delete);
+    }
+
+    file_metadata **fmdp;
+    for (fmdp = db->file_metas; *fmdp; fmdp++) {
+        if (*fmdp == fmd) 
+            break;
+    }
+
+    if (!*fmdp) {
+        debug_printf_err("Trying to delete file not from meta array\n");
+        return_defer(d_error);
+    }
+
+    size_t offset = fmdp - db->file_metas;
+    memmove(fmdp, fmdp+1, db->metas_cnt-offset);
+    db->metas_cnt--;
+    db->file_metas[db->metas_cnt] = NULL;
+
+    metafile_name = concat_strings(full_filename, metafile_extension, NULL);
+    
+    unlink(full_filename);
+    unlink(metafile_name);
+
+defer:
+    if (metafile_name) free(metafile_name);
+    if (full_filename) free(full_filename);
+    if (fmd) free_metadata(fmd);
+
     return result;
 }
