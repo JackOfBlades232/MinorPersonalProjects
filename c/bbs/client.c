@@ -89,6 +89,7 @@ static char *last_queried_filename = NULL;
 static await_server_msg_result last_await_res = asr_ok;
 
 static int cur_fd = -1;
+static long out_packets_left = 0;
 
 int send_message(p_message *msg)
 {
@@ -503,7 +504,8 @@ loop_err:
 
 perform_action_result post_file_dialogue()
 {
-    perform_action_result result = par_continue;
+    perform_action_result result = par_ok;
+    p_message *msg = NULL;
 
     char filename[MAX_FILENAME_LEN+2];
     if (!try_read_item_from_stdin(filename, sizeof(filename), 0, "\nInput file name: ", "Filename is too long"))
@@ -525,64 +527,29 @@ perform_action_result post_file_dialogue()
         return par_continue;
     }
 
-    p_message *msg = p_create_message(r_client, tc_post_file);
+    msg = p_create_message(r_client, tc_post_file);
     if (!fill_metafile_dialogue(msg, filename))
         return_defer(par_continue);
 
     cur_fd = open(filename, O_RDONLY);
     if (cur_fd == -1) {
-        printf_err("failed to open file\n");
+        printf_err("Failed to open file\n");
         return_defer(par_continue);
     }
 
     long len = lseek(cur_fd, 0, SEEK_END);
     lseek(cur_fd, 0, SEEK_SET);
-    long packets_left = ((len-1) / MAX_WORD_LEN) + 1;
+    out_packets_left = ((len-1) / MAX_WORD_LEN) + 1;
 
     char packets_left_digits[LONG_MAX_DIGITS+2];
-    snprintf(packets_left_digits, sizeof(packets_left_digits)-1, "%ld", packets_left);
+    snprintf(packets_left_digits, sizeof(packets_left_digits)-1, "%ld", out_packets_left);
     packets_left_digits[sizeof(packets_left_digits)-1] = '\0';
 
     p_add_string_to_message(msg, packets_left_digits);
     send_message(msg);
-    p_free_message(msg);
-    msg = NULL;
-
-    long tot_packets = packets_left;
-    long last_draw_res = draw_load_progress_bar("Uploading", tot_packets, packets_left, 0);
-
-    while (packets_left > 0) {
-        p_message *out_msg = p_create_message(r_client, tc_post_file_packet);
-        out_msg->cnt = 1;
-
-        // Create the chunk directly in the message to avoid more copying;
-        byte_arr *content = out_msg->words;
-        size_t cap = MAX_WORD_LEN * sizeof(*content->str);
-        content->str = malloc(cap);
-
-        content->len = read(cur_fd, content->str, cap);
-        out_msg->tot_w_len = content->len;
-
-        int sr = send_message(out_msg);
-        p_free_message(out_msg);
-
-        if (sr <= 0) {
-            printf("\nError while sending packet, might be disconnected\n");
-            return_defer(par_error);
-        }
-
-        packets_left--;
-        last_draw_res = draw_load_progress_bar("Uploading", tot_packets, packets_left, last_draw_res);
-    }
-    
-    printf("\nUpload complete\n");
 
 defer:
     if (msg) p_free_message(msg);
-    if (cur_fd != -1) {
-        close(cur_fd);
-        cur_fd = -1;
-    }
     return result;
 }
 
@@ -857,10 +824,72 @@ int process_leave_note_response()
     }
 }
 
+int process_post_file_response()
+{
+    int result = 1;
+
+    if (
+            reader.msg->role != r_server ||
+            (
+            reader.msg->type != ts_ready_to_recv &&
+            reader.msg->type != ts_mod_fail
+            ) ||
+            reader.msg->cnt != 0
+       ) {
+        printf_err("Invalid init-post server response");
+        return_defer(0);
+    }
+
+    if (reader.msg->type == ts_mod_fail) {
+        printf("Can't add file, must have been created just now\n"); 
+        return_defer(1);
+    }
+
+    long tot_packets = out_packets_left;
+    long last_draw_res = draw_load_progress_bar("Uploading", tot_packets, out_packets_left, 0);
+
+    while (out_packets_left > 0) {
+        p_message *out_msg = p_create_message(r_client, tc_post_file_packet);
+        out_msg->cnt = 1;
+
+        // Create the chunk directly in the message to avoid more copying;
+        byte_arr *content = out_msg->words;
+        size_t cap = MAX_WORD_LEN * sizeof(*content->str);
+        content->str = malloc(cap);
+
+        content->len = read(cur_fd, content->str, cap);
+        out_msg->tot_w_len = content->len;
+
+        int sr = send_message(out_msg);
+        p_free_message(out_msg);
+
+        if (sr <= 0) {
+            printf("\nError while sending packet, might be disconnected\n");
+            return_defer(0);
+        }
+
+        out_packets_left--;
+        last_draw_res = draw_load_progress_bar("Uploading", tot_packets, out_packets_left, last_draw_res);
+    }
+    
+    printf("\nUpload complete\n");
+
+defer:
+    if (cur_fd != -1) {
+        close(cur_fd);
+        cur_fd = -1;
+    }
+    out_packets_left = 0;
+    return result;
+}
+
 int process_add_user_response()
 {
     if (reader.msg->type == ts_user_added && reader.msg->cnt == 0) {
         printf("\nUser added\n");
+        return 1;
+    } else if (reader.msg->type == ts_mod_fail && reader.msg->cnt == 0) {
+        printf("The user already exists, must have been added just now\n");
         return 1;
     } else {
         printf_err("Invalid add_user server response\n");
@@ -897,6 +926,9 @@ int process_edit_metafile_response()
     if (reader.msg->type == ts_file_edit_done && reader.msg->cnt == 0) {
         printf("Edit comlete\n");
         return 1;
+    } else if (reader.msg->type == ts_mod_fail && reader.msg->cnt == 0) {
+        printf("The file does now exist, must have been deleted just now\n");
+        return 1;
     } else {
         printf_err("Invalid edit_meta server response\n");
         return 0;
@@ -908,7 +940,7 @@ int process_delete_file_response()
     if ( 
             (
                 reader.msg->type != ts_file_deleted &&
-                reader.msg->type != ts_cant_delete_file
+                reader.msg->type != ts_mod_fail
             ) || reader.msg->cnt != 0
        ) {
         printf_err("Invalid edit_meta server response\n");
@@ -937,6 +969,8 @@ int process_action_response(client_action action)
             return process_query_file_response();
         case leave_note:
             return process_leave_note_response();
+        case post_file:
+            return process_post_file_response();
         case add_user:
             return process_add_user_response();
         case read_note:

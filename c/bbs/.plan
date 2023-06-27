@@ -132,10 +132,8 @@
 Other:
     * Add new types to debug
     * Add errors in server on recieving admin requests from reg clients and so on, and in client add failsafes too
-    - Implement locking after: asking if file exists (so no one can write or edit it too)
-                               asking if user exists (so no one can try and add two identical users)
-        Currently these scenarios cause error & connection shutdown
-        Also, once a session is closed the locked file/user shall be released
+    * Add new messages -- file/user was created while you were thinking, so as not to crash on concurrent adds
+        - Fix segmentation fault in metafiles free (smth with memmove/NULL term) in db_init, fault in DELETE
 
 Refac 2:
     - Factor out deletion from clear-meta & delete file

@@ -44,6 +44,7 @@ typedef enum p_type_tag {
     ts_note_done,
 
     tc_post_file,
+    ts_ready_to_recv,
     tc_post_file_packet,
 
     tc_user_check,
@@ -61,7 +62,8 @@ typedef enum p_type_tag {
 
     tc_delete_file,
     ts_file_deleted,
-    ts_cant_delete_file
+
+    ts_mod_fail
 } p_type;
 
 typedef struct p_message_tag {

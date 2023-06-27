@@ -704,14 +704,11 @@ void db_store_note(database *db, const char *username, byte_arr note)
 add_file_result db_try_add_file(database *db, const char *filename, const char *descr,
                                 const char **users, size_t users_cnt)
 {
-    add_file_result result = { -1, NULL };
+    add_file_result result = { dmod_fail, -1, NULL };
     FILE *meta_f = NULL;
     char *full_filename = NULL,
          *metafile_name = NULL;
 
-    // @TODO: make helpful returns so as to know what went wrong ?
-    // (invalid input/metafile exists/capped out on metafiles)
-    
     if (
             !filename || !descr ||
             strlen(filename) > MAX_FILENAME_LEN || 
@@ -719,6 +716,7 @@ add_file_result db_try_add_file(database *db, const char *filename, const char *
             users_cnt > MAX_USER_CNT ||
             !filename_is_stripped(filename)
        ) {
+        result.type = dmod_err;
         return result;
     }
 
@@ -744,6 +742,7 @@ add_file_result db_try_add_file(database *db, const char *filename, const char *
                     strings_are_equal(*users, all_users_symbol) ||
                     strlen(users[i]) > MAX_LOGIN_ITEM_LEN
                ) {
+                result.type = dmod_err;
                 goto defer;
             }
             
@@ -758,11 +757,19 @@ add_file_result db_try_add_file(database *db, const char *filename, const char *
             access(full_filename, F_OK) == 0 ||
             access(metafile_name, F_OK) == 0
        ) {
+        result.type = dmod_err;
         goto defer;
     }
 
     result.fd = open(full_filename, O_WRONLY | O_CREAT | O_TRUNC, 0664);
     if (result.fd == -1) {
+        result.type = dmod_err;
+        goto defer;
+    }
+
+    meta_f = fopen(metafile_name, "w");
+    if (!meta_f) {
+        result.type = dmod_err;
         goto defer;
     }
 
@@ -770,20 +777,12 @@ add_file_result db_try_add_file(database *db, const char *filename, const char *
                 (void **) &db->file_metas, sizeof(*(db->file_metas)),
                 &db->metas_cnt, &db->metas_cap, METAFILES_BASE_CAP, METAFILES_MAX_CNT, 1
                 )) {
-        close(result.fd);
-        result.fd = -1;
         goto defer;
     }
 
     db->file_metas[db->metas_cnt] = result.fmd;
     db->metas_cnt++;
-
-    meta_f = fopen(metafile_name, "w");
-    if (!meta_f) {
-        close(result.fd);
-        result.fd = -1;
-        goto defer;
-    }
+    db->file_metas[db->metas_cnt] = NULL;
 
     fprintf(meta_f, "%s %s\n", metadata_file_alias, filename);
     fprintf(meta_f, "%s %s\n", metadata_descr_alias, descr);
@@ -795,11 +794,19 @@ add_file_result db_try_add_file(database *db, const char *filename, const char *
         fprintf(meta_f, " ");
     fputc('\n', meta_f);
 
+    result.type = dmod_ok;
+
 defer:
     if (meta_f) fclose(meta_f);
     if (metafile_name) free(metafile_name);
     if (full_filename) free(full_filename);
-    if (result.fd == -1 && result.fmd) free_metadata(result.fmd);
+    if (result.type != dmod_ok) {
+        if (result.fd != -1) {
+            close(result.fd);
+            result.fd = -1;
+        }
+        if (result.fmd) free_metadata(result.fmd);
+    }
     return result;
 }
 
@@ -821,9 +828,8 @@ int db_cleanup_incomplete_meta(database *db, file_metadata *fmd)
     debug_printf("Found meta, cur cnt: %d\n", db->metas_cnt);
 
     size_t offset = fmdp - db->file_metas;
-    memmove(fmdp, fmdp+1, db->metas_cnt-offset);
+    memmove(fmdp, fmdp+1, db->metas_cnt-offset+2);
     db->metas_cnt--;
-    db->file_metas[db->metas_cnt] = NULL;
 
     debug_printf("Del from arr, new cnt: %d\n", db->metas_cnt);
 
@@ -852,12 +858,12 @@ int db_user_exists(database* db, const char *usernm)
     return 0;
 }
 
-int db_add_user(database* db, const char *usernm, const char *passwd, user_type ut)
+db_modification_result db_add_user(database* db, const char *usernm, const char *passwd, user_type ut)
 {
     user_data *ud;
 
     if (db_user_exists(db, usernm))
-        return 0;
+        return dmod_fail;
 
     ud = create_user_data(ut);
     ud->usernm = strdup(usernm);
@@ -868,7 +874,7 @@ int db_add_user(database* db, const char *usernm, const char *passwd, user_type 
                 &db->users_cnt, &db->users_cap, USERS_BASE_CAP, USERS_MAX_CNT, 1
                 )) {
         free(ud);
-        return 0;
+        return dmod_fail;
     }
 
     db->user_datas[db->users_cnt] = ud;
@@ -880,7 +886,7 @@ int db_add_user(database* db, const char *usernm, const char *passwd, user_type 
     fprintf(db->passwd_f, "%s %s\n", usernm, passwd);
     fflush(db->passwd_f);
 
-    return 1;
+    return dmod_ok;
 }
 
 read_note_result db_read_and_rm_top_note(database *db)
@@ -937,14 +943,13 @@ defer:
     return res;
 }
 
-int db_try_edit_metadata(database *db, const char *filename, const char *descr,
-                         const char **users, size_t users_cnt)
+db_modification_result db_try_edit_metadata(database *db,
+                                            const char *filename, const char *descr,
+                                            const char **users, size_t users_cnt)
 {
-    int result = 1;
+    db_modification_result result = dmod_ok;
     FILE *meta_f = NULL;
     char *metafile_name = NULL;
-
-    // @TODO: make helpful returns so as to know what went wrong ?
     
     if (
             !filename || !descr ||
@@ -953,13 +958,13 @@ int db_try_edit_metadata(database *db, const char *filename, const char *descr,
             users_cnt > MAX_USER_CNT ||
             !filename_is_stripped(filename)
        ) {
-        return 0;
+        return dmod_err;
     }
 
     file_metadata *fmd;
     file_lookup_result lookup_res = db_lookup_file(db, filename, NULL, ut_admin, NULL, &fmd);
     if (lookup_res == not_found)
-        return 0;
+        return dmod_fail;
 
     if (fmd->descr) free(fmd->descr);
     if (fmd->users) {
@@ -984,7 +989,7 @@ int db_try_edit_metadata(database *db, const char *filename, const char *descr,
                     strings_are_equal(*users, all_users_symbol) ||
                     strlen(users[i]) > MAX_LOGIN_ITEM_LEN
                ) {
-                return_defer(0);
+                return_defer(dmod_err);
             }
             
             fmd->users[i] = strdup(users[i]);
@@ -994,11 +999,11 @@ int db_try_edit_metadata(database *db, const char *filename, const char *descr,
     metafile_name = concat_strings(db->data_path, filename, metafile_extension, NULL);
 
     if (access(metafile_name, W_OK) == -1)
-        return_defer(0);
+        return_defer(dmod_err);
 
     meta_f = fopen(metafile_name, "w");
     if (!meta_f)
-        return_defer(0);
+        return_defer(dmod_err);
 
     fprintf(meta_f, "%s %s\n", metadata_file_alias, filename);
     fprintf(meta_f, "%s %s\n", metadata_descr_alias, descr);
@@ -1016,9 +1021,9 @@ defer:
     return result;
 }
 
-delete_file_result db_try_delete_file(database *db, const char *filename)
+db_modification_result db_try_delete_file(database *db, const char *filename)
 {
-    delete_file_result result = deleted;
+    db_modification_result result = dmod_ok;
 
     file_metadata *fmd = NULL;
     char *full_filename = NULL,
@@ -1026,7 +1031,7 @@ delete_file_result db_try_delete_file(database *db, const char *filename)
     file_lookup_result lookup_res = db_lookup_file(db, filename, NULL, ut_admin, &full_filename, &fmd);
     if (lookup_res != found) {
         debug_printf("Can not delete the file\n");
-        return_defer(cant_delete);
+        return_defer(dmod_fail);
     }
 
     file_metadata **fmdp;
@@ -1037,23 +1042,22 @@ delete_file_result db_try_delete_file(database *db, const char *filename)
 
     if (!*fmdp) {
         debug_printf_err("Trying to delete file not from meta array\n");
-        return_defer(d_error);
+        return_defer(dmod_err);
     }
 
     size_t offset = fmdp - db->file_metas;
-    memmove(fmdp, fmdp+1, db->metas_cnt-offset);
+    memmove(fmdp, fmdp+1, db->metas_cnt-offset+2);
     db->metas_cnt--;
-    db->file_metas[db->metas_cnt] = NULL;
 
     metafile_name = concat_strings(full_filename, metafile_extension, NULL);
     
     unlink(full_filename);
     unlink(metafile_name);
+    free_metadata(fmd);
 
 defer:
     if (metafile_name) free(metafile_name);
     if (full_filename) free(full_filename);
-    if (fmd) free_metadata(fmd);
 
     return result;
 }

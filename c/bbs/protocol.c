@@ -37,12 +37,11 @@ const p_type valid_types[] = {
     tc_file_check, ts_file_exists, ts_file_not_found,
     tc_file_query, ts_file_restricted, ts_start_file_transfer, 
     ts_file_packet, tc_leave_note, ts_note_done,
-    tc_post_file, tc_post_file_packet, 
+    tc_post_file, ts_ready_to_recv, tc_post_file_packet, 
     tc_user_check, ts_user_exists, ts_user_does_not_exist, tc_add_user,
     ts_user_added, tc_ask_for_next_note, 
     ts_show_and_rm_note, ts_no_notes_left, tc_edit_file_meta,
-    ts_file_edit_done, tc_delete_file,
-    ts_file_deleted, ts_cant_delete_file
+    ts_file_edit_done, tc_delete_file, ts_file_deleted, ts_mod_fail
 };
 
 #define NUM_ROLES sizeof(valid_roles)/sizeof(*valid_roles)

@@ -38,7 +38,12 @@ typedef enum file_lookup_result_tag {
     found, not_found, no_access, incomplete
 } file_lookup_result;
 
+typedef enum db_modification_result_tag {
+    dmod_ok, dmod_fail, dmod_err
+} db_modification_result;
+
 typedef struct add_file_result_tag {
+    db_modification_result type;
     int fd;
     file_metadata *fmd;
 } add_file_result;
@@ -47,10 +52,6 @@ typedef struct read_note_result_tag {
     char *usernm;
     char *note;
 } read_note_result;
-
-typedef enum delete_file_result_tag {
-    deleted, cant_delete, d_error
-} delete_file_result;
 
 int db_init(database* db, const char *path);
 void db_deinit(database* db);
@@ -70,13 +71,14 @@ add_file_result db_try_add_file(database *db, const char *filename, const char *
 int db_cleanup_incomplete_meta(database *db, file_metadata *fmd);
 
 int db_user_exists(database* db, const char *usernm);
-int db_add_user(database* db, const char *usernm, const char *passwd, user_type ut);
+db_modification_result db_add_user(database* db, const char *usernm, const char *passwd, user_type ut);
 
 read_note_result db_read_and_rm_top_note(database *db);
 
-int db_try_edit_metadata(database *db, const char *filename, const char *descr,
-                         const char **users, size_t users_cnt);
+db_modification_result db_try_edit_metadata(database *db,
+                                            const char *filename, const char *descr,
+                                            const char **users, size_t users_cnt);
 
-delete_file_result db_try_delete_file(database *db, const char *filename);
+db_modification_result db_try_delete_file(database *db, const char *filename);
 
 #endif

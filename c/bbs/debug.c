@@ -145,8 +145,8 @@ void debug_log_p_type(p_type type)
         case ts_file_deleted:
             fprintf(stderr, "s-file-deleted");
             break;
-        case ts_cant_delete_file:
-            fprintf(stderr, "s-cant-delete-file");
+        case ts_mod_fail:
+            fprintf(stderr, "ts-mod-fail");
             break;
         default:
             fprintf(stderr, "TYPE %d MISSING, IMPLEMENT", type);

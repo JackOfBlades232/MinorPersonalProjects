@@ -273,7 +273,7 @@ void session_process_file_check(session *sess)
     session_post_empty_message(sess, lookup_res == not_found ? ts_file_not_found : ts_file_exists);
 }
 
-void session_start_recieving_file(session *sess)
+void session_process_file_post(session *sess)
 {
     p_message *msg = sess->in_reader.msg;
 
@@ -290,14 +290,20 @@ void session_start_recieving_file(session *sess)
         users[i] = msg->words[i+2].str;
 
     add_file_result add_res = db_try_add_file(&db, filename, descr, (const char **) users, users_cnt);
-    sess->cur_post_fd = add_res.fd;
-    sess->cur_post_meta = add_res.fmd;
-    free(users);
-    
-    if (sess->cur_post_fd == -1) {
+    if (add_res.type == dmod_err) {
+        sess->state = sstate_error;
+        return;
+    } else if (add_res.type == dmod_fail) {
+        session_post_empty_message(sess, ts_mod_fail);
+        return;
+    } else if (add_res.fd == -1) {
         sess->state = sstate_error;
         return;
     }
+
+    sess->cur_post_fd = add_res.fd;
+    sess->cur_post_meta = add_res.fmd;
+    free(users);
 
     char *e;
     sess->in_packets_left = strtol(msg->words[msg->cnt-1].str, &e, 10);
@@ -306,6 +312,7 @@ void session_start_recieving_file(session *sess)
         return;
     }
 
+    session_post_empty_message(sess, ts_ready_to_recv);
     sess->state = sstate_file_recv;
 }
 
@@ -348,12 +355,14 @@ void session_add_user(session *sess)
         return;
     }
 
-    if (!db_add_user(&db, msg->words[0].str, msg->words[1].str, ut)) {
-        sess->state = sstate_error;
-        return;
-    }
+    db_modification_result res = db_add_user(&db, msg->words[0].str, msg->words[1].str, ut);
 
-    session_post_empty_message(sess, ts_user_added);
+    if (res == dmod_err)
+        sess->state = sstate_error;
+    else if (res == dmod_fail)
+        session_post_empty_message(sess, ts_mod_fail);
+    else
+        session_post_empty_message(sess, ts_user_added);
 }
 
 void session_try_pop_next_note(session *sess)
@@ -396,14 +405,15 @@ void session_edit_file_meta(session *sess)
     for (size_t i = 0; i < users_cnt; i++)
         users[i] = msg->words[i+2].str;
 
-    int edit_res = db_try_edit_metadata(&db, filename, descr, (const char **) users, users_cnt);
+    db_modification_result res = db_try_edit_metadata(&db, filename, descr, (const char **) users, users_cnt);
     free(users);
-    if (!edit_res) {
+    
+    if (res == dmod_err)
         sess->state = sstate_error;
-        return;
-    }
-
-    session_post_empty_message(sess, ts_file_edit_done);
+    else if (res == dmod_fail)
+        session_post_empty_message(sess, ts_mod_fail);
+    else
+        session_post_empty_message(sess, ts_file_edit_done);
 }
 
 void session_try_delete_file(session *sess)
@@ -415,13 +425,15 @@ void session_try_delete_file(session *sess)
         return;
     }
     
-    delete_file_result res = db_try_delete_file(&db, msg->words[0].str);
-    if (res == d_error) {
-        sess->state = sstate_error;
-        return;
-    }
+    db_modification_result res = db_try_delete_file(&db, msg->words[0].str);
 
-    session_post_empty_message(sess, res == deleted ? ts_file_deleted : ts_cant_delete_file);
+    if (res == dmod_err)
+        sess->state = sstate_error;
+    else if (res == dmod_fail)
+        session_post_empty_message(sess, ts_mod_fail);
+    else
+        session_post_empty_message(sess, ts_file_deleted);
+
 }
 
 void session_parse_regular_message(session *sess)
@@ -449,7 +461,7 @@ void session_parse_regular_message(session *sess)
             session_process_file_check(sess);
             break;
         case tc_post_file:
-            session_start_recieving_file(sess);
+            session_process_file_post(sess);
             break;
         case tc_user_check:
             session_process_check_user(sess);
