@@ -131,7 +131,7 @@
 
 Other:
     * Add new types to debug
-    - Add errors in server on recieving admin requests from reg clients and so on, and in client add failsafes too
+    * Add errors in server on recieving admin requests from reg clients and so on, and in client add failsafes too
     - Implement locking after: asking if file exists (so no one can write or edit it too)
                                asking if user exists (so no one can try and add two identical users)
         Currently these scenarios cause error & connection shutdown

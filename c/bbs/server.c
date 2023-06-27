@@ -262,7 +262,7 @@ void session_process_file_check(session *sess)
 {
     p_message *msg = sess->in_reader.msg;
 
-    if (msg->cnt != 1) {
+    if (msg->cnt != 1 || sess->ut < ut_poster) {
         sess->state = sstate_error;
         return;
     }
@@ -277,12 +277,7 @@ void session_start_recieving_file(session *sess)
 {
     p_message *msg = sess->in_reader.msg;
 
-    if (msg->cnt < 3) { // name, descr, num packets
-        sess->state = sstate_error;
-        return;
-    }
-
-    if (sess->ut < ut_poster) {
+    if (msg->cnt < 3 || sess->ut < ut_poster) { // name, descr, num packets
         sess->state = sstate_error;
         return;
     }
@@ -318,7 +313,7 @@ void session_process_check_user(session *sess)
 {
     p_message *msg = sess->in_reader.msg;
 
-    if (msg->cnt != 1) {
+    if (msg->cnt != 1 || sess->ut < ut_admin) {
         sess->state = sstate_error;
         return;
     }
@@ -332,6 +327,11 @@ void session_add_user(session *sess)
     p_message *msg = sess->in_reader.msg;
 
     if (msg->cnt != 2 && msg->cnt != 3) {
+        sess->state = sstate_error;
+        return;
+    }
+
+    if (sess->ut < ut_admin) {
         sess->state = sstate_error;
         return;
     }
@@ -360,7 +360,7 @@ void session_try_pop_next_note(session *sess)
 {
     p_message *msg = sess->in_reader.msg;
 
-    if (msg->cnt != 0) {
+    if (msg->cnt != 0 || sess->ut < ut_admin) {
         sess->state = sstate_error;
         return;
     }
@@ -384,7 +384,7 @@ void session_edit_file_meta(session *sess)
 {
     p_message *msg = sess->in_reader.msg;
 
-    if (msg->cnt < 2) {
+    if (msg->cnt < 2 || sess->ut < ut_admin) {
         sess->state = sstate_error;
         return;
     }
@@ -410,7 +410,7 @@ void session_try_delete_file(session *sess)
 {
     p_message *msg = sess->in_reader.msg;
 
-    if (msg->cnt != 1) {
+    if (msg->cnt != 1 || sess->ut < ut_admin) {
         sess->state = sstate_error;
         return;
     }
