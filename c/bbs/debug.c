@@ -1,6 +1,5 @@
 /* bbs/debug.c */
 #include "debug.h"
-
 #include <string.h>
 
 enum {

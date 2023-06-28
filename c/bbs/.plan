@@ -136,6 +136,4 @@ Other:
         * Fix segmentation fault in metafiles free (smth with memmove/NULL term) in db_init, fault in DELETE
 
 Refac 2:
-    - Factor out deletion from clear-meta & delete file
-    - Go over todos
-    - Freestyle refac pass
+    * Factor out deletion from clear-meta & delete file

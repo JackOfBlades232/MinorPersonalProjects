@@ -135,34 +135,6 @@ void output_word_arr(const char **arr, size_t size)
     }
 }
 
-int try_get_client_action_by_name(const char *name, client_action *out)
-{
-    user_type req_type = ut_none;
-    int i = search_word_arr(reg_action_names, NUM_REG_ACTIONS, name); 
-    if (i >= 0)
-        *out = reg_actions[i];
-
-    if (i == -1) {
-        req_type = ut_poster;
-        i = search_word_arr(poster_action_names, NUM_POSTER_ACTIONS, name);
-        if (i >= 0)
-            *out = poster_actions[i];
-    }
-
-    if (i == -1) {
-        req_type = ut_admin;
-        i = search_word_arr(admin_action_names, NUM_ADMIN_ACTIONS, name);
-        if (i >= 0)
-            *out = admin_actions[i];
-    }
-
-    if (i != -1 && req_type <= login_user_type) {
-        return 1;
-    }
-
-    return 0;
-}
-
 int await_server_message()
 {
     int sel_res = 1;
@@ -253,37 +225,6 @@ void log_await_error_with_caption(const char *caption)
     log_await_error();
 }
 
-int connect_to_server(struct sockaddr_in serv_addr)
-{
-    int result = 0;
-
-    sock = socket(AF_INET, SOCK_STREAM, 0);
-    if (sock == -1)
-        return 0;
-
-    if (connect(sock, (struct sockaddr *) &serv_addr, sizeof(serv_addr)) == -1)
-        return 0;
-
-    p_init_reader(&reader);
-    if (!await_server_message()) {
-        log_await_error();
-        return_defer(0);
-    }
-
-    if (
-            reader.msg->role == r_server && 
-            reader.msg->type == ts_init && 
-            reader.msg->cnt == 1
-       ) {
-        printf("%s\n", reader.msg->words[0].str); // title
-        return_defer(1);
-    }
-
-defer:
-    p_deinit_reader(&reader);
-    return result;
-}
-
 int try_read_item_from_stdin(char *buf, size_t bufsize, int can_be_empty,
                              const char* prompt, const char *overflow_msg)
 {
@@ -299,6 +240,34 @@ int try_read_item_from_stdin(char *buf, size_t bufsize, int can_be_empty,
     }
 
     return 1;
+}
+
+int try_get_client_action_by_name(const char *name, client_action *out)
+{
+    user_type req_type = ut_none;
+    int i = search_word_arr(reg_action_names, NUM_REG_ACTIONS, name); 
+    if (i >= 0)
+        *out = reg_actions[i];
+
+    if (i == -1) {
+        req_type = ut_poster;
+        i = search_word_arr(poster_action_names, NUM_POSTER_ACTIONS, name);
+        if (i >= 0)
+            *out = poster_actions[i];
+    }
+
+    if (i == -1) {
+        req_type = ut_admin;
+        i = search_word_arr(admin_action_names, NUM_ADMIN_ACTIONS, name);
+        if (i >= 0)
+            *out = admin_actions[i];
+    }
+
+    if (i != -1 && req_type <= login_user_type) {
+        return 1;
+    }
+
+    return 0;
 }
 
 int ask_for_credential_item(p_message *msg, const char *dialogue)
@@ -1001,6 +970,37 @@ void output_available_actions()
     }
 
     putchar('\n');
+}
+
+int connect_to_server(struct sockaddr_in serv_addr)
+{
+    int result = 0;
+
+    sock = socket(AF_INET, SOCK_STREAM, 0);
+    if (sock == -1)
+        return 0;
+
+    if (connect(sock, (struct sockaddr *) &serv_addr, sizeof(serv_addr)) == -1)
+        return 0;
+
+    p_init_reader(&reader);
+    if (!await_server_message()) {
+        log_await_error();
+        return_defer(0);
+    }
+
+    if (
+            reader.msg->role == r_server && 
+            reader.msg->type == ts_init && 
+            reader.msg->cnt == 1
+       ) {
+        printf("%s\n", reader.msg->words[0].str); // title
+        return_defer(1);
+    }
+
+defer:
+    p_deinit_reader(&reader);
+    return result;
 }
 
 int ask_for_action()

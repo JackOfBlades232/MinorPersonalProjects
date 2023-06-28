@@ -10,6 +10,7 @@
  * Message format: 
  * header:role_byte type_byte:word_cnt(byte):word:word:...:word,
  * where word is: len(2 bytes since <= 65535) content 
+ * lengths are stored little endian
 */ 
 
 typedef enum p_role_tag { 
