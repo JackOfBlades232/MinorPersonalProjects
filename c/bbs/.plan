@@ -133,7 +133,7 @@ Other:
     * Add new types to debug
     * Add errors in server on recieving admin requests from reg clients and so on, and in client add failsafes too
     * Add new messages -- file/user was created while you were thinking, so as not to crash on concurrent adds
-        - Fix segmentation fault in metafiles free (smth with memmove/NULL term) in db_init, fault in DELETE
+        * Fix segmentation fault in metafiles free (smth with memmove/NULL term) in db_init, fault in DELETE
 
 Refac 2:
     - Factor out deletion from clear-meta & delete file

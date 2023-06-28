@@ -694,7 +694,7 @@ void server_close_session(int sd)
         if (sess->cur_post_meta->is_complete)
             debug_printf_err("Mem leak, complete metadata in closing sess\n");
         else
-            db_cleanup_incomplete_meta(&db, sess->cur_post_meta);
+            db_delete_meta(&db, sess->cur_post_meta);
     }
     free(sess);
     serv.sessions[sd] = NULL;

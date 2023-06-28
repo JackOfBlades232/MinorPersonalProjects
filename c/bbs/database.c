@@ -810,7 +810,7 @@ defer:
     return result;
 }
 
-int db_cleanup_incomplete_meta(database *db, file_metadata *fmd)
+int db_delete_meta(database *db, file_metadata *fmd)
 {
     file_metadata **fmdp;
     for (fmdp = db->file_metas; *fmdp; fmdp++) {
@@ -818,26 +818,18 @@ int db_cleanup_incomplete_meta(database *db, file_metadata *fmd)
             break;
     }
 
-    debug_printf("Cleanup meta\n");
-
     if (!*fmdp) {
         debug_printf_err("Trying to cleanup meta not from the db array\n");
         return 0;
     }
-
-    debug_printf("Found meta, cur cnt: %d\n", db->metas_cnt);
 
     size_t offset = fmdp - db->file_metas;
     memmove(fmdp, fmdp+1, db->metas_cnt-offset);
     db->metas_cnt--;
     db->file_metas[db->metas_cnt] = NULL;
 
-    debug_printf("Del from arr, new cnt: %d\n", db->metas_cnt);
-
     char *full_filename = concat_strings(db->data_path, fmd->name, NULL);
     char *metafile_name = concat_strings(full_filename, metafile_extension, NULL);
-
-    debug_printf("Files to unlink: %s, %s\n", full_filename, metafile_name);
     
     unlink(full_filename);
     unlink(metafile_name);
@@ -1024,42 +1016,13 @@ defer:
 
 db_modification_result db_try_delete_file(database *db, const char *filename)
 {
-    db_modification_result result = dmod_ok;
-
     file_metadata *fmd = NULL;
-    char *full_filename = NULL,
-         *metafile_name = NULL;
-    file_lookup_result lookup_res = db_lookup_file(db, filename, NULL, ut_admin, &full_filename, &fmd);
+    file_lookup_result lookup_res = db_lookup_file(db, filename, NULL, ut_admin, NULL, &fmd);
     if (lookup_res != found) {
         debug_printf("Can not delete the file\n");
-        return_defer(dmod_fail);
+        return dmod_fail;
     }
 
-    file_metadata **fmdp;
-    for (fmdp = db->file_metas; *fmdp; fmdp++) {
-        if (*fmdp == fmd) 
-            break;
-    }
-
-    if (!*fmdp) {
-        debug_printf_err("Trying to delete file not from meta array\n");
-        return_defer(dmod_err);
-    }
-
-    size_t offset = fmdp - db->file_metas;
-    memmove(fmdp, fmdp+1, db->metas_cnt-offset);
-    db->metas_cnt--;
-    db->file_metas[db->metas_cnt] = NULL;
-
-    metafile_name = concat_strings(full_filename, metafile_extension, NULL);
-    
-    unlink(full_filename);
-    unlink(metafile_name);
-    free_metadata(fmd);
-
-defer:
-    if (metafile_name) free(metafile_name);
-    if (full_filename) free(full_filename);
-
-    return result;
+    int del_res = db_delete_meta(db, fmd);
+    return del_res ? dmod_ok : dmod_err;
 }

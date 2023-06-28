@@ -68,8 +68,6 @@ void db_store_note(database *db, const char *username, byte_arr note);
 add_file_result db_try_add_file(database *db, const char *filename, const char *descr,
                                 const char **users, size_t users_cnt);
 
-int db_cleanup_incomplete_meta(database *db, file_metadata *fmd);
-
 int db_user_exists(database* db, const char *usernm);
 db_modification_result db_add_user(database* db, const char *usernm, const char *passwd, user_type ut);
 
@@ -79,6 +77,7 @@ db_modification_result db_try_edit_metadata(database *db,
                                             const char *filename, const char *descr,
                                             const char **users, size_t users_cnt);
 
+int db_delete_meta(database *db, file_metadata *fmd);
 db_modification_result db_try_delete_file(database *db, const char *filename);
 
 #endif
