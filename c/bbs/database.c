@@ -828,8 +828,9 @@ int db_cleanup_incomplete_meta(database *db, file_metadata *fmd)
     debug_printf("Found meta, cur cnt: %d\n", db->metas_cnt);
 
     size_t offset = fmdp - db->file_metas;
-    memmove(fmdp, fmdp+1, db->metas_cnt-offset+2);
+    memmove(fmdp, fmdp+1, db->metas_cnt-offset);
     db->metas_cnt--;
+    db->file_metas[db->metas_cnt] = NULL;
 
     debug_printf("Del from arr, new cnt: %d\n", db->metas_cnt);
 
@@ -1046,8 +1047,9 @@ db_modification_result db_try_delete_file(database *db, const char *filename)
     }
 
     size_t offset = fmdp - db->file_metas;
-    memmove(fmdp, fmdp+1, db->metas_cnt-offset+2);
+    memmove(fmdp, fmdp+1, db->metas_cnt-offset);
     db->metas_cnt--;
+    db->file_metas[db->metas_cnt] = NULL;
 
     metafile_name = concat_strings(full_filename, metafile_extension, NULL);
     
