@@ -18,22 +18,43 @@
 #define INBUFSIZE 1000
 // All server return codes must have three digits
 #define CODE_DIGITS 3
+// Init size (and size step for resizing) of the array of rcptto email addresses
+#define INIT_TO_ARR_SIZE 4
 
 // Single client session states
 typedef enum fsm_state_tag {
-    // @TODO: add states
     fsm_init,
+    fsm_mail_from,
+    fsm_rcpt_to,
+    fsm_data_header,
+    fsm_data_body,
     fsm_finish,
     fsm_error
 } fsm_state;
 
-// Session struct, one per connenction, contains the socket fd,\
+// A struct for a mail letter to be filled out during smtp dialogue,
+// then an id is generated, an id.mail file is created and 
+// the letter is stored there
+typedef struct mail_letter_tag {
+    char *from;
+    char **to;
+    size_t to_cnt, to_cap;
+    int id;
+    FILE *store_f;
+} mail_letter;
+
+// Session struct, one per connenction, contains the socket fd,
 // buffer for accumulating lines and current state of the session
 typedef struct session_tag {
     int fd;
+    unsigned int from_ip;
+    unsigned short from_port;
+
     char buf[INBUFSIZE];
-    int buf_used;
+    size_t buf_used;
+
     fsm_state state;
+    mail_letter *letter;
 } session;
 
 // Server struct, contains a listening socket for accepting connections,
@@ -42,11 +63,140 @@ typedef struct session_tag {
 typedef struct server_tag {
     int ls;
     session **sessions;
-    int sessions_size;
+    size_t sessions_size;
 } server;
 
 // Hacky macro to enable "goto cleanup" in functions with return codes
 #define return_defer(code) do { result = code; goto defer; } while (0)
+
+// Server codes
+#define INIT_CD 220
+#define OK_CD 250
+#define NOACCEPT_CD 550
+#define SYNTAX_CD 500
+#define DATA_CD 354
+#define QUIT_CD 221
+
+// Standard server commands and text messages
+static char helo_cmd[] = "HELO";
+static char ehlo_cmd[] = "EHLO";
+static char mail_from_cmd[] = "MAIL FROM:";
+static char rcpt_to_cmd[] = "RCPT TO:";
+static char data_cmd[] = "DATA";
+static char quit_cmd[] = "QUIT";
+static char header_end[] = "";
+static char data_end[] = ".";
+static char single_dot[] = "..";
+
+static char init_msg[] = "smtp.example.com SMTP";
+static char helo_msg[] = "Greetings, I am glad to meet you";
+static char ok_msg[] = "Ok";
+static char data_start_msg[] = "End data with <CR><LF>.<CR><LF>";
+static char mail_store_ok_msg[] = "Ok: stored";
+static char bye_msg[] = "Bye";
+static char syntax_msg[] = "Syntax error";
+
+// Dyn arr funcs
+void resize_dynamic_pointer_arr(void ***arr, size_t i, 
+                                size_t *cap, size_t cap_step) 
+{
+    if (i >= *cap) { // resize if needed
+        int newcap = *cap;
+        while (newcap <= i)
+            newcap += cap_step;
+        *arr = realloc(*arr, newcap * sizeof(**arr));
+        for (i = *cap; i < newcap; i++)
+            (*arr)[i] = NULL;
+        *cap = newcap;
+    }
+}
+
+// Mail letter functions
+
+void cleanup_letter(mail_letter *letter)
+{
+    if (letter->from)
+        free(letter->from);
+    if (letter->to) {
+        for (size_t i = 0; i < letter->to_cnt; i++)
+            free(letter->to[i]);
+        free(letter->to);
+    }
+    if (letter->store_f)
+        fclose(letter->store_f);
+}
+
+void add_to_address_to_letter(mail_letter *letter, 
+                              const char *addr, size_t addr_len)
+{
+    resize_dynamic_pointer_arr((void ***) &letter->to, letter->to_cnt,
+                               &letter->to_cap, INIT_TO_ARR_SIZE);
+    letter->to[letter->to_cnt] = strndup(addr, addr_len);
+    letter->to_cnt++;
+}
+
+// Inbuf line manipulation functions
+
+// Match line prefix with given command, and return the pointer to
+// the next char if matched
+const char *check_command(const char *line, const char *cmd)
+{
+    for (; *cmd && *cmd == *line; cmd++, line++) {}
+    return *cmd == '\0' ? line : NULL;
+}
+
+const char *skip_spc(const char *line)
+{
+    for (; *line && (*line == ' ' || *line == '\t'); line++) {}
+    return line;
+}
+
+// Email address format checking
+
+// @TODO: implement real email address checking
+int char_is_legal_for_mail_address(char c)
+{
+    return (c >= 'a' && c <= 'z') ||
+           (c >= 'A' && c <= 'Z') ||
+           (c >= '0' && c <= '9');
+}
+
+// Checks if mail addr segment is correct
+const char *skip_mail_address_part(const char *line, char break_c)
+{
+    int ok = 0;
+    for (; *line && *line != break_c; line++) {
+        if (!char_is_legal_for_mail_address(*line))
+            return NULL;
+        else if (!ok)
+            ok = 1;
+    }
+
+    return (ok && *line == break_c) ? line+1 : NULL;
+}
+
+// Checks mail address correctness and may return a pointer to it + length
+int extract_mail_address(const char *line, char **mailp, size_t *mail_len)
+{
+    line = skip_spc(line);
+    if (*line != '<')
+        return 0;
+    line++;
+    *mailp = (char *) line;
+    if (
+            (line = skip_mail_address_part(line, '@')) == NULL ||
+            (line = skip_mail_address_part(line, '.')) == NULL ||
+            (line = skip_mail_address_part(line, '>')) == NULL
+       ) {
+        return 0;
+    }
+
+    *mail_len = line - *mailp - 1;
+    line = skip_spc(line);
+    return *line == '\0';
+}
+
+// Session helper functions
 
 // Sending standard server response: "code contents<CR><LF>", where
 // code has an exact number of digits
@@ -54,8 +204,11 @@ int session_send_msg(session *sess, int code, const char *str)
 {
     int result = 1;
 
-    // @TODO: add <CR><LF>
-    char *msg = malloc((CODE_DIGITS+1+strlen(str)+2) * sizeof(*str));
+    size_t str_len = strlen(str);
+    // code + ' ' + str + <CR><LF>
+    size_t tot_len = CODE_DIGITS+1+str_len+2;
+
+    char *msg = malloc(tot_len * sizeof(*str));
 
     int pr_res = sprintf(msg, "%d ", code);
     if (pr_res != CODE_DIGITS+1) {
@@ -63,32 +216,139 @@ int session_send_msg(session *sess, int code, const char *str)
         return_defer(0);
     }
 
-    memcpy(msg+pr_res, str, strlen(str));
+    memcpy(msg+pr_res, str, str_len);
+    msg[tot_len-2] = '\r';
+    msg[tot_len-1] = '\n';
     
     // we send small strings => no need to wait for writefds, just send
-    write(sess->fd, msg, strlen(msg));
+    write(sess->fd, msg, tot_len);
 
 defer:
     free(msg);
     return result;
 }
 
-session *make_session(int fd,
-        unsigned int from_ip, unsigned short from_port)
+void session_remake_letter(session *sess)
 {
-    session *sess = malloc(sizeof(session));
+    if (sess->letter)
+        cleanup_letter(sess->letter);
+    else
+        sess->letter = malloc(sizeof(*sess->letter));
+
+    sess->letter->from = NULL;
+    sess->letter->to_cnt = 0;
+    sess->letter->to_cap = INIT_TO_ARR_SIZE;
+    sess->letter->to = calloc(sess->letter->to_cap, sizeof(*sess->letter->to));
+    sess->letter->id = -1;
+    sess->letter->store_f = NULL;
+}
+
+session *make_session(int fd, unsigned int from_ip, unsigned short from_port)
+{
+    session *sess = malloc(sizeof(*sess));
     sess->fd = fd;
     sess->from_ip = ntohl(from_ip);
     sess->from_port = ntohs(from_port);
     sess->buf_used = 0;
     sess->state = fsm_init;
+    sess->letter = NULL;
+
+    session_send_msg(sess, INIT_CD, init_msg);
 
     return sess;
 }
 
 void cleanup_session(session *sess)
 {
-    // @TODO: cleanup whatever data
+    if (sess->letter) {
+        cleanup_letter(sess->letter);
+        free(sess->letter);
+    }
+}
+
+// Session logic functions
+
+void session_fsm_init_step(session *sess, const char *line)
+{
+    // on HELO command start dialogue, ignore EHLO, and syntax error all else
+    if (check_command(line, helo_cmd)) {
+        session_send_msg(sess, OK_CD, helo_msg);
+        session_remake_letter(sess);
+        sess->state = fsm_mail_from;
+    } else if (!check_command(line, ehlo_cmd)) {
+        session_send_msg(sess, SYNTAX_CD, syntax_msg);
+        sess->state = fsm_error;
+    }
+}
+
+void session_fsm_mail_from_step(session *sess, const char *line)
+{
+    line = check_command(line, mail_from_cmd); 
+    if (!line) {
+        session_send_msg(sess, SYNTAX_CD, syntax_msg);
+        sess->state = fsm_error;
+        return;
+    }
+
+    char *mail_adr;
+    size_t mail_len;
+    if (!extract_mail_address(line, &mail_adr, &mail_len)) {
+        session_send_msg(sess, SYNTAX_CD, syntax_msg);
+        sess->state = fsm_error;
+        return;
+    }
+
+    session_send_msg(sess, OK_CD, ok_msg);
+    sess->letter->from = strndup(mail_adr, mail_len);
+    sess->state = fsm_rcpt_to;
+}
+
+void session_fsm_rcpt_to_step(session *sess, const char *line)
+{
+    line = check_command(line, rcpt_to_cmd); 
+    if (!line) {
+        session_send_msg(sess, SYNTAX_CD, syntax_msg);
+        sess->state = fsm_error;
+        return;
+    }
+
+    char *mail_adr;
+    size_t mail_len;
+    if (!extract_mail_address(line, &mail_adr, &mail_len)) {
+        session_send_msg(sess, SYNTAX_CD, syntax_msg);
+        sess->state = fsm_error;
+        return;
+    }
+
+    session_send_msg(sess, OK_CD, ok_msg);
+    add_to_address_to_letter(sess->letter, mail_adr, mail_len);
+}
+
+void session_fsm_step(session *sess, const char *line)
+{
+    switch (sess->state) {
+        case fsm_init:
+            session_fsm_init_step(sess, line);
+            break;
+        case fsm_mail_from:
+            session_fsm_mail_from_step(sess, line);
+            break;
+        case fsm_rcpt_to:
+            session_fsm_rcpt_to_step(sess, line);
+            break;
+        case fsm_data_header:
+            // @TEST
+            sess->state = fsm_finish;
+            break;
+        case fsm_data_body:
+            
+            break;
+
+        // should not happen
+        case fsm_finish:
+        case fsm_error:
+            break;
+    }
 }
 
 void session_check_lf(session *sess)
@@ -104,19 +364,14 @@ void session_check_lf(session *sess)
     if (pos == -1) 
         return;
 
-    line = malloc(pos+1);
-    memcpy(line, sess->buf, pos);
-    line[pos] = '\0';
+    line = strndup(sess->buf, pos);
     sess->buf_used -= pos+1;
     memmove(sess->buf, sess->buf+pos+1, sess->buf_used);
     if (line[pos-1] == '\r')
         line[pos-1] = '\0';
 
-    // @TODO: logical reaction to line
-
-    // @TEST
-    fprintf(stderr, "Line: %s\n", line);
-    sess->state = fsm_finish;
+    session_fsm_step(sess, line);
+    free(line);
 }
 
 int session_do_read(session *sess)
@@ -136,6 +391,8 @@ int session_do_read(session *sess)
     return sess->state != fsm_finish &&
            sess->state != fsm_error;
 }
+
+// Server functions
 
 int server_init(server *serv, int port)
 {
@@ -170,7 +427,7 @@ int server_init(server *serv, int port)
 
 void server_accept_client(server *serv)
 {
-    int sd, i;
+    int sd;
     struct sockaddr_in addr;
     socklen_t len = sizeof(addr);
     sd = accept(serv->ls, (struct sockaddr *) &addr, &len);
@@ -179,17 +436,8 @@ void server_accept_client(server *serv)
         return;
     }
 
-    if (sd >= serv->sessions_size) { // resize if needed
-        int newsize = serv->sessions_size;
-        while (newsize <= sd)
-            newsize += INIT_SESS_ARR_SIZE;
-        serv->sessions = 
-            realloc(serv->sessions, newsize * sizeof(*serv->sessions));
-        for (i = serv->sessions_size; i < newsize; i++)
-            serv->sessions[i] = NULL;
-        serv->sessions_size = newsize;
-    }
-
+    resize_dynamic_pointer_arr((void ***) &serv->sessions, sd,
+                               &serv->sessions_size, INIT_SESS_ARR_SIZE);
     serv->sessions[sd] = make_session(sd, addr.sin_addr.s_addr, addr.sin_port);
 }
 
@@ -200,6 +448,8 @@ void server_close_session(server *serv, int sd)
     free(serv->sessions[sd]);
     serv->sessions[sd] = NULL;
 }
+
+// OS functions
 
 #ifndef DEBUG
 void daemonize_self()
