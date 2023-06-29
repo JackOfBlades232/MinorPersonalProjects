@@ -10,41 +10,67 @@
 #include <sys/select.h>
 #include <netinet/in.h>
 
+// Listen queue len for TCP
 #define LISTEN_QLEN 16
+// Init size (and size step for resizing) of the array of session structs
 #define INIT_SESS_ARR_SIZE 32
+// Max SMTP line len, which is canonically 998 bytes + <CR><LF> = 1000
+#define INBUFSIZE 1000
+// All server return codes must have three digits
+#define CODE_DIGITS 3
 
-enum { 
-    port = 7654, 
-    listen_queue_len = 16, 
-    inbufsize = 1024 
-};
-
-enum fsm_state {
+// Single client session states
+typedef enum fsm_state_tag {
     // @TODO: add states
     fsm_init,
     fsm_finish,
     fsm_error
-};
+} fsm_state;
 
+// Session struct, one per connenction, contains the socket fd,\
+// buffer for accumulating lines and current state of the session
 typedef struct session_tag {
     int fd;
-    unsigned int from_ip;
-    unsigned short from_port;
-    char buf[inbufsize];
+    char buf[INBUFSIZE];
     int buf_used;
-    enum fsm_state state;
+    fsm_state state;
 } session;
 
+// Server struct, contains a listening socket for accepting connections,
+// and an array of current sessions, where the index of a session is equal
+// to the fd of it's socket
 typedef struct server_tag {
     int ls;
     session **sessions;
     int sessions_size;
 } server;
 
-void session_send_str(session *sess, const char *str)
+// Hacky macro to enable "goto cleanup" in functions with return codes
+#define return_defer(code) do { result = code; goto defer; } while (0)
+
+// Sending standard server response: "code contents<CR><LF>", where
+// code has an exact number of digits
+int session_send_msg(session *sess, int code, const char *str)
 {
+    int result = 1;
+
+    // @TODO: add <CR><LF>
+    char *msg = malloc((CODE_DIGITS+1+strlen(str)+2) * sizeof(*str));
+
+    int pr_res = sprintf(msg, "%d ", code);
+    if (pr_res != CODE_DIGITS+1) {
+        fprintf(stderr, "ERR: Invalid code (3 digits max)\n");
+        return_defer(0);
+    }
+
+    memcpy(msg+pr_res, str, strlen(str));
+    
     // we send small strings => no need to wait for writefds, just send
-    write(sess->fd, str, strlen(str));
+    write(sess->fd, msg, strlen(msg));
+
+defer:
+    free(msg);
+    return result;
 }
 
 session *make_session(int fd,
@@ -96,7 +122,7 @@ void session_check_lf(session *sess)
 int session_do_read(session *sess)
 {
     int rc, bufp = sess->buf_used;
-    rc = read(sess->fd, sess->buf + bufp, inbufsize-bufp);
+    rc = read(sess->fd, sess->buf + bufp, INBUFSIZE-bufp);
     if (rc <= 0) {
         sess->state = fsm_error;
         return 0;
