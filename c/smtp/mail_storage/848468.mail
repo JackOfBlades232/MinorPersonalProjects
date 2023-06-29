@@ -1,0 +1,17 @@
+FROM: endzboy232@gmail.com
+TO: somebody@gmail.com anybodyelse@gmail.com
+
+HEADER:
+From: PK <endzboy232@gmail.com>
+To: somebody@gmail.com, anybodyelse@gmail.com
+Subject: A theme
+X-Mailer: Sylpheed 3.7.0 (GTK+ 2.24.33; x86_64-pc-linux-gnu)
+Mime-Version: 1.0
+Content-Type: text/plain; charset=US-ASCII
+Content-Transfer-Encoding: 7bit
+
+DATA:
+A test letter
+
+-- 
+PK <endzboy232@gmail.com>

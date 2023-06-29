@@ -83,11 +83,13 @@ typedef struct server_tag {
 #define QUIT_CD 221
 #define DATA_CD 354
 #define SYNTAX_CD 500
+#define NOIMPL_CD 502
 #define NORCPT_CD 503
 
 // Standard server commands and text messages
 static char helo_cmd[] = "HELO";
 static char ehlo_cmd[] = "EHLO";
+static char starttls_cmd[] = "STARTTLS";
 static char mail_from_cmd[] = "MAIL FROM:";
 static char rcpt_to_cmd[] = "RCPT TO:";
 static char data_cmd[] = "DATA";
@@ -104,6 +106,7 @@ static char mail_store_ok_msg[] = "Ok: stored";
 static char bye_msg[] = "Bye";
 static char syntax_msg[] = "Syntax error";
 static char too_long_msg[] = "Line too long";
+static char noimpl_msg[] = "Command not implemented";
 static char norcpt_msg[] = "Valid RCPT command must precede DATA";
 
 
@@ -315,12 +318,18 @@ void session_setup_mail_storage_file(session *sess)
 
 void session_fsm_init_step(session *sess, const char *line)
 {
-    // on HELO command start dialogue, ignore EHLO, and syntax error all else
+    // on HELO command start dialogue, on EHLO/STARTTLS send noimpl,
+    // and syntax error all else
     if (match_prefix_advanced(line, helo_cmd)) {
         session_send_msg(sess, OK_CD, helo_msg);
         session_remake_letter(sess);
         sess->state = fsm_mail_from;
-    } else if (!match_prefix_advanced(line, ehlo_cmd)) {
+    } else if (
+            match_prefix_advanced(line, ehlo_cmd) ||
+            match_prefix_advanced(line, starttls_cmd)
+            ) {
+        session_send_msg(sess, NOIMPL_CD, noimpl_msg);
+    } else {
         session_send_msg(sess, SYNTAX_CD, syntax_msg);
         sess->state = fsm_error;
     }
@@ -385,24 +394,26 @@ void session_fsm_rcpt_to_step(session *sess, const char *line)
 
 void session_fsm_data_body_step(session *sess, const char *line)
 {
+    int data_end_ptr_is_first = 0;
     if (streq(line, data_end)) {
         session_send_msg(sess, OK_CD, mail_store_ok_msg);
         session_remake_letter(sess);
-        sess->state = fsm_mail_from; // @TODO: do we save mail-from?
+        // Assuming that if the client wants to send multiple emails,
+        // he will resend the MAIL FROM: every time
+        sess->state = fsm_mail_from;
         return;
     } else if (match_prefix_advanced(line, single_dot_pattern)) {
-        // @TODO: what if last char of pattern is not '.'? conjecture
-        line += sizeof(single_dot_pattern)-2;
+        line += sizeof(single_dot_pattern)-1;
+        data_end_ptr_is_first = 1;
     }
 
+    if (data_end_ptr_is_first)
+        fprintf(sess->letter->storage_f, "%s", data_end);
     fprintf(sess->letter->storage_f, "%s\n", line);
 }
 
 void session_fsm_data_header_step(session *sess, const char *line)
 {
-    // @TODO: implement real data header constraints?
-    // Or not, it may not be intrisic to SMTP
-
     if (streq(line, header_end)) {
         fprintf(sess->letter->storage_f, "\nDATA:\n");
         sess->state = fsm_data_body;
@@ -476,7 +487,8 @@ int session_do_read(session *sess)
     }
 
     sess->buf_used += rc;
-    session_check_lf(sess);
+    while (sess->buf_used > 0)
+        session_check_lf(sess);
 
     return sess->state != fsm_finish &&
            sess->state != fsm_error;
