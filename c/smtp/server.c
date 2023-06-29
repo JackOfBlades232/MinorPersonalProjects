@@ -25,6 +25,10 @@
 // Borders for filename/mail id
 #define ID_MIN 10001
 #define ID_MAX 999999
+// Email parts length limits
+#define MAX_LOCPART_LEN 64
+#define MAX_DOMAIN_PART_LEN 63
+#define MAX_DOMAIN_LEN 255
 
 // Single client session states
 typedef enum fsm_state_tag {
@@ -109,6 +113,8 @@ static char too_long_msg[] = "Line too long";
 static char noimpl_msg[] = "Command not implemented";
 static char norcpt_msg[] = "Valid RCPT command must precede DATA";
 
+// Email matching data
+static char legal_locpart_symbols[] = "!#$%&'*+-/=?^_`{|}~";
 
 // Global state: server struct and path to mail storage
 static server serv;
@@ -179,26 +185,91 @@ const char *skip_spc(const char *line)
 
 // Email address format checking
 
-// @TODO: implement real email address checking
-int char_is_legal_for_mail_address(char c)
+int char_is_alphanumeric(char c)
 {
     return (c >= 'a' && c <= 'z') ||
            (c >= 'A' && c <= 'Z') ||
            (c >= '0' && c <= '9');
 }
 
-// Checks if mail addr segment is correct
-const char *skip_mail_address_part(const char *line, char break_c)
+// Ok if alphanumeric, in !#$%&'*+-/=?^_`{|}~ or is a ',', but
+// a dot can not be first, last, and two dots can't come consecutively
+int char_is_ok_for_locpart(char c, char prev_c, int is_first_or_last)
 {
-    int ok = 0;
-    for (; *line && *line != break_c; line++) {
-        if (!char_is_legal_for_mail_address(*line))
-            return NULL;
-        else if (!ok)
-            ok = 1;
+    if (
+            char_is_alphanumeric(c) ||
+            (c == '.' && !is_first_or_last && prev_c != '.')
+       ) {
+        return 1;
     }
 
-    return (ok && *line == break_c) ? line+1 : NULL;
+    for (size_t i = 0; i < sizeof(legal_locpart_symbols)-1; i++) {
+        if (c == legal_locpart_symbols[i])
+            return 1;
+    }
+
+    return 0;
+}
+
+int char_is_ok_for_domain(char c, int is_first_or_last)
+{
+    return char_is_alphanumeric(c) || (c == '-' && !is_first_or_last);
+}
+
+// Following funcs check if mail addr segment is correct and advance line
+
+const char *check_and_skip_locpart(const char *line, char break_c)
+{
+    size_t chars_read = 0;
+    char prev_c = '\0';
+    int is_first_or_last = 1;
+    for (; *line && *line != break_c; line++) {
+        if (!is_first_or_last)
+            is_first_or_last = *(line+1) == break_c;
+
+        if (!char_is_ok_for_locpart(*line, prev_c, is_first_or_last))
+            return NULL;
+
+        chars_read++;
+        if (chars_read > MAX_LOCPART_LEN)
+            return NULL;
+
+        prev_c = *line;
+        is_first_or_last = 0;
+    }
+
+    if (chars_read == 0)
+        return NULL;
+
+    return *line == break_c ? line : NULL;
+}
+
+const char *check_and_skip_domain_part(const char *line, char break_c,
+                                       char fin_c, size_t *domain_tot_len)
+{
+    size_t chars_read = 0;
+    int is_first_or_last = 1;
+    for (; *line && *line != break_c && *line != fin_c; line++) {
+        if (!is_first_or_last) {
+            char next_c = line[1];
+            is_first_or_last = next_c == break_c || next_c == fin_c;
+        }
+
+        if (!char_is_ok_for_domain(*line, is_first_or_last))
+            return NULL;
+
+        chars_read++;
+        if (chars_read > MAX_DOMAIN_PART_LEN)
+            return NULL;
+
+        is_first_or_last = 0;
+    }
+
+    if (chars_read == 0)
+        return NULL;
+
+    *domain_tot_len += chars_read;
+    return *line == break_c || *line == fin_c ? line : NULL;
 }
 
 // Checks mail address correctness and may return a pointer to it + length
@@ -209,13 +280,22 @@ int extract_mail_address(const char *line, char **mailp, size_t *mail_len)
         return 0;
     line++;
     *mailp = (char *) line;
-    if (
-            (line = skip_mail_address_part(line, '@')) == NULL ||
-            (line = skip_mail_address_part(line, '.')) == NULL ||
-            (line = skip_mail_address_part(line, '>')) == NULL
-       ) {
+    if ((line = check_and_skip_locpart(line, '@')) == NULL)
         return 0;
+    line++;
+    
+    size_t domain_tot_len = 0;
+    while ((line = check_and_skip_domain_part(line, '.', '>', &domain_tot_len)) != NULL) {
+        if (*line == '>')
+            break;
+
+        line++;
+        domain_tot_len++;
     }
+
+    if (!line || *line != '>' || domain_tot_len > MAX_DOMAIN_LEN)
+        return 0;
+    line++;
 
     *mail_len = line - *mailp - 1;
     line = skip_spc(line);
@@ -574,6 +654,50 @@ void daemonize_self()
 }
 #endif
 
+#ifdef TEST
+void test_email_format_checking()
+{
+    char *emails[] = {
+        "<simple@example.com>",
+        "<very.common@example.com>",
+        "<disposable.style.email.with+symbol@example.com>",
+        "<other.email-with-hyphen@and.subdomains.example.com>",
+        "<fully-qualified-domain@example.com>",
+        "<user.name+tag+sorting@example.com>",
+        "<x@example.com>",
+        "<example-indeed@strange-example.com>",
+        "<test/test@test.com>",
+        "<admin@mailserver1>",
+        "<example@s.example>",
+        "<mailhost!username@example.org>",
+        "<user%example.com@example.org>",
+        "<user-@example.org>",
+        "<Abc.example.com>",
+        "<A@b@c@example.com>",
+        "<a\"b(c)d,e:f;g<h>i[j\k]l@example.com>",
+        "<just\"not\"right@example.com>",
+        "<this is\"not\allowed@example.com>",
+        "<this\ still\"not\\allowed@example.com>",
+        "<1234567890123456789012345678901234567890123456789012345678901234+x@example.com>",
+        "<i_like_underscore@but_its_not_allowed_in_this_part.example.com>",
+        "<QA[icon]CHOCOLATE[icon]@test.com>"
+    };
+    int test_results[] = {
+        1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+    };
+
+    for (int i = 0; i < 23; i++) {
+        char *mail = NULL;
+        size_t len = 0;
+        int res = extract_mail_address(emails[i], &mail, &len);
+        if (res == test_results[i])
+            printf("PASSED: %s res: %d\n", emails[i], res); 
+        else 
+            printf("\nTEST FAILED: %s expected: %d res: %d\n", emails[i], test_results[i], res); 
+    }
+}
+#endif
+
 int check_and_prep_dir(char *path)
 {
     char buf[FILENAME_BUFSIZE];
@@ -594,6 +718,11 @@ int check_and_prep_dir(char *path)
 
 int main(int argc, char **argv) 
 {
+#ifdef TEST
+    test_email_format_checking();
+    return 0;
+#endif
+
     long port;
     char *endptr;
 

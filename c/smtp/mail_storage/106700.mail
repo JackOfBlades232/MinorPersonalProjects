@@ -1,17 +1,30 @@
 FROM: endzboy232@gmail.com
-TO: somebody@gmail.com anybodyelse@gmail.com
+TO: anybodyelse@gmail.com asjkdasnjk@alskd.com
 
 HEADER:
 From: PK <endzboy232@gmail.com>
-To: somebody@gmail.com, anybodyelse@gmail.com
-Subject: A theme
+To: anybodyelse@gmail.com, asjkdasnjk@alskd.com
+Subject: Fw: A theme
 X-Mailer: Sylpheed 3.7.0 (GTK+ 2.24.33; x86_64-pc-linux-gnu)
 Mime-Version: 1.0
 Content-Type: text/plain; charset=US-ASCII
 Content-Transfer-Encoding: 7bit
 
 DATA:
+
+
+Begin forwarded message:
+
+From: PK <endzboy232@gmail.com>
+To: somebody@gmail.com, anybodyelse@gmail.com
+Subject: A theme
+
+
 A test letter
+
+-- 
+PK <endzboy232@gmail.com>
+
 
 -- 
 PK <endzboy232@gmail.com>
