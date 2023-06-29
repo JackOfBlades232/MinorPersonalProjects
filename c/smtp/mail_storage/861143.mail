@@ -1,0 +1,13 @@
+FROM: petr@petrovich.com
+TO: one@boi.ru other@boi.ru
+
+HEADER:
+From: <petr@petrovich.com>
+To: <one@boi.ru>, <other@boi.ru>
+Theme: Testing smtp
+
+DATA:
+Hello, dear russians, from me
+Best regards,
+Petr
+.

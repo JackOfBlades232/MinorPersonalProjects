@@ -20,6 +20,11 @@
 #define CODE_DIGITS 3
 // Init size (and size step for resizing) of the array of rcptto email addresses
 #define INIT_TO_ARR_SIZE 4
+// Size of the mail storate filename (including data dir)
+#define FILENAME_BUFSIZE 256
+// Borders for filename/mail id
+#define ID_MIN 10001
+#define ID_MAX 999999
 
 // Single client session states
 typedef enum fsm_state_tag {
@@ -40,7 +45,7 @@ typedef struct mail_letter_tag {
     char **to;
     size_t to_cnt, to_cap;
     int id;
-    FILE *store_f;
+    FILE *storage_f;
 } mail_letter;
 
 // Session struct, one per connenction, contains the socket fd,
@@ -64,6 +69,7 @@ typedef struct server_tag {
     int ls;
     session **sessions;
     size_t sessions_size;
+    char *storage_path;
 } server;
 
 // Hacky macro to enable "goto cleanup" in functions with return codes
@@ -74,10 +80,10 @@ typedef struct server_tag {
 // Server codes
 #define INIT_CD 220
 #define OK_CD 250
-#define NOACCEPT_CD 550
-#define SYNTAX_CD 500
-#define DATA_CD 354
 #define QUIT_CD 221
+#define DATA_CD 354
+#define SYNTAX_CD 500
+#define NORCPT_CD 503
 
 // Standard server commands and text messages
 static char helo_cmd[] = "HELO";
@@ -97,8 +103,23 @@ static char data_start_msg[] = "End data with <CR><LF>.<CR><LF>";
 static char mail_store_ok_msg[] = "Ok: stored";
 static char bye_msg[] = "Bye";
 static char syntax_msg[] = "Syntax error";
+static char too_long_msg[] = "Line too long";
+static char norcpt_msg[] = "Valid RCPT command must precede DATA";
+
+
+// Global state: server struct and path to mail storage
+static server serv;
+static char *storage_path = NULL;
+
+// Utils
+
+int randint(int min, int max) 
+{
+    return min + (int) (((float) max) * rand() / (RAND_MAX+1.0));
+}
 
 // Dyn arr funcs
+
 void resize_dynamic_pointer_arr(void ***arr, size_t i, 
                                 size_t *cap, size_t cap_step) 
 {
@@ -124,8 +145,8 @@ void cleanup_letter(mail_letter *letter)
             free(letter->to[i]);
         free(letter->to);
     }
-    if (letter->store_f)
-        fclose(letter->store_f);
+    if (letter->storage_f)
+        fclose(letter->storage_f);
 }
 
 void add_to_address_to_letter(mail_letter *letter, 
@@ -242,7 +263,7 @@ void session_remake_letter(session *sess)
     sess->letter->to_cap = INIT_TO_ARR_SIZE;
     sess->letter->to = calloc(sess->letter->to_cap, sizeof(*sess->letter->to));
     sess->letter->id = -1;
-    sess->letter->store_f = NULL;
+    sess->letter->storage_f = NULL;
 }
 
 session *make_session(int fd, unsigned int from_ip, unsigned short from_port)
@@ -266,6 +287,28 @@ void cleanup_session(session *sess)
         cleanup_letter(sess->letter);
         free(sess->letter);
     }
+}
+
+// Mail storage i/o
+
+void session_setup_mail_storage_file(session *sess)
+{
+    char full_path[FILENAME_BUFSIZE];
+
+    while (!sess->letter->storage_f) {
+        sess->letter->id = randint(ID_MIN, ID_MAX);
+        snprintf(full_path, sizeof(full_path)-1,
+                 "%s/%d.mail", storage_path, sess->letter->id);
+
+        if (access(full_path, F_OK) == -1)
+            sess->letter->storage_f = fopen(full_path, "w");
+    }
+
+    fprintf(sess->letter->storage_f, "FROM: %s\n", sess->letter->from);
+    fprintf(sess->letter->storage_f, "TO:");
+    for (size_t i = 0; i < sess->letter->to_cnt; i++)
+        fprintf(sess->letter->storage_f, " %s", sess->letter->to[i]);
+    fprintf(sess->letter->storage_f, "\n\nHEADER:\n");
 }
 
 // Session logic functions
@@ -307,11 +350,17 @@ void session_fsm_mail_from_step(session *sess, const char *line)
 
 void session_fsm_rcpt_to_step(session *sess, const char *line)
 {
-    // @TODO: what if no addresses were added to RCPT TO?
     if (match_prefix_advanced(line, data_cmd)) {
-        // @TODO: open file
-        session_send_msg(sess, DATA_CD, data_start_msg);
-        sess->state = fsm_data_header;
+        // Only proceed to data if a reciever was specified with RCPT TO:
+        if (sess->letter->to_cnt == 0) {
+            session_send_msg(sess, NORCPT_CD, norcpt_msg);
+            sess->state = fsm_error;
+        } else {
+            session_send_msg(sess, DATA_CD, data_start_msg);
+            session_setup_mail_storage_file(sess);
+            sess->state = fsm_data_header;
+        }
+
         return;
     }
 
@@ -334,50 +383,31 @@ void session_fsm_rcpt_to_step(session *sess, const char *line)
     add_to_address_to_letter(sess->letter, mail_adr, mail_len);
 }
 
+void session_fsm_data_body_step(session *sess, const char *line)
+{
+    if (streq(line, data_end)) {
+        session_send_msg(sess, OK_CD, mail_store_ok_msg);
+        session_remake_letter(sess);
+        sess->state = fsm_mail_from; // @TODO: do we save mail-from?
+        return;
+    } else if (match_prefix_advanced(line, single_dot_pattern)) {
+        // @TODO: what if last char of pattern is not '.'? conjecture
+        line += sizeof(single_dot_pattern)-2;
+    }
+
+    fprintf(sess->letter->storage_f, "%s\n", line);
+}
+
 void session_fsm_data_header_step(session *sess, const char *line)
 {
     // @TODO: implement real data header constraints?
     // Or not, it may not be intrisic to SMTP
 
-    // @TODO: factor out mutual logic with data body
     if (streq(line, header_end)) {
+        fprintf(sess->letter->storage_f, "\nDATA:\n");
         sess->state = fsm_data_body;
-        return;
-    } else if (streq(line, data_end)) {
-        // @TODO: finish storing message
-        session_send_msg(sess, OK_CD, mail_store_ok_msg);
-        session_remake_letter(sess);
-        sess->state = fsm_mail_from; // @TODO: do we save mail-from?
-        return;
-    } else if (match_prefix_advanced(line, single_dot_pattern)) {
-        // @TODO: what if last char of pattern is not '.'? conjecture
-        line += sizeof(single_dot_pattern)-2;
-    }
-
-    // @TODO: store line in file
-
-    // @TEST
-    printf("Sess %d, header: %s\n", sess->fd, line);
-}
-
-void session_fsm_data_body_step(session *sess, const char *line)
-{
-    // @TODO: factor out mutual logic with data header
-    if (streq(line, data_end)) {
-        // @TODO: finish storing message
-        session_send_msg(sess, OK_CD, mail_store_ok_msg);
-        session_remake_letter(sess);
-        sess->state = fsm_mail_from; // @TODO: do we save mail-from?
-        return;
-    } else if (match_prefix_advanced(line, single_dot_pattern)) {
-        // @TODO: what if last char of pattern is not '.'? conjecture
-        line += sizeof(single_dot_pattern)-2;
-    }
-
-    // @TODO: store line in file
-
-    // @TEST
-    printf("Sess %d: %s\n", sess->fd, line);
+    } else 
+        session_fsm_data_body_step(sess, line);
 }
 
 void session_fsm_step(session *sess, const char *line)
@@ -412,7 +442,6 @@ void session_fsm_step(session *sess, const char *line)
 
 void session_check_lf(session *sess)
 {
-    // @TODO: add too-long message & error
     int pos = -1;
     char *line;
     for (int i = 0; i < sess->buf_used; i++) {
@@ -421,8 +450,11 @@ void session_check_lf(session *sess)
             break;
         }
     }
-    if (pos == -1) 
+    if (pos == -1) {
+        session_send_msg(sess, SYNTAX_CD, too_long_msg);
+        sess->state = fsm_error;
         return;
+    }
 
     line = strndup(sess->buf, pos);
     sess->buf_used -= pos+1;
@@ -452,7 +484,7 @@ int session_do_read(session *sess)
 
 // Server functions
 
-int server_init(server *serv, int port)
+int server_init(int port)
 {
     int sock, opt;
     struct sockaddr_in addr;
@@ -475,36 +507,36 @@ int server_init(server *serv, int port)
     }
 
     listen(sock, LISTEN_QLEN);
-    serv->ls = sock;
+    serv.ls = sock;
 
-    serv->sessions = calloc(INIT_SESS_ARR_SIZE, sizeof(*serv->sessions));
-    serv->sessions_size = INIT_SESS_ARR_SIZE;
+    serv.sessions = calloc(INIT_SESS_ARR_SIZE, sizeof(*serv.sessions));
+    serv.sessions_size = INIT_SESS_ARR_SIZE;
 
     return 1;
 }
 
-void server_accept_client(server *serv)
+void server_accept_client()
 {
     int sd;
     struct sockaddr_in addr;
     socklen_t len = sizeof(addr);
-    sd = accept(serv->ls, (struct sockaddr *) &addr, &len);
+    sd = accept(serv.ls, (struct sockaddr *) &addr, &len);
     if (sd == -1) {
         perror("accept");
         return;
     }
 
-    resize_dynamic_pointer_arr((void ***) &serv->sessions, sd,
-                               &serv->sessions_size, INIT_SESS_ARR_SIZE);
-    serv->sessions[sd] = make_session(sd, addr.sin_addr.s_addr, addr.sin_port);
+    resize_dynamic_pointer_arr((void ***) &serv.sessions, sd,
+                               &serv.sessions_size, INIT_SESS_ARR_SIZE);
+    serv.sessions[sd] = make_session(sd, addr.sin_addr.s_addr, addr.sin_port);
 }
 
-void server_close_session(server *serv, int sd)
+void server_close_session(int sd)
 {
     close(sd);
-    cleanup_session(serv->sessions[sd]);
-    free(serv->sessions[sd]);
-    serv->sessions[sd] = NULL;
+    cleanup_session(serv.sessions[sd]);
+    free(serv.sessions[sd]);
+    serv.sessions[sd] = NULL;
 }
 
 // OS functions
@@ -530,14 +562,31 @@ void daemonize_self()
 }
 #endif
 
+int check_and_prep_dir(char *path)
+{
+    char buf[FILENAME_BUFSIZE];
+
+    size_t plen = strlen(path);
+    if (path[plen-1] == '/')
+        path[plen-1] = '\0';
+
+    snprintf(buf, sizeof(buf)-1, "%s/test.test", path);
+    FILE *f = fopen(buf, "w");
+    if (!f)
+        return 0;
+
+    fclose(f);
+    unlink(buf);
+    return 1;
+}
+
 int main(int argc, char **argv) 
 {
-    server serv;
     long port;
     char *endptr;
 
-    if (argc != 2) {
-        fprintf(stderr, "Args: <port>\n");
+    if (argc != 3) {
+        fprintf(stderr, "Args: <port> <storage dir>\n");
         return -1;
     }
 
@@ -546,13 +595,19 @@ int main(int argc, char **argv)
         fprintf(stderr, "Invalid port number\n");
         return -1;
     }
+
+    storage_path = argv[2];
+    if (!check_and_prep_dir(storage_path))
+        return -1;
         
-    if (!server_init(&serv, port))
+    if (!server_init(port))
         return -1;
 
 #ifndef DEBUG
     daemonize_self();
 #endif
+
+    srand(time(NULL));
 
     for (;;) {
         fd_set readfds;
@@ -575,12 +630,12 @@ int main(int argc, char **argv)
         }
 
         if (FD_ISSET(serv.ls, &readfds))
-            server_accept_client(&serv);
+            server_accept_client();
         for (int i = 0; i < serv.sessions_size; i++) {
             if (serv.sessions[i] && FD_ISSET(i, &readfds)) {
                 int ssr = session_do_read(serv.sessions[i]);
                 if (!ssr)
-                    server_close_session(&serv, i);
+                    server_close_session(i);
             }
         }
     }
