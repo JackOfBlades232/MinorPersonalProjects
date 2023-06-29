@@ -69,6 +69,8 @@ typedef struct server_tag {
 // Hacky macro to enable "goto cleanup" in functions with return codes
 #define return_defer(code) do { result = code; goto defer; } while (0)
 
+#define streq(s1, s2) (strcmp(s1, s2) == 0)
+
 // Server codes
 #define INIT_CD 220
 #define OK_CD 250
@@ -86,7 +88,7 @@ static char data_cmd[] = "DATA";
 static char quit_cmd[] = "QUIT";
 static char header_end[] = "";
 static char data_end[] = ".";
-static char single_dot[] = "..";
+static char single_dot_pattern[] = "..";
 
 static char init_msg[] = "smtp.example.com SMTP";
 static char helo_msg[] = "Greetings, I am glad to meet you";
@@ -139,7 +141,7 @@ void add_to_address_to_letter(mail_letter *letter,
 
 // Match line prefix with given command, and return the pointer to
 // the next char if matched
-const char *check_command(const char *line, const char *cmd)
+const char *match_prefix_advanced(const char *line, const char *cmd)
 {
     for (; *cmd && *cmd == *line; cmd++, line++) {}
     return *cmd == '\0' ? line : NULL;
@@ -271,11 +273,11 @@ void cleanup_session(session *sess)
 void session_fsm_init_step(session *sess, const char *line)
 {
     // on HELO command start dialogue, ignore EHLO, and syntax error all else
-    if (check_command(line, helo_cmd)) {
+    if (match_prefix_advanced(line, helo_cmd)) {
         session_send_msg(sess, OK_CD, helo_msg);
         session_remake_letter(sess);
         sess->state = fsm_mail_from;
-    } else if (!check_command(line, ehlo_cmd)) {
+    } else if (!match_prefix_advanced(line, ehlo_cmd)) {
         session_send_msg(sess, SYNTAX_CD, syntax_msg);
         sess->state = fsm_error;
     }
@@ -283,7 +285,7 @@ void session_fsm_init_step(session *sess, const char *line)
 
 void session_fsm_mail_from_step(session *sess, const char *line)
 {
-    line = check_command(line, mail_from_cmd); 
+    line = match_prefix_advanced(line, mail_from_cmd); 
     if (!line) {
         session_send_msg(sess, SYNTAX_CD, syntax_msg);
         sess->state = fsm_error;
@@ -305,7 +307,15 @@ void session_fsm_mail_from_step(session *sess, const char *line)
 
 void session_fsm_rcpt_to_step(session *sess, const char *line)
 {
-    line = check_command(line, rcpt_to_cmd); 
+    // @TODO: what if no addresses were added to RCPT TO?
+    if (match_prefix_advanced(line, data_cmd)) {
+        // @TODO: open file
+        session_send_msg(sess, DATA_CD, data_start_msg);
+        sess->state = fsm_data_header;
+        return;
+    }
+
+    line = match_prefix_advanced(line, rcpt_to_cmd); 
     if (!line) {
         session_send_msg(sess, SYNTAX_CD, syntax_msg);
         sess->state = fsm_error;
@@ -324,8 +334,59 @@ void session_fsm_rcpt_to_step(session *sess, const char *line)
     add_to_address_to_letter(sess->letter, mail_adr, mail_len);
 }
 
+void session_fsm_data_header_step(session *sess, const char *line)
+{
+    // @TODO: implement real data header constraints?
+    // Or not, it may not be intrisic to SMTP
+
+    // @TODO: factor out mutual logic with data body
+    if (streq(line, header_end)) {
+        sess->state = fsm_data_body;
+        return;
+    } else if (streq(line, data_end)) {
+        // @TODO: finish storing message
+        session_send_msg(sess, OK_CD, mail_store_ok_msg);
+        session_remake_letter(sess);
+        sess->state = fsm_mail_from; // @TODO: do we save mail-from?
+        return;
+    } else if (match_prefix_advanced(line, single_dot_pattern)) {
+        // @TODO: what if last char of pattern is not '.'? conjecture
+        line += sizeof(single_dot_pattern)-2;
+    }
+
+    // @TODO: store line in file
+
+    // @TEST
+    printf("Sess %d, header: %s\n", sess->fd, line);
+}
+
+void session_fsm_data_body_step(session *sess, const char *line)
+{
+    // @TODO: factor out mutual logic with data header
+    if (streq(line, data_end)) {
+        // @TODO: finish storing message
+        session_send_msg(sess, OK_CD, mail_store_ok_msg);
+        session_remake_letter(sess);
+        sess->state = fsm_mail_from; // @TODO: do we save mail-from?
+        return;
+    } else if (match_prefix_advanced(line, single_dot_pattern)) {
+        // @TODO: what if last char of pattern is not '.'? conjecture
+        line += sizeof(single_dot_pattern)-2;
+    }
+
+    // @TODO: store line in file
+
+    // @TEST
+    printf("Sess %d: %s\n", sess->fd, line);
+}
+
 void session_fsm_step(session *sess, const char *line)
 {
+    if (match_prefix_advanced(line, quit_cmd)) {
+        session_send_msg(sess, QUIT_CD, bye_msg);
+        sess->state = fsm_finish;
+    }
+
     switch (sess->state) {
         case fsm_init:
             session_fsm_init_step(sess, line);
@@ -337,14 +398,12 @@ void session_fsm_step(session *sess, const char *line)
             session_fsm_rcpt_to_step(sess, line);
             break;
         case fsm_data_header:
-            // @TEST
-            sess->state = fsm_finish;
+            session_fsm_data_header_step(sess, line);
             break;
         case fsm_data_body:
-            
+            session_fsm_data_body_step(sess, line);
             break;
 
-        // should not happen
         case fsm_finish:
         case fsm_error:
             break;
@@ -353,6 +412,7 @@ void session_fsm_step(session *sess, const char *line)
 
 void session_check_lf(session *sess)
 {
+    // @TODO: add too-long message & error
     int pos = -1;
     char *line;
     for (int i = 0; i < sess->buf_used; i++) {
@@ -384,8 +444,6 @@ int session_do_read(session *sess)
     }
 
     sess->buf_used += rc;
-
-    // @TODO: organize a cycle?
     session_check_lf(sess);
 
     return sess->state != fsm_finish &&
