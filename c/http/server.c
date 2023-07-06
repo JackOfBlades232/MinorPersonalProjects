@@ -10,15 +10,17 @@
 #include <sys/select.h>
 #include <netinet/in.h>
 
-// A simple HTTP/1.1 server which only processes GET requests
+// A simple HTTP/1.1 server which only processes GET requests for a given
+// html file
 
 // Listen queue len for TCP
 #define LISTEN_QLEN 16
 // Init size (and size step for resizing) of the array of session structs
 #define INIT_SESS_ARR_SIZE 32
 // Input bufsize, also treated as max line len for request, since there
-// will be no body in GET requests
+// will be no body in GET requests, and out bufsize
 #define INBUFSIZE 1000
+#define OUTBUFSIZE 1000
 // All server return codes must have three digits
 #define CODE_DIGITS 3
 
@@ -40,7 +42,8 @@ typedef struct session_tag {
     char buf[INBUFSIZE];
     size_t buf_used;
 
-    // @TODO: add out buf
+    char out_buf[OUTBUFSIZE];
+    size_t out_buf_used;
 
     fsm_state state;
 } session;
@@ -75,13 +78,19 @@ static const char not_found_resp[] = "RESOURCE NOT FOUND";
 static const char no_length_resp[] = "SPECIFY BODY LENGTH";
 static const char not_implemented_resp[] = "NOT IMPLEMENTED";
 
+static const char date_header_fmt[] = "Date: %s";
+static const char server_headeer[] = "Server: some pc somewhere";
 static const char connection_header[] = "Connection: close";
+static const char content_length_header_fmt[] = "Content-Length: %d";
+static const char content_type_header[] = "Content-Type: text/html";
 
-// @TODO: add boilerplate reply texts
+// Other constant strings
+static const char html_extension[] = ".html";
+#define HTML_EXT_LEN sizeof(html_extension)/sizeof(*html_extension) - 1
 
 // Global state: server struct and path to mail storage
 static server serv;
-static char *file_dirpath;
+static char *file_path;
 
 // Dyn arr funcs
 
@@ -133,6 +142,7 @@ session *make_session(int fd, unsigned int from_ip, unsigned short from_port)
     sess->from_ip = ntohl(from_ip);
     sess->from_port = ntohs(from_port);
     sess->buf_used = 0;
+    sess->out_buf_used = 0;
     sess->state = fsm_init;
 
     return sess;
@@ -259,7 +269,35 @@ void server_close_session(int sd)
     serv.sessions[sd] = NULL;
 }
 
-// OS functions
+// Other stuff
+
+int check_file(const char *path)
+{
+    size_t path_len = strlen(path);
+    if (path_len < HTML_EXT_LEN) {
+        fprintf(stderr, "File must have .html extension\n");
+        return 0;
+    }
+
+    const char *match_p = path + (path_len - HTML_EXT_LEN);
+    const char *ext_p = html_extension;
+
+    // What. The fuck. (10-5 =???? 3)
+    printf("%d %d %d %c %c\n", path_len - HTML_EXT_LEN, path_len, HTML_EXT_LEN, *match_p, *ext_p);
+
+    for (; *match_p && *ext_p && *match_p == *ext_p; match_p++, ext_p++) {}
+    if (*match_p != *ext_p) {
+        fprintf(stderr, "File must have .html extension\n");
+        return 0;
+    }
+
+    if (access(path, R_OK) == -1) {
+        fprintf(stderr, "The given file is not readable\n");
+        return 0;
+    }
+
+    return 1;
+}
 
 #ifndef DEBUG
 void daemonize_self()
@@ -282,24 +320,13 @@ void daemonize_self()
 }
 #endif
 
-int check_dir(char *path)
-{
-    // @TODO: check dir for file lookups, with logging error here
-    return 0;
-}
-
 int main(int argc, char **argv) 
 {
-#ifdef TEST
-    test_email_format_checking();
-    return 0;
-#endif
-
     long port;
     char *endptr;
 
     if (argc != 3) {
-        fprintf(stderr, "Args: <port> <file dir>\n");
+        fprintf(stderr, "Args: <port> <file path>\n");
         return -1;
     }
 
@@ -309,8 +336,8 @@ int main(int argc, char **argv)
         return -1;
     }
 
-    file_dirpath = argv[2];
-    if (!check_dir(file_dirpath))
+    file_path = argv[2];
+    if (!check_file(file_path))
         return -1;
         
     if (!server_init(port))
