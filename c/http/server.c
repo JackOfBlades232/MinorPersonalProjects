@@ -60,9 +60,23 @@ typedef struct server_tag {
 #define streq(s1, s2) (strcmp(s1, s2) == 0)
 
 // Server codes
-// @TODO: add codes
+#define OK_CD 200
+#define BAD_CD 400
+#define NOT_FOUND_CD 404
+#define NO_LENGTH_CD 411
+#define NOT_IMPLEMENTED_CD 501
 
 // Standard server commands and text messages
+static const char http_version[] = "HTTP/1.1";
+static const char get_cmd[] = "GET";
+static const char ok_resp[] = "OK";
+static const char bad_resp[] = "BAD REQUEST";
+static const char not_found_resp[] = "RESOURCE NOT FOUND";
+static const char no_length_resp[] = "SPECIFY BODY LENGTH";
+static const char not_implemented_resp[] = "NOT IMPLEMENTED";
+
+static const char connection_header[] = "Connection: close";
+
 // @TODO: add boilerplate reply texts
 
 // Global state: server struct and path to mail storage
