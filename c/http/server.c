@@ -12,6 +12,8 @@
 #include <sys/select.h>
 #include <netinet/in.h>
 
+// @TODO: fix the multi-chunk file bug
+
 // A simple HTTP/1.1 server which only processes GET requests for a given
 // html file
 
@@ -29,9 +31,7 @@
 // Single client session states
 typedef enum fsm_state_tag {
     fsm_await,
-    fsm_headers,
-    fsm_body,
-    fsm_response_headers,
+    fsm_headers_and_body,
     fsm_response_body,
     fsm_finish,
     fsm_error
@@ -49,6 +49,9 @@ typedef struct session_tag {
 
     char out_buf[OUTBUFSIZE];
     size_t out_buf_used;
+
+    int html_fd;
+    int last_read_res;
 
     fsm_state state;
 } session;
@@ -71,7 +74,6 @@ typedef struct server_tag {
 #define OK_CD 200
 #define BAD_CD 400
 #define NOT_FOUND_CD 404
-#define NO_LENGTH_CD 411
 #define NOT_IMPLEMENTED_CD 501
 
 // Standard server commands and text messages
@@ -80,14 +82,11 @@ static const char get_cmd[] = "GET";
 static const char ok_resp[] = "OK";
 static const char bad_resp[] = "BAD REQUEST";
 static const char not_found_resp[] = "RESOURCE NOT FOUND";
-static const char no_length_resp[] = "SPECIFY BODY LENGTH";
 static const char not_implemented_resp[] = "NOT IMPLEMENTED";
 
-static const char date_header_fmt[] = "Date: %s";
-static const char server_headeer[] = "Server: some pc somewhere";
-static const char last_modified_header[] = "Last-Modified: %s";
+static const char server_header[] = "Server: some pc somewhere";
 static const char connection_header[] = "Connection: close";
-static const char content_length_header_fmt[] = "Content-Length: %d";
+static const char content_length_header[] = "Content-Length:";
 static const char content_type_header[] = "Content-Type: text/html";
 
 // Other constant strings
@@ -96,6 +95,7 @@ static const char html_extension[] = ".html";
 // Global state: server struct and path to mail storage
 static server serv;
 static char *file_path;
+static off_t file_size;
 
 // Dyn arr funcs
 
@@ -117,7 +117,7 @@ void resize_dynamic_pointer_arr(void ***arr, size_t i,
 
 // Match line prefix with given command, and return the pointer to
 // the next char if matched
-const char *match_prefix_advanced(const char *line, const char *cmd)
+const char *match_prefix_and_advance(const char *line, const char *cmd)
 {
     for (; *cmd && *cmd == *line; cmd++, line++) {}
     return *cmd == '\0' ? line : NULL;
@@ -133,16 +133,83 @@ const char *skip_spc(const char *line)
 
 // Sending standard server response: "protocol code contents<CR><LF>", where
 // code has an exact number of digits
-int session_post_data(session *sess, const char *str, size_t len)
+void session_send_str(session *sess, const char *str)
 {
-    if (len > OUTBUFSIZE - sess->out_buf_used)
+    write(sess->fd, str, strlen(str));
+}
+
+void session_add_header(session *sess, const char *header)
+{
+    sess->out_buf_used += sprintf(sess->out_buf+sess->out_buf_used, 
+                                  "%s\r\n", header);
+}
+
+void session_add_content_len(session *sess)
+{
+    sess->out_buf_used += sprintf(sess->out_buf+sess->out_buf_used,
+                                  "%s %ld\r\n", 
+                                  content_length_header, file_size);
+}
+
+void session_add_headers_end(session *sess)
+{
+    sess->out_buf_used += sprintf(sess->out_buf+sess->out_buf_used, "\r\n");
+}
+
+int session_send_response_headers(session *sess, int code)
+{
+    // Bypass posting, since in this state write buffer is empty and
+    // the headers will surely fit
+    if (sess->out_buf_used != 0)
         return 0;
 
-    memcpy(sess->out_buf + sess->out_buf_used, str, len);
+    sess->out_buf_used += sprintf(sess->out_buf, "%s %d ", http_version, code);
+
+    time_t t;
+    time(&t);
+
+    switch (code) {
+        case OK_CD:
+            session_add_header(sess, ok_resp);
+            session_add_header(sess, server_header);
+            session_add_header(sess, connection_header);
+            session_add_content_len(sess);
+            session_add_header(sess, content_type_header);
+            break;
+        case BAD_CD:
+            session_add_header(sess, bad_resp);
+            session_add_header(sess, server_header);
+            session_add_header(sess, connection_header);
+            break;
+        case NOT_FOUND_CD:
+            session_add_header(sess, not_found_resp);
+            session_add_header(sess, server_header);
+            session_add_header(sess, connection_header);
+            break;
+        case NOT_IMPLEMENTED_CD:
+            session_add_header(sess, not_implemented_resp);
+            session_add_header(sess, server_header);
+            session_add_header(sess, connection_header);
+            break;
+        default:
+            return 0;
+    }
+
+    session_add_headers_end(sess);
+
+    write(sess->fd, sess->out_buf, sess->out_buf_used);
+    sess->out_buf_used = 0;
     return 1;
 }
 
-// @TODO: impl response logical posting
+void session_queue_file_chunk(session *sess)
+{
+    sess->last_read_res = read(sess->html_fd, sess->out_buf, OUTBUFSIZE-sess->out_buf_used);
+    if (sess->last_read_res == -1)
+        sess->state = fsm_error;
+    else
+        sess->out_buf_used += sess->last_read_res;
+}
 
 session *make_session(int fd, unsigned int from_ip, unsigned short from_port)
 {
@@ -152,6 +219,8 @@ session *make_session(int fd, unsigned int from_ip, unsigned short from_port)
     sess->from_port = ntohs(from_port);
     sess->buf_used = 0;
     sess->out_buf_used = 0;
+    sess->html_fd = -1;
+    sess->last_read_res = 0;
     sess->state = fsm_await;
 
     return sess;
@@ -159,43 +228,58 @@ session *make_session(int fd, unsigned int from_ip, unsigned short from_port)
 
 void cleanup_session(session *sess)
 {
-    // @TODO: impl (for html fd)
+    if (sess->html_fd != -1) close(sess->html_fd);
     return;
 }
 
 // Session logic functions
 
+void session_fms_await_step(session *sess, const char *line)
+{
+    line = match_prefix_and_advance(line, get_cmd);
+    if (!line || *line != ' ') {
+        int code = !line ? NOT_IMPLEMENTED_CD : BAD_CD;
+        session_send_response_headers(sess, code);
+        if (code == BAD_CD)
+            sess->state = fsm_error;
+        return;
+    }
+
+    line++;
+    if (*line != '/') {
+        session_send_response_headers(sess, BAD_CD);
+        sess->state = fsm_error;
+        return;
+    }
+
+    line++;
+    if (*line == ' ' || (line = match_prefix_and_advance(line, file_path)))
+        line++;
+    else {
+        session_send_response_headers(sess, NOT_FOUND_CD);
+        return;
+    }
+
+    line  = match_prefix_and_advance(line, http_version);
+    sess->state = (line && *line == '\0') ? fsm_headers_and_body : fsm_error;
+}
+
 void session_fsm_input_step(session *sess, const char *line)
 {
     switch (sess->state) {
-        // @TODO: impl request parsing
         case fsm_await:
+            session_fms_await_step(sess, line);
             break;
-        case fsm_headers:
-            break;
-        case fsm_body:
+        case fsm_headers_and_body:
+            if (*line == '\0') {
+                session_send_response_headers(sess, OK_CD);
+                sess->html_fd = open(file_path, O_RDONLY);
+                sess->state = fsm_response_body;
+                session_queue_file_chunk(sess);
+            }
             break;
 
-        case fsm_response_headers:
         case fsm_response_body:
-        case fsm_finish:
-        case fsm_error:
-            break;
-    }
-}
-
-void session_fsm_output_step(session *sess)
-{
-    switch (sess->state) {
-        // @TODO: impl response posting
-        case fsm_response_headers:
-            break;
-        case fsm_response_body:
-            break;
-
-        case fsm_body:
-        case fsm_headers:
-        case fsm_await:
         case fsm_finish:
         case fsm_error:
             break;
@@ -213,12 +297,9 @@ void session_check_lf(session *sess)
         }
     }
     if (pos == -1) {
-        // @TODO: too long line msg?
         sess->state = fsm_error;
         return;
     }
-
-    // @TODO: do not extract line if responding
 
     line = strndup(sess->buf, pos);
     sess->buf_used -= pos+1;
@@ -233,6 +314,9 @@ void session_check_lf(session *sess)
 int session_do_read(session *sess)
 {
     int rc, bufp = sess->buf_used;
+    if (sess->state == fsm_response_body)
+        return 1;
+
     rc = read(sess->fd, sess->buf + bufp, INBUFSIZE-bufp);
     if (rc <= 0) {
         sess->state = fsm_error;
@@ -245,12 +329,6 @@ int session_do_read(session *sess)
 
     return sess->state != fsm_finish &&
            sess->state != fsm_error;
-}
-
-void session_queue_data(session *sess)
-{
-    // @TODO: something else, general?
-    session_fsm_output_step(sess);
 }
 
 int session_do_write(session *sess)
@@ -266,9 +344,16 @@ int session_do_write(session *sess)
     }
 
     sess->out_buf_used -= wc;
-    if (sess->out_buf_used <= 0)
-        session_queue_data(sess);
-    else
+    if (sess->out_buf_used <= 0) {
+        if (sess->last_read_res > 0)
+            session_queue_file_chunk(sess);
+        else {
+            session_send_str(sess, "\r\n");
+            close(sess->html_fd);
+            sess->html_fd = -1;
+            sess->state = fsm_await;
+        }
+    } else
         memmove(sess->out_buf, sess->out_buf+wc, sess->out_buf_used);
 
     return sess->state != fsm_finish &&
@@ -364,6 +449,17 @@ int check_file(const char *path)
     return 1;
 }
 
+off_t calculate_file_size(const char *path)
+{
+    int fd = open(path, O_RDONLY);
+    if (fd == -1)
+        return -1;
+
+    off_t len = lseek(fd, 0, SEEK_END);
+    close(fd);
+    return len;
+}
+
 #ifndef DEBUG
 void daemonize_self()
 {
@@ -404,6 +500,12 @@ int main(int argc, char **argv)
     file_path = argv[2];
     if (!check_file(file_path))
         return -1;
+
+    file_size = calculate_file_size(file_path);
+    if (file_size == -1) {
+        fprintf(stderr, "Failed to calculate file length\n");
+        return -1;
+    }
         
     if (!server_init(port))
         return -1;
