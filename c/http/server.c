@@ -5,7 +5,9 @@
 #include <string.h>
 #include <time.h>
 #include <errno.h>
+#include <fcntl.h>
 #include <sys/types.h>
+#include <sys/stat.h>
 #include <sys/socket.h>
 #include <sys/select.h>
 #include <netinet/in.h>
@@ -26,8 +28,11 @@
 
 // Single client session states
 typedef enum fsm_state_tag {
-    fsm_init,
-    // @TODO: add states
+    fsm_await,
+    fsm_headers,
+    fsm_body,
+    fsm_response_headers,
+    fsm_response_body,
     fsm_finish,
     fsm_error
 } fsm_state;
@@ -80,13 +85,13 @@ static const char not_implemented_resp[] = "NOT IMPLEMENTED";
 
 static const char date_header_fmt[] = "Date: %s";
 static const char server_headeer[] = "Server: some pc somewhere";
+static const char last_modified_header[] = "Last-Modified: %s";
 static const char connection_header[] = "Connection: close";
 static const char content_length_header_fmt[] = "Content-Length: %d";
 static const char content_type_header[] = "Content-Type: text/html";
 
 // Other constant strings
 static const char html_extension[] = ".html";
-#define HTML_EXT_LEN sizeof(html_extension)/sizeof(*html_extension) - 1
 
 // Global state: server struct and path to mail storage
 static server serv;
@@ -128,12 +133,16 @@ const char *skip_spc(const char *line)
 
 // Sending standard server response: "protocol code contents<CR><LF>", where
 // code has an exact number of digits
-int session_send_msg(session *sess, int code, const char *str)
+int session_post_data(session *sess, const char *str, size_t len)
 {
-    // @TODO: impl send
-    // @TODO: implement followup with headers/body
-    return 0;
+    if (len > OUTBUFSIZE - sess->out_buf_used)
+        return 0;
+
+    memcpy(sess->out_buf + sess->out_buf_used, str, len);
+    return 1;
 }
+
+// @TODO: impl response logical posting
 
 session *make_session(int fd, unsigned int from_ip, unsigned short from_port)
 {
@@ -143,26 +152,50 @@ session *make_session(int fd, unsigned int from_ip, unsigned short from_port)
     sess->from_port = ntohs(from_port);
     sess->buf_used = 0;
     sess->out_buf_used = 0;
-    sess->state = fsm_init;
+    sess->state = fsm_await;
 
     return sess;
 }
 
 void cleanup_session(session *sess)
 {
-    // @TODO: impl (for out buf)
+    // @TODO: impl (for html fd)
     return;
 }
 
 // Session logic functions
 
-void session_fsm_step(session *sess, const char *line)
+void session_fsm_input_step(session *sess, const char *line)
 {
     switch (sess->state) {
-        case fsm_init:
-            // @TODO: impl logic
+        // @TODO: impl request parsing
+        case fsm_await:
+            break;
+        case fsm_headers:
+            break;
+        case fsm_body:
             break;
 
+        case fsm_response_headers:
+        case fsm_response_body:
+        case fsm_finish:
+        case fsm_error:
+            break;
+    }
+}
+
+void session_fsm_output_step(session *sess)
+{
+    switch (sess->state) {
+        // @TODO: impl response posting
+        case fsm_response_headers:
+            break;
+        case fsm_response_body:
+            break;
+
+        case fsm_body:
+        case fsm_headers:
+        case fsm_await:
         case fsm_finish:
         case fsm_error:
             break;
@@ -185,13 +218,15 @@ void session_check_lf(session *sess)
         return;
     }
 
+    // @TODO: do not extract line if responding
+
     line = strndup(sess->buf, pos);
     sess->buf_used -= pos+1;
     memmove(sess->buf, sess->buf+pos+1, sess->buf_used);
     if (line[pos-1] == '\r')
         line[pos-1] = '\0';
 
-    session_fsm_step(sess, line);
+    session_fsm_input_step(sess, line);
     free(line);
 }
 
@@ -207,6 +242,34 @@ int session_do_read(session *sess)
     sess->buf_used += rc;
     while (sess->buf_used > 0)
         session_check_lf(sess);
+
+    return sess->state != fsm_finish &&
+           sess->state != fsm_error;
+}
+
+void session_queue_data(session *sess)
+{
+    // @TODO: something else, general?
+    session_fsm_output_step(sess);
+}
+
+int session_do_write(session *sess)
+{
+    int wc;
+    if (sess->out_buf_used <= 0)
+        return 1;
+
+    wc = write(sess->fd, sess->out_buf, sess->out_buf_used);
+    if (wc <= 0) {
+        sess->state = fsm_error;
+        return 0;
+    }
+
+    sess->out_buf_used -= wc;
+    if (sess->out_buf_used <= 0)
+        session_queue_data(sess);
+    else
+        memmove(sess->out_buf, sess->out_buf+wc, sess->out_buf_used);
 
     return sess->state != fsm_finish &&
            sess->state != fsm_error;
@@ -256,6 +319,9 @@ void server_accept_client()
         return;
     }
 
+    int flags = fcntl(sd, F_GETFL);
+    fcntl(sd, F_SETFL, flags | O_NONBLOCK);
+
     resize_dynamic_pointer_arr((void ***) &serv.sessions, sd,
                                &serv.sessions_size, INIT_SESS_ARR_SIZE);
     serv.sessions[sd] = make_session(sd, addr.sin_addr.s_addr, addr.sin_port);
@@ -274,16 +340,15 @@ void server_close_session(int sd)
 int check_file(const char *path)
 {
     size_t path_len = strlen(path);
-    if (path_len < HTML_EXT_LEN) {
+    size_t html_ext_len = strlen(html_extension);
+    if (path_len < html_ext_len) {
         fprintf(stderr, "File must have .html extension\n");
         return 0;
     }
 
-    const char *match_p = path + (path_len - HTML_EXT_LEN);
+    size_t offset = path_len - html_ext_len;
+    const char *match_p = path + offset;
     const char *ext_p = html_extension;
-
-    // What. The fuck. (10-5 =???? 3)
-    printf("%d %d %d %c %c\n", path_len - HTML_EXT_LEN, path_len, HTML_EXT_LEN, *match_p, *ext_p);
 
     for (; *match_p && *ext_p && *match_p == *ext_p; match_p++, ext_p++) {}
     if (*match_p != *ext_p) {
@@ -347,20 +412,18 @@ int main(int argc, char **argv)
     daemonize_self();
 #endif
 
-    srand(time(NULL));
-
-    // @TODO: implement writefds, posting and writes in select for big
-    // files, like in bbs
-
     for (;;) {
-        fd_set readfds;
+        fd_set readfds, writefds;
         FD_ZERO(&readfds);
+        FD_ZERO(&writefds);
+
         FD_SET(serv.ls, &readfds);
 
         int maxfd = serv.ls;
         for (int i = 0; i < serv.sessions_size; i++) {
             if (serv.sessions[i]) {
                 FD_SET(i, &readfds);
+                FD_SET(i, &writefds);
                 if (i > maxfd)
                     maxfd = i;
             }
@@ -375,10 +438,19 @@ int main(int argc, char **argv)
         if (FD_ISSET(serv.ls, &readfds))
             server_accept_client();
         for (int i = 0; i < serv.sessions_size; i++) {
-            if (serv.sessions[i] && FD_ISSET(i, &readfds)) {
-                int ssr = session_do_read(serv.sessions[i]);
-                if (!ssr)
+            if (serv.sessions[i]) {
+                if (
+                        (
+                         FD_ISSET(i, &readfds) &&
+                         !session_do_read(serv.sessions[i])
+                        ) ||
+                        (
+                         FD_ISSET(i, &writefds) &&
+                         !session_do_write(serv.sessions[i])
+                        )
+                   ) {
                     server_close_session(i);
+                }
             }
         }
     }
