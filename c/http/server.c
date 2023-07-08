@@ -51,7 +51,6 @@ typedef struct session_tag {
     size_t out_buf_used;
 
     int html_fd;
-    int last_read_res;
 
     fsm_state state;
 } session;
@@ -202,13 +201,14 @@ int session_send_response_headers(session *sess, int code)
     return 1;
 }
 
-void session_queue_file_chunk(session *sess)
+int session_queue_file_chunk(session *sess)
 {
-    sess->last_read_res = read(sess->html_fd, sess->out_buf, OUTBUFSIZE-sess->out_buf_used);
-    if (sess->last_read_res == -1)
+    int read_res = read(sess->html_fd, sess->out_buf, OUTBUFSIZE-sess->out_buf_used);
+    if (read_res == -1)
         sess->state = fsm_error;
     else
-        sess->out_buf_used += sess->last_read_res;
+        sess->out_buf_used += read_res;
+    return read_res;
 }
 
 session *make_session(int fd, unsigned int from_ip, unsigned short from_port)
@@ -220,7 +220,6 @@ session *make_session(int fd, unsigned int from_ip, unsigned short from_port)
     sess->buf_used = 0;
     sess->out_buf_used = 0;
     sess->html_fd = -1;
-    sess->last_read_res = 0;
     sess->state = fsm_await;
 
     return sess;
@@ -275,7 +274,9 @@ void session_fsm_input_step(session *sess, const char *line)
                 session_send_response_headers(sess, OK_CD);
                 sess->html_fd = open(file_path, O_RDONLY);
                 sess->state = fsm_response_body;
-                session_queue_file_chunk(sess);
+                int queue_res = session_queue_file_chunk(sess);
+                if (queue_res == -1)
+                    sess->state = fsm_error;
             }
             break;
 
@@ -334,7 +335,7 @@ int session_do_read(session *sess)
 int session_do_write(session *sess)
 {
     int wc;
-    if (sess->out_buf_used <= 0)
+    if (sess->state != fsm_response_body)
         return 1;
 
     wc = write(sess->fd, sess->out_buf, sess->out_buf_used);
@@ -345,9 +346,10 @@ int session_do_write(session *sess)
 
     sess->out_buf_used -= wc;
     if (sess->out_buf_used <= 0) {
-        if (sess->last_read_res > 0)
-            session_queue_file_chunk(sess);
-        else {
+        int queue_res = session_queue_file_chunk(sess);
+        if (queue_res == -1)
+            sess->state = fsm_error;
+        else if (queue_res == 0) {
             session_send_str(sess, "\r\n");
             close(sess->html_fd);
             sess->html_fd = -1;
@@ -525,13 +527,14 @@ int main(int argc, char **argv)
         for (int i = 0; i < serv.sessions_size; i++) {
             if (serv.sessions[i]) {
                 FD_SET(i, &readfds);
-                FD_SET(i, &writefds);
+                if (serv.sessions[i]->out_buf_used > 0)
+                    FD_SET(i, &writefds);
                 if (i > maxfd)
                     maxfd = i;
             }
         }
 
-        int sr = select(maxfd+1, &readfds, NULL, NULL, NULL);
+        int sr = select(maxfd+1, &readfds, &writefds, NULL, NULL);
         if (sr == -1) {
             perror("select");
             return -1;
