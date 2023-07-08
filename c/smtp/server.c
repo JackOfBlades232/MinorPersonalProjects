@@ -5,7 +5,9 @@
 #include <string.h>
 #include <time.h>
 #include <errno.h>
+#include <fcntl.h>
 #include <sys/types.h>
+#include <sys/stat.h>
 #include <sys/socket.h>
 #include <sys/select.h>
 #include <netinet/in.h>
@@ -643,7 +645,6 @@ void daemonize_self()
     open("/dev/null", O_RDONLY);
     open("/dev/null", O_WRONLY);
     open("/dev/null", O_WRONLY);
-    chdir("/");
     pid = fork();
     if (pid > 0)
         exit(0);
@@ -740,13 +741,13 @@ int main(int argc, char **argv)
     storage_path = argv[2];
     if (!check_and_prep_dir(storage_path))
         return -1;
-        
-    if (!server_init(port))
-        return -1;
 
 #ifndef DEBUG
     daemonize_self();
 #endif
+        
+    if (!server_init(port))
+        return -1;
 
     srand(time(NULL));
 
